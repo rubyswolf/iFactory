@@ -112,16 +112,70 @@
       </div>
 
       <div class="page page-next" data-page-next>
-        <section class="panel next-panel">
-          <div class="eyebrow">Setup complete</div>
-          <h2>Ready to build.</h2>
-          <p>
-            You can reset setup to test the onboarding flow again.
-          </p>
-          <button class="secondary" data-setup-reset type="button">
-            Reset
-          </button>
-        </section>
+        <header class="titlebar reveal">
+          <div class="brand">
+            <div class="logo">iFactory</div>
+            <div class="byline">
+              by Dart Spark <span class="dot">|</span>
+              <span data-app-version>v0.1.0</span>
+            </div>
+          </div>
+          <div class="home-actions">
+            <button class="ghost" data-setup-reset type="button">
+              Reset setup
+            </button>
+          </div>
+        </header>
+
+        <main class="home-grid">
+          <section class="panel home-card home-recent reveal">
+            <div class="eyebrow">Open recent</div>
+            <h2>Jump back in fast.</h2>
+            <div class="recent-list">
+              <div class="recent-item">
+                <div class="recent-name">PrismDrive</div>
+                <div class="recent-path">C:\Audio\PrismDrive</div>
+              </div>
+              <div class="recent-item">
+                <div class="recent-name">Echo Bloom</div>
+                <div class="recent-path">D:\Plugins\EchoBloom</div>
+              </div>
+              <div class="recent-item">
+                <div class="recent-name">Lumen Gate</div>
+                <div class="recent-path">C:\Work\iPlug2\LumenGate</div>
+              </div>
+            </div>
+            <button class="ghost">Show all recents</button>
+          </section>
+
+          <section class="panel home-card home-create reveal">
+            <div class="eyebrow">Create</div>
+            <h2>Start a fresh plugin.</h2>
+            <p class="card-meta">
+              Generate a new iPlug2 project with presets, UI scaffolding, and
+              build targets.
+            </p>
+            <button class="cta">Create project</button>
+          </section>
+
+          <section class="panel home-card home-open reveal">
+            <div class="eyebrow">Open</div>
+            <h2>Pick a local project.</h2>
+            <p class="card-meta">
+              Open an existing workspace on disk and resume work instantly.
+            </p>
+            <button class="secondary">Open project</button>
+          </section>
+
+          <section class="panel home-card home-clone reveal">
+            <div class="eyebrow">Clone</div>
+            <h2>Bring in a repo.</h2>
+            <p class="card-meta">
+              Clone from GitHub to sync your projects across machines.
+            </p>
+            <button class="secondary">Clone project</button>
+          </section>
+        </main>
       </div>
     </div>
 
