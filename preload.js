@@ -14,5 +14,12 @@ contextBridge.exposeInMainWorld("ifactory", {
       ipcRenderer.invoke("github:devicePoll", { deviceCode }),
     disconnect: () => ipcRenderer.invoke("github:disconnect")
   },
+  windowControls: {
+    minimize: () => ipcRenderer.invoke("window:minimize"),
+    maximize: () => ipcRenderer.invoke("window:maximize"),
+    toggleMaximize: () => ipcRenderer.invoke("window:toggleMaximize"),
+    isMaximized: () => ipcRenderer.invoke("window:isMaximized"),
+    close: () => ipcRenderer.invoke("window:close")
+  },
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url)
 });

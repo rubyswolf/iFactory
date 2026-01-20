@@ -107,6 +107,40 @@ const registerIpc = () => {
     }
     return shell.openExternal(url);
   });
+  ipcMain.handle("window:minimize", (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (window) {
+      window.minimize();
+    }
+  });
+  ipcMain.handle("window:maximize", (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (window && !window.isMaximized()) {
+      window.maximize();
+    }
+  });
+  ipcMain.handle("window:toggleMaximize", (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) {
+      return false;
+    }
+    if (window.isMaximized()) {
+      window.unmaximize();
+    } else {
+      window.maximize();
+    }
+    return window.isMaximized();
+  });
+  ipcMain.handle("window:isMaximized", (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    return window ? window.isMaximized() : false;
+  });
+  ipcMain.handle("window:close", (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (window) {
+      window.close();
+    }
+  });
   ipcMain.handle("github:deviceStart", async (event, payload) => {
     const scopes = Array.isArray(payload?.scopes)
       ? payload.scopes.join(" ")
@@ -233,6 +267,7 @@ const createWindow = () => {
     minHeight: 640,
     title: "iFactory",
     backgroundColor: "#0b0f14",
+    frame: false,
     autoHideMenuBar: true,
     show: false,
     webPreferences: {

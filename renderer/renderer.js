@@ -209,8 +209,49 @@ const setupGithubOAuth = () => {
   loadGithub();
 };
 
+const setupWindowControls = () => {
+  if (!window.ifactory?.windowControls) {
+    return;
+  }
+
+  const minimizeButtons = document.querySelectorAll("[data-window-minimize]");
+  const maximizeButtons = document.querySelectorAll("[data-window-maximize]");
+  const closeButtons = document.querySelectorAll("[data-window-close]");
+
+  const refreshMaxState = async () => {
+    try {
+      const isMaximized = await window.ifactory.windowControls.isMaximized();
+      document.body.classList.toggle("is-maximized", Boolean(isMaximized));
+    } catch (error) {
+      console.error("Failed to read window state", error);
+    }
+  };
+
+  minimizeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      window.ifactory.windowControls.minimize();
+    });
+  });
+
+  maximizeButtons.forEach((button) => {
+    button.addEventListener("click", async () => {
+      await window.ifactory.windowControls.toggleMaximize();
+      refreshMaxState();
+    });
+  });
+
+  closeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      window.ifactory.windowControls.close();
+    });
+  });
+
+  refreshMaxState();
+};
+
 document.addEventListener("DOMContentLoaded", () => {
   scheduleReveals();
   hydrateAppMeta();
   setupGithubOAuth();
+  setupWindowControls();
 });
