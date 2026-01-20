@@ -34,28 +34,67 @@
 
       <main class="layout">
         <section class="panel hero reveal">
-          <div class="eyebrow">Workbench</div>
+          <div class="eyebrow">Get started</div>
           <h1>Forge studio-ready audio plugins in minutes.</h1>
           <p data-app-description>
-            An AI plugin building tool using the Codex CLI and iPlug2 plugin
-            framework
+            Build plugins with the iPlug2 framework, Codex and GitHub all in one
+            integrated environment
           </p>
-          <div class="hero-actions">
-            <button class="secondary">Open Workspace</button>
-            <button class="ghost">View Templates</button>
-          </div>
-          <div class="metrics">
-            <div class="metric">
-              <span class="label">Sessions</span>
-              <span class="value">12 active</span>
+          <div class="connect">
+            <div class="connect-header">
+              <div>
+                <div class="connect-title">Connect to GitHub</div>
+                <div class="connect-meta">
+                  OAuth once to sync repos and stay in one workspace.
+                </div>
+              </div>
+              <span class="connect-status" data-github-status>
+                Not connected
+              </span>
             </div>
-            <div class="metric">
-              <span class="label">Build Queue</span>
-              <span class="value">3 compiles</span>
+            <div class="connect-actions">
+              <button class="cta" data-github-connect type="button">
+                Connect with OAuth
+              </button>
+              <button class="ghost" data-github-disconnect type="button">
+                Disconnect
+              </button>
             </div>
-            <div class="metric">
-              <span class="label">DSP Packs</span>
-              <span class="value">8 ready</span>
+            <div class="oauth-flow" data-github-flow hidden>
+              <div class="oauth-step">
+                <div class="step-index">01</div>
+                <div class="step-content">
+                  <h3>Authorize</h3>
+                  <p>Copy the code and enter it at GitHub device login.</p>
+                  <div class="oauth-code-row">
+                    <span class="oauth-code" data-github-code>----</span>
+                    <button class="secondary" data-github-copy type="button">
+                      Copy Code
+                    </button>
+                    <button class="ghost" data-github-open type="button">
+                      Open GitHub
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="oauth-step">
+                <div class="step-index">02</div>
+                <div class="step-content">
+                  <h3>Confirm</h3>
+                  <p>Enter the GitHub username you authorized.</p>
+                  <div class="oauth-confirm">
+                    <input
+                      type="text"
+                      data-github-username
+                      placeholder="octocat"
+                      autocomplete="off"
+                    />
+                    <button class="secondary" data-github-complete type="button">
+                      Finish
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -95,61 +134,6 @@
           </div>
         </section>
 
-        <section class="panel console reveal">
-          <div class="eyebrow">Codex Stream</div>
-          <div class="console-header">
-            <span>ifactory build --profile studio</span>
-            <span class="status">running</span>
-          </div>
-          <pre class="terminal"><code>- Resolving plugin spec: PrismDrive
-- Rendering UI layout: neon-grit
-- Linking iPlug2: 2.0.4
-- Generating preset pack: 12 patches
-- Exporting build: Win / macOS
-- Report: ready for QA</code></pre>
-        </section>
-
-        <section class="panel system reveal">
-          <div class="eyebrow">System Pulse</div>
-          <h2>Resource map</h2>
-          <div class="gauges">
-            <div class="gauge">
-              <div class="gauge-label">CPU headroom</div>
-              <div class="bar">
-                <span style="width: 72%"></span>
-              </div>
-              <div class="gauge-note">72% available</div>
-            </div>
-            <div class="gauge">
-              <div class="gauge-label">GPU render</div>
-              <div class="bar amber">
-                <span style="width: 58%"></span>
-              </div>
-              <div class="gauge-note">UI compiling</div>
-            </div>
-            <div class="gauge">
-              <div class="gauge-label">Disk cache</div>
-              <div class="bar teal">
-                <span style="width: 86%"></span>
-              </div>
-              <div class="gauge-note">Hot samples</div>
-            </div>
-          </div>
-          <div class="system-grid">
-            <div class="system-card">
-              <div class="label">Active nodes</div>
-              <div class="value">6/10</div>
-            </div>
-            <div class="system-card">
-              <div class="label">Preset QA</div>
-              <div class="value">24 queued</div>
-            </div>
-            <div class="system-card">
-              <div class="label">Latest build</div>
-              <div class="value">08:42</div>
-            </div>
-          </div>
-        </section>
       </main>
     </div>
 
