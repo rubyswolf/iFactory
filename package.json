@@ -1,0 +1,15 @@
+{
+  "name": "ifactory",
+  "productName": "iFactory",
+  "version": "0.1.0",
+  "description": "An AI plugin building tool using the Codex CLI and iPlug2 plugin framework",
+  "author": "Dart Spark",
+  "license": "UNLICENSED",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^29.1.0"
+  }
+}

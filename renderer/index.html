@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>iFactory</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-theme="neon-citron">
+    <div class="ambient">
+      <div class="orb orb--one"></div>
+      <div class="orb orb--two"></div>
+      <div class="gridlines"></div>
+    </div>
+
+    <div class="app">
+      <header class="titlebar reveal">
+        <div class="brand">
+          <div class="logo">iFactory</div>
+          <div class="byline">
+            by Dart Spark <span class="dot">|</span>
+            <span data-app-version>v0.1.0</span>
+          </div>
+        </div>
+        <div class="chips">
+          <span class="chip">Codex CLI</span>
+          <span class="chip">iPlug2</span>
+          <span class="chip">AI Plugins</span>
+        </div>
+        <div class="title-actions">
+          <button class="cta">Launch Builder</button>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="panel hero reveal">
+          <div class="eyebrow">Workbench</div>
+          <h1>Forge studio-ready audio plugins in minutes.</h1>
+          <p data-app-description>
+            An AI plugin building tool using the Codex CLI and iPlug2 plugin
+            framework
+          </p>
+          <div class="hero-actions">
+            <button class="secondary">Open Workspace</button>
+            <button class="ghost">View Templates</button>
+          </div>
+          <div class="metrics">
+            <div class="metric">
+              <span class="label">Sessions</span>
+              <span class="value">12 active</span>
+            </div>
+            <div class="metric">
+              <span class="label">Build Queue</span>
+              <span class="value">3 compiles</span>
+            </div>
+            <div class="metric">
+              <span class="label">DSP Packs</span>
+              <span class="value">8 ready</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel pipeline reveal">
+          <div class="eyebrow">Pipeline</div>
+          <h2>From prompt to plugin</h2>
+          <div class="steps">
+            <div class="step">
+              <div class="step-index">01</div>
+              <div>
+                <h3>Brief</h3>
+                <p>Capture intent, UI tone, and DSP constraints.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-index">02</div>
+              <div>
+                <h3>Scaffold</h3>
+                <p>Generate iPlug2 project skeletons and assets.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-index">03</div>
+              <div>
+                <h3>Wire DSP</h3>
+                <p>Route controls, presets, and build config.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-index">04</div>
+              <div>
+                <h3>Ship</h3>
+                <p>Package VST3/AU with review-ready notes.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel console reveal">
+          <div class="eyebrow">Codex Stream</div>
+          <div class="console-header">
+            <span>ifactory build --profile studio</span>
+            <span class="status">running</span>
+          </div>
+          <pre class="terminal"><code>- Resolving plugin spec: PrismDrive
+- Rendering UI layout: neon-grit
+- Linking iPlug2: 2.0.4
+- Generating preset pack: 12 patches
+- Exporting build: Win / macOS
+- Report: ready for QA</code></pre>
+        </section>
+
+        <section class="panel system reveal">
+          <div class="eyebrow">System Pulse</div>
+          <h2>Resource map</h2>
+          <div class="gauges">
+            <div class="gauge">
+              <div class="gauge-label">CPU headroom</div>
+              <div class="bar">
+                <span style="width: 72%"></span>
+              </div>
+              <div class="gauge-note">72% available</div>
+            </div>
+            <div class="gauge">
+              <div class="gauge-label">GPU render</div>
+              <div class="bar amber">
+                <span style="width: 58%"></span>
+              </div>
+              <div class="gauge-note">UI compiling</div>
+            </div>
+            <div class="gauge">
+              <div class="gauge-label">Disk cache</div>
+              <div class="bar teal">
+                <span style="width: 86%"></span>
+              </div>
+              <div class="gauge-note">Hot samples</div>
+            </div>
+          </div>
+          <div class="system-grid">
+            <div class="system-card">
+              <div class="label">Active nodes</div>
+              <div class="value">6/10</div>
+            </div>
+            <div class="system-card">
+              <div class="label">Preset QA</div>
+              <div class="value">24 queued</div>
+            </div>
+            <div class="system-card">
+              <div class="label">Latest build</div>
+              <div class="value">08:42</div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>
