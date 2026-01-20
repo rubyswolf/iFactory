@@ -39,22 +39,17 @@ const setupGithubOAuth = () => {
     return;
   }
 
+  const skipKey = "ifactory.github.skip";
   const statusEl = document.querySelector("[data-github-status]");
   const connectButton = document.querySelector("[data-github-connect]");
-  const disconnectButton = document.querySelector("[data-github-disconnect]");
   const skipButton = document.querySelector("[data-github-skip]");
   const flowEl = document.querySelector("[data-github-flow]");
   const codeEl = document.querySelector("[data-github-code]");
   const copyButton = document.querySelector("[data-github-copy]");
   const openButton = document.querySelector("[data-github-open]");
+  const resetButton = document.querySelector("[data-setup-reset]");
 
-  if (
-    !statusEl ||
-    !connectButton ||
-    !disconnectButton ||
-    !flowEl ||
-    !codeEl
-  ) {
+  if (!statusEl || !connectButton || !flowEl || !codeEl || !resetButton) {
     return;
   }
 
@@ -65,6 +60,20 @@ const setupGithubOAuth = () => {
     flowEl.hidden = !visible;
   };
 
+  const setSetupComplete = (complete) => {
+    document.body.classList.toggle("is-setup-complete", complete);
+  };
+
+  const isSkipped = () => window.localStorage.getItem(skipKey) === "1";
+
+  const setSkipped = (value) => {
+    if (value) {
+      window.localStorage.setItem(skipKey, "1");
+    } else {
+      window.localStorage.removeItem(skipKey);
+    }
+  };
+
   const applyGithubState = (settings) => {
     const github = settings?.integrations?.github;
     if (!github) {
@@ -72,17 +81,9 @@ const setupGithubOAuth = () => {
     }
 
     const isConnected = Boolean(github.connected || github.tokenStored);
-    statusEl.textContent = isConnected ? "Connected" : "Not connected";
-    statusEl.classList.toggle("is-connected", isConnected);
-    connectButton.hidden = isConnected;
-    disconnectButton.hidden = !isConnected;
-    if (disconnectButton) {
-      disconnectButton.disabled = !isConnected;
-    }
-    if (skipButton) {
-      skipButton.hidden = isConnected;
-    }
+    statusEl.textContent = "Not connected";
     setFlowVisible(false);
+    setSetupComplete(isConnected || isSkipped());
   };
 
   const loadGithub = async () => {
@@ -183,6 +184,7 @@ const setupGithubOAuth = () => {
         pollTimer = null;
       }
       const settings = await window.ifactory.github.disconnect();
+      setSkipped(false);
       applyGithubState(settings);
     } catch (error) {
       console.error("Failed to disconnect GitHub", error);
@@ -190,9 +192,7 @@ const setupGithubOAuth = () => {
   };
 
   connectButton.addEventListener("click", startFlow);
-  if (disconnectButton) {
-    disconnectButton.addEventListener("click", disconnect);
-  }
+  resetButton.addEventListener("click", disconnect);
   if (copyButton) {
     copyButton.addEventListener("click", copyCode);
   }
@@ -201,7 +201,8 @@ const setupGithubOAuth = () => {
   }
   if (skipButton) {
     skipButton.addEventListener("click", () => {
-      setFlowVisible(false);
+      setSkipped(true);
+      setSetupComplete(true);
     });
   }
 

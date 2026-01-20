@@ -14,112 +14,115 @@
     </div>
 
     <div class="app">
-      <header class="titlebar reveal">
-        <div class="brand">
-          <div class="logo">iFactory</div>
-          <div class="byline">
-            by Dart Spark <span class="dot">|</span>
-            <span data-app-version>v0.1.0</span>
+      <div class="page page-setup" data-page-setup>
+        <header class="titlebar reveal">
+          <div class="brand">
+            <div class="logo">iFactory</div>
+            <div class="byline">
+              by Dart Spark <span class="dot">|</span>
+              <span data-app-version>v0.1.0</span>
+            </div>
           </div>
-        </div>
-        <div class="chips">
-          <span class="chip">Codex CLI</span>
-          <span class="chip">iPlug2</span>
-          <span class="chip">AI Plugins</span>
-        </div>
-        <div class="title-actions">
-          <button class="cta">Launch Builder</button>
-        </div>
-      </header>
+        </header>
 
-      <main class="layout">
-        <section class="panel hero reveal">
-          <div class="eyebrow">Get started</div>
-          <h1>Forge studio-ready audio plugins in minutes.</h1>
-          <p data-app-description>
-            Build plugins with the iPlug2 framework, Codex and GitHub all in one
-            integrated environment
-          </p>
-          <div class="connect">
-            <div class="connect-header">
-              <div>
-                <div class="connect-title">Connect to GitHub</div>
-                <div class="connect-meta">
-                  Synchronize projects across devices, manage version history and
-                  more.
+        <main class="layout">
+          <section class="panel hero reveal">
+            <div class="eyebrow">Get started</div>
+            <h1>Forge studio-ready audio plugins in minutes.</h1>
+            <p data-app-description>
+              Build plugins with the iPlug2 framework, Codex and GitHub all in one
+              integrated environment
+            </p>
+            <div class="connect">
+              <div class="connect-header">
+                <div>
+                  <div class="connect-title">Connect to GitHub</div>
+                  <div class="connect-meta">
+                    Synchronize projects across devices, manage version history
+                    and more.
+                  </div>
                 </div>
+                <span class="connect-status" data-github-status>
+                  Not connected
+                </span>
               </div>
-              <span class="connect-status" data-github-status>
-                Not connected
-              </span>
-            </div>
-            <div class="connect-actions">
-              <button class="cta" data-github-connect type="button" hidden>
-                Connect with OAuth
-              </button>
-              <button class="ghost" data-github-disconnect type="button" hidden>
-                Disconnect
-              </button>
-              <button class="ghost" data-github-skip type="button">
-                Skip for now
-              </button>
-            </div>
-            <div class="oauth-flow" data-github-flow hidden>
-              <div class="oauth-step">
-                <div class="step-content">
-                  <h3>Authorize</h3>
-                  <p>Copy the code and enter it at GitHub device login.</p>
-                  <div class="oauth-code-row">
-                    <span class="oauth-code" data-github-code>----</span>
-                    <button class="secondary" data-github-copy type="button">
-                      Copy Code
-                    </button>
-                    <button class="ghost" data-github-open type="button">
-                      Open GitHub
-                    </button>
+              <div class="connect-actions">
+                <button class="cta" data-github-connect type="button">
+                  Connect with OAuth
+                </button>
+                <button class="ghost" data-github-skip type="button">
+                  Skip for now
+                </button>
+              </div>
+              <div class="oauth-flow" data-github-flow hidden>
+                <div class="oauth-step">
+                  <div class="step-content">
+                    <h3>Authorize</h3>
+                    <p>Copy the code and enter it at GitHub device login.</p>
+                    <div class="oauth-code-row">
+                      <span class="oauth-code" data-github-code>----</span>
+                      <button class="secondary" data-github-copy type="button">
+                        Copy Code
+                      </button>
+                      <button class="ghost" data-github-open type="button">
+                        Open GitHub
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <section class="panel pipeline reveal">
-          <div class="eyebrow">Pipeline</div>
-          <h2>From prompt to plugin</h2>
-          <div class="steps">
-            <div class="step">
-              <div class="step-index">01</div>
-              <div>
-                <h3>Brief</h3>
-                <p>Capture intent, UI tone, and DSP constraints.</p>
+          <section class="panel pipeline reveal">
+            <div class="eyebrow">Pipeline</div>
+            <h2>From prompt to plugin</h2>
+            <div class="steps">
+              <div class="step">
+                <div class="step-index">01</div>
+                <div>
+                  <h3>Brief</h3>
+                  <p>Capture intent, UI tone, and DSP constraints.</p>
+                </div>
+              </div>
+              <div class="step">
+                <div class="step-index">02</div>
+                <div>
+                  <h3>Scaffold</h3>
+                  <p>Generate iPlug2 project skeletons and assets.</p>
+                </div>
+              </div>
+              <div class="step">
+                <div class="step-index">03</div>
+                <div>
+                  <h3>Wire DSP</h3>
+                  <p>Route controls, presets, and build config.</p>
+                </div>
+              </div>
+              <div class="step">
+                <div class="step-index">04</div>
+                <div>
+                  <h3>Ship</h3>
+                  <p>Package VST3/AU with review-ready notes.</p>
+                </div>
               </div>
             </div>
-            <div class="step">
-              <div class="step-index">02</div>
-              <div>
-                <h3>Scaffold</h3>
-                <p>Generate iPlug2 project skeletons and assets.</p>
-              </div>
-            </div>
-            <div class="step">
-              <div class="step-index">03</div>
-              <div>
-                <h3>Wire DSP</h3>
-                <p>Route controls, presets, and build config.</p>
-              </div>
-            </div>
-            <div class="step">
-              <div class="step-index">04</div>
-              <div>
-                <h3>Ship</h3>
-                <p>Package VST3/AU with review-ready notes.</p>
-              </div>
-            </div>
-          </div>
-        </section>
+          </section>
+        </main>
+      </div>
 
-      </main>
+      <div class="page page-next" data-page-next>
+        <section class="panel next-panel">
+          <div class="eyebrow">Setup complete</div>
+          <h2>Ready to build.</h2>
+          <p>
+            You can reset setup to test the onboarding flow again.
+          </p>
+          <button class="secondary" data-setup-reset type="button">
+            Reset
+          </button>
+        </section>
+      </div>
     </div>
 
     <script src="renderer.js"></script>
