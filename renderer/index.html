@@ -45,7 +45,8 @@
               <div>
                 <div class="connect-title">Connect to GitHub</div>
                 <div class="connect-meta">
-                  OAuth once to sync repos and stay in one workspace.
+                  Synchronize projects across devices, manage version history and
+                  more.
                 </div>
               </div>
               <span class="connect-status" data-github-status>
@@ -53,16 +54,18 @@
               </span>
             </div>
             <div class="connect-actions">
-              <button class="cta" data-github-connect type="button">
+              <button class="cta" data-github-connect type="button" hidden>
                 Connect with OAuth
               </button>
-              <button class="ghost" data-github-disconnect type="button">
+              <button class="ghost" data-github-disconnect type="button" hidden>
                 Disconnect
+              </button>
+              <button class="ghost" data-github-skip type="button">
+                Skip for now
               </button>
             </div>
             <div class="oauth-flow" data-github-flow hidden>
               <div class="oauth-step">
-                <div class="step-index">01</div>
                 <div class="step-content">
                   <h3>Authorize</h3>
                   <p>Copy the code and enter it at GitHub device login.</p>
@@ -73,24 +76,6 @@
                     </button>
                     <button class="ghost" data-github-open type="button">
                       Open GitHub
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div class="oauth-step">
-                <div class="step-index">02</div>
-                <div class="step-content">
-                  <h3>Confirm</h3>
-                  <p>Enter the GitHub username you authorized.</p>
-                  <div class="oauth-confirm">
-                    <input
-                      type="text"
-                      data-github-username
-                      placeholder="octocat"
-                      autocomplete="off"
-                    />
-                    <button class="secondary" data-github-complete type="button">
-                      Finish
                     </button>
                   </div>
                 </div>

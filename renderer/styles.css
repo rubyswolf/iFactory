@@ -305,10 +305,13 @@ body {
   background: rgba(8, 12, 18, 0.7);
 }
 
+.oauth-flow[hidden] {
+  display: none;
+}
+
 .oauth-step {
   display: grid;
-  grid-template-columns: 48px 1fr;
-  gap: 16px;
+  gap: 12px;
 }
 
 .oauth-step h3 {
@@ -341,29 +344,6 @@ body {
   color: var(--ink);
 }
 
-.oauth-confirm {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.oauth-confirm input {
-  height: 40px;
-  min-width: 180px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(6, 9, 14, 0.9);
-  color: var(--ink);
-  padding: 0 12px;
-  font-family: var(--font-body);
-}
-
-.oauth-confirm input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-focus);
-}
 
 
 .pipeline {

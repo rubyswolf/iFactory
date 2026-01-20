@@ -42,14 +42,19 @@ const setupGithubOAuth = () => {
   const statusEl = document.querySelector("[data-github-status]");
   const connectButton = document.querySelector("[data-github-connect]");
   const disconnectButton = document.querySelector("[data-github-disconnect]");
+  const skipButton = document.querySelector("[data-github-skip]");
   const flowEl = document.querySelector("[data-github-flow]");
   const codeEl = document.querySelector("[data-github-code]");
   const copyButton = document.querySelector("[data-github-copy]");
   const openButton = document.querySelector("[data-github-open]");
-  const completeButton = document.querySelector("[data-github-complete]");
-  const usernameInput = document.querySelector("[data-github-username]");
 
-  if (!statusEl || !connectButton || !flowEl || !codeEl || !completeButton) {
+  if (
+    !statusEl ||
+    !connectButton ||
+    !disconnectButton ||
+    !flowEl ||
+    !codeEl
+  ) {
     return;
   }
 
@@ -69,12 +74,13 @@ const setupGithubOAuth = () => {
     const isConnected = Boolean(github.connected || github.tokenStored);
     statusEl.textContent = isConnected ? "Connected" : "Not connected";
     statusEl.classList.toggle("is-connected", isConnected);
-    connectButton.disabled = isConnected;
+    connectButton.hidden = isConnected;
+    disconnectButton.hidden = !isConnected;
     if (disconnectButton) {
       disconnectButton.disabled = !isConnected;
     }
-    if (usernameInput) {
-      usernameInput.value = github.username || "";
+    if (skipButton) {
+      skipButton.hidden = isConnected;
     }
     setFlowVisible(false);
   };
@@ -140,9 +146,6 @@ const setupGithubOAuth = () => {
       verificationUri =
         data.verification_uri_complete || data.verification_uri || verificationUri;
       statusEl.textContent = "Awaiting authorization";
-      if (usernameInput) {
-        usernameInput.value = "";
-      }
       setFlowVisible(true);
       startPolling(data.device_code, data.interval);
     } catch (error) {
@@ -173,20 +176,6 @@ const setupGithubOAuth = () => {
     }
   };
 
-  const completeFlow = async () => {
-    const username = usernameInput ? usernameInput.value.trim() : "";
-    try {
-      if (username) {
-        const settings = await window.ifactory.settings.updateGitHub({
-          username
-        });
-        applyGithubState(settings);
-      }
-    } catch (error) {
-      console.error("Failed to complete GitHub OAuth", error);
-    }
-  };
-
   const disconnect = async () => {
     try {
       if (pollTimer) {
@@ -201,7 +190,6 @@ const setupGithubOAuth = () => {
   };
 
   connectButton.addEventListener("click", startFlow);
-  completeButton.addEventListener("click", completeFlow);
   if (disconnectButton) {
     disconnectButton.addEventListener("click", disconnect);
   }
@@ -210,6 +198,11 @@ const setupGithubOAuth = () => {
   }
   if (openButton) {
     openButton.addEventListener("click", openGitHub);
+  }
+  if (skipButton) {
+    skipButton.addEventListener("click", () => {
+      setFlowVisible(false);
+    });
   }
 
   loadGithub();
