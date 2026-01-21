@@ -117,6 +117,75 @@ const registerIpc = () => {
     }
     return result.filePaths[0];
   });
+  ipcMain.handle("project:create", async (event, payload) => {
+    try {
+      const name = payload?.name?.trim();
+      const basePath = payload?.basePath?.trim();
+      const createFolder = payload?.createFolder !== false;
+      const createRepo = payload?.createRepo === true;
+      const privateRepo = payload?.privateRepo !== false;
+
+      if (!name || !basePath) {
+        return { error: "missing_fields" };
+      }
+
+      const projectPath = createFolder
+        ? path.join(basePath, name)
+        : basePath;
+
+      if (createFolder && fs.existsSync(projectPath)) {
+        return { error: "folder_exists" };
+      }
+
+      fs.mkdirSync(projectPath, { recursive: true });
+
+      let repoUrl = null;
+      if (createRepo) {
+        const token = settings?.integrations?.github?.token;
+        if (!token) {
+          return { error: "github_not_connected" };
+        }
+        const repo = await requestJson("https://api.github.com/user/repos", {
+          method: "POST",
+          headers: {
+            Accept: "application/vnd.github+json",
+            Authorization: `Bearer ${token}`,
+            "User-Agent": "iFactory",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            name,
+            private: privateRepo
+          })
+        });
+        repoUrl = repo?.html_url || null;
+      }
+
+      return {
+        path: projectPath,
+        repoUrl,
+        needsIPlug: true
+      };
+    } catch (error) {
+      return { error: "create_failed" };
+    }
+  });
+  ipcMain.handle("project:open", async (event, payload) => {
+    try {
+      const projectPath = payload?.path?.trim();
+      if (!projectPath) {
+        return { error: "missing_path" };
+      }
+      if (!fs.existsSync(projectPath)) {
+        return { error: "path_not_found" };
+      }
+      const iPlugPath = path.join(projectPath, "iPlug2");
+      const needsIPlug = !fs.existsSync(iPlugPath);
+      return { path: projectPath, needsIPlug };
+    } catch (error) {
+      return { error: "open_failed" };
+    }
+  });
   ipcMain.handle("window:minimize", (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
     if (window) {

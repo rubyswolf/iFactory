@@ -50,9 +50,16 @@ const setupGithubOAuth = () => {
   const resetButton = document.querySelector("[data-setup-reset]");
   const createButton = document.querySelector("[data-action-create]");
   const cloneButton = document.querySelector("[data-action-clone]");
+  const openProjectButton = document.querySelector("[data-action-open]");
   const backButtons = document.querySelectorAll("[data-action-back]");
   const createRepoToggle = document.querySelector("[data-create-repo]");
   const privateRepoToggle = document.querySelector("[data-create-private]");
+  const createSubmitButton = document.querySelector("[data-create-submit]");
+  const createNameInput = document.querySelector("[data-create-name]");
+  const createLocationInput = document.querySelector("[data-create-location]");
+  const createFolderToggle = document.querySelector("[data-create-folder]");
+  const installPath = document.querySelector("[data-install-path]");
+  const homeButtons = document.querySelectorAll("[data-action-home]");
 
   if (!statusEl || !connectButton || !flowEl || !codeEl || !resetButton) {
     return;
@@ -61,6 +68,7 @@ const setupGithubOAuth = () => {
   let pollTimer = null;
   let verificationUri = "https://github.com/login/device";
   let githubConnected = false;
+  let currentProjectPath = "";
 
   const setFlowVisible = (visible) => {
     flowEl.hidden = !visible;
@@ -70,6 +78,7 @@ const setupGithubOAuth = () => {
     document.body.classList.toggle("is-setup-complete", complete);
     if (!complete) {
       document.body.classList.remove("is-creating");
+      document.body.classList.remove("is-installing");
     }
   };
 
@@ -85,12 +94,30 @@ const setupGithubOAuth = () => {
 
   const setCreating = (creating) => {
     document.body.classList.toggle("is-creating", creating);
+    if (creating) {
+      document.body.classList.remove("is-installing");
+    }
+  };
+
+  const setInstalling = (installing) => {
+    document.body.classList.toggle("is-installing", installing);
+    if (installing) {
+      document.body.classList.remove("is-creating");
+    }
+  };
+
+  const updateInstallPath = (pathValue) => {
+    currentProjectPath = pathValue || "";
+    if (installPath) {
+      installPath.textContent = currentProjectPath || "Not set";
+    }
   };
 
   const goToSetup = () => {
     setSkipped(false);
     setSetupComplete(false);
     setCreating(false);
+    setInstalling(false);
     setFlowVisible(false);
   };
 
@@ -108,6 +135,7 @@ const setupGithubOAuth = () => {
     }
     setSetupComplete(githubConnected || isSkipped());
     setCreating(false);
+    setInstalling(false);
     if (createRepoToggle) {
       createRepoToggle.checked = githubConnected;
     }
@@ -241,10 +269,68 @@ const setupGithubOAuth = () => {
       setCreating(true);
     });
   }
+  if (openProjectButton) {
+    openProjectButton.addEventListener("click", async () => {
+      try {
+        if (!window.ifactory?.dialog || !window.ifactory?.project) {
+          return;
+        }
+        const folder = await window.ifactory.dialog.selectFolder();
+        if (!folder) {
+          return;
+        }
+        const result = await window.ifactory.project.open({ path: folder });
+        if (result?.error) {
+          return;
+        }
+        updateInstallPath(result.path);
+        if (result.needsIPlug) {
+          setInstalling(true);
+        }
+      } catch (error) {
+        console.error("Failed to open project", error);
+      }
+    });
+  }
   if (cloneButton) {
     cloneButton.addEventListener("click", () => {
       if (!githubConnected) {
         goToSetup();
+      }
+    });
+  }
+  if (createSubmitButton) {
+    createSubmitButton.addEventListener("click", async () => {
+      if (!window.ifactory?.project) {
+        return;
+      }
+      const name = createNameInput?.value.trim() || "";
+      const basePath = createLocationInput?.value.trim() || "";
+      const createFolder = createFolderToggle?.checked !== false;
+      const createRepo = createRepoToggle?.checked === true;
+      const privateRepo = privateRepoToggle?.checked !== false;
+
+      if (createRepo && !githubConnected) {
+        goToSetup();
+        return;
+      }
+
+      try {
+        const result = await window.ifactory.project.create({
+          name,
+          basePath,
+          createFolder,
+          createRepo,
+          privateRepo
+        });
+        if (result?.error) {
+          console.error("Failed to create project", result.error);
+          return;
+        }
+        updateInstallPath(result.path);
+        setInstalling(true);
+      } catch (error) {
+        console.error("Failed to create project", error);
       }
     });
   }
@@ -262,6 +348,11 @@ const setupGithubOAuth = () => {
   backButtons.forEach((button) => {
     button.addEventListener("click", () => {
       setCreating(false);
+    });
+  });
+  homeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      setInstalling(false);
     });
   });
 

@@ -124,11 +124,15 @@ body:not(.is-setup-complete) .page-setup {
   display: block;
 }
 
-body.is-setup-complete:not(.is-creating) .page-home {
+body.is-setup-complete:not(.is-creating):not(.is-installing) .page-home {
   display: block;
 }
 
 body.is-setup-complete.is-creating .page-create {
+  display: block;
+}
+
+body.is-setup-complete.is-installing .page-install {
   display: block;
 }
 
@@ -300,6 +304,36 @@ body.is-setup-complete.is-creating .page-create {
 }
 
 .create-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.install-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 22px;
+}
+
+.install-panel {
+  grid-column: span 6;
+}
+
+.install-path {
+  margin: 16px 0 24px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.install-path span {
+  display: block;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  margin-top: 6px;
+  word-break: break-all;
+}
+
+.install-actions {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
@@ -681,6 +715,14 @@ body.is-setup-complete.is-creating .page-create {
   }
 
   .create-panel {
+    grid-column: 1 / -1;
+  }
+
+  .install-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .install-panel {
     grid-column: 1 / -1;
   }
 
