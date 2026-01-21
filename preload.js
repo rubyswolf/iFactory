@@ -12,7 +12,8 @@ contextBridge.exposeInMainWorld("ifactory", {
       ipcRenderer.invoke("github:deviceStart", { scopes }),
     pollDeviceFlow: (deviceCode) =>
       ipcRenderer.invoke("github:devicePoll", { deviceCode }),
-    disconnect: () => ipcRenderer.invoke("github:disconnect")
+    disconnect: () => ipcRenderer.invoke("github:disconnect"),
+    listIPlugForks: () => ipcRenderer.invoke("github:listIPlugForks")
   },
   windowControls: {
     minimize: () => ipcRenderer.invoke("window:minimize"),

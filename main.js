@@ -56,16 +56,22 @@ const requestJson = (urlString, { method = "GET", headers, body } = {}) =>
         });
         response.on("end", () => {
           const status = response.statusCode || 0;
-          if (status < 200 || status >= 300) {
-            return reject(
-              new Error(`Request failed (${status}): ${data.slice(0, 200)}`)
-            );
-          }
+          let parsed = null;
           try {
-            resolve(JSON.parse(data));
+            parsed = data ? JSON.parse(data) : null;
           } catch (error) {
-            reject(new Error("Invalid JSON response"));
+            parsed = null;
           }
+          if (status < 200 || status >= 300) {
+            const error = new Error(
+              `Request failed (${status}): ${data.slice(0, 200)}`
+            );
+            error.status = status;
+            error.body = data;
+            error.parsed = parsed;
+            return reject(error);
+          }
+          resolve(parsed);
         });
       }
     );
@@ -288,6 +294,125 @@ const registerIpc = () => {
     };
     saveSettings();
     return sanitizeSettings(settings);
+  });
+
+  ipcMain.handle("github:listIPlugForks", async () => {
+    const token = settings?.integrations?.github?.token;
+    const username = settings?.integrations?.github?.username || "";
+    const headers = {
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "iFactory"
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    try {
+      let forks = [];
+      let forksError = null;
+      try {
+        forks = await requestJson(
+          "https://api.github.com/repos/iplug2/iplug2/forks?per_page=100&sort=newest",
+          { headers }
+        );
+      } catch (error) {
+        forksError = error;
+      }
+
+      let userForks = [];
+      let userForksError = null;
+      if (token) {
+        try {
+          const repos = await requestJson(
+            "https://api.github.com/user/repos?per_page=100&affiliation=owner&sort=updated",
+            { headers }
+          );
+          const forkCandidates = repos.filter((repo) => repo?.fork);
+          const isIPlugFork = (repo) => {
+            const parent = repo?.parent?.full_name;
+            const source = repo?.source?.full_name;
+            return parent === "iplug2/iplug2" || source === "iplug2/iplug2";
+          };
+          const detailNames = forkCandidates
+            .filter((repo) => !isIPlugFork(repo) && repo?.full_name)
+            .map((repo) => repo.full_name);
+          const detailMap = new Map();
+          if (detailNames.length > 0) {
+            const detailResults = await Promise.all(
+              detailNames.map(async (fullName) => {
+                try {
+                  return await requestJson(
+                    `https://api.github.com/repos/${fullName}`,
+                    { headers }
+                  );
+                } catch (error) {
+                  return null;
+                }
+              })
+            );
+            detailResults.forEach((repo) => {
+              if (repo?.full_name) {
+                detailMap.set(repo.full_name, repo);
+              }
+            });
+          }
+
+          const seen = new Set();
+          forkCandidates.forEach((repo) => {
+            const resolved = isIPlugFork(repo)
+              ? repo
+              : detailMap.get(repo.full_name);
+            if (!resolved || !isIPlugFork(resolved)) {
+              return;
+            }
+            const fullName = resolved.full_name;
+            if (!fullName || seen.has(fullName)) {
+              return;
+            }
+            seen.add(fullName);
+            userForks.push(resolved);
+          });
+        } catch (error) {
+          userForksError = error;
+        }
+      }
+
+      const userNames = new Set(userForks.map((repo) => repo.full_name));
+      const filteredForks = Array.isArray(forks)
+        ? forks.filter((repo) => !userNames.has(repo.full_name))
+        : [];
+
+      if (forksError && userForksError) {
+        return {
+          error: "forks_failed",
+          connected: Boolean(token),
+          details: {
+            forksStatus: forksError.status || null,
+            forksMessage: forksError.message || null,
+            userForksStatus: userForksError.status || null,
+            userForksMessage: userForksError.message || null
+          }
+        };
+      }
+
+      return {
+        forks: filteredForks,
+        userForks,
+        connected: Boolean(token),
+        username
+      };
+    } catch (error) {
+      return {
+        error: "forks_failed",
+        connected: Boolean(token),
+        username,
+        details: {
+          status: error?.status || null,
+          message: error?.message || null
+        }
+      };
+    }
   });
 
   ipcMain.handle("github:disconnect", () => {

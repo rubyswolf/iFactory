@@ -482,10 +482,194 @@ const setupCreateForm = () => {
   updateSuffix();
 };
 
+const setupInstallScreen = () => {
+  if (!window.ifactory?.github) {
+    return;
+  }
+
+  const sourceButtons = document.querySelectorAll("[data-iplug-source]");
+  const officialSection = document.querySelector("[data-iplug-official]");
+  const forkSection = document.querySelector("[data-iplug-forks]");
+  const listEl = document.querySelector("[data-iplug-list]");
+  const searchInput = document.querySelector("[data-iplug-search]");
+  const noteEl = document.querySelector("[data-iplug-note]");
+
+  if (!officialSection || !forkSection || !listEl || !searchInput) {
+    return;
+  }
+
+  let forksData = null;
+  let selectedFork = "";
+
+  const setActiveSource = (source) => {
+    sourceButtons.forEach((button) => {
+      button.classList.toggle(
+        "is-active",
+        button.dataset.iplugSource === source
+      );
+    });
+    officialSection.hidden = source !== "official";
+    forkSection.hidden = source !== "fork";
+    if (source === "fork") {
+      forksData = null;
+      loadForks();
+    }
+  };
+
+  const buildBadge = (label, className) => {
+    const badge = document.createElement("span");
+    badge.className = `fork-badge${className ? ` ${className}` : ""}`;
+    badge.textContent = label;
+    return badge;
+  };
+
+  const buildForkItem = (repo, isUser) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "fork-item";
+    button.dataset.fullName = repo.full_name || "";
+    if (repo.full_name === selectedFork) {
+      button.classList.add("is-selected");
+    }
+
+    const title = document.createElement("div");
+    title.className = "fork-title";
+    title.textContent = repo.full_name || repo.name || "Unknown fork";
+
+    const meta = document.createElement("div");
+    meta.className = "fork-meta";
+    meta.textContent = repo.description || "No description available.";
+
+    const badges = document.createElement("div");
+    badges.className = "fork-badges";
+    if (isUser) {
+      badges.appendChild(buildBadge("Yours"));
+    }
+    if (repo.private) {
+      badges.appendChild(buildBadge("Private", "is-private"));
+    }
+
+    button.appendChild(title);
+    button.appendChild(meta);
+    if (badges.children.length > 0) {
+      button.appendChild(badges);
+    }
+
+    button.addEventListener("click", () => {
+      selectedFork = repo.full_name || "";
+      listEl.querySelectorAll(".fork-item").forEach((item) => {
+        item.classList.remove("is-selected");
+      });
+      button.classList.add("is-selected");
+    });
+
+    return button;
+  };
+
+  const renderForks = () => {
+    if (!forksData) {
+      return;
+    }
+
+    const query = searchInput.value.trim().toLowerCase();
+    const filter = (repo) => {
+      const text = `${repo.full_name || ""} ${repo.description || ""}`.toLowerCase();
+      return text.includes(query);
+    };
+
+    const userForks = forksData.userForks.filter(filter);
+    const forks = forksData.forks.filter(filter);
+
+    listEl.innerHTML = "";
+
+    if (userForks.length === 0 && forks.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "fork-empty";
+      empty.textContent = "No forks match your search.";
+      listEl.appendChild(empty);
+      return;
+    }
+
+    if (userForks.length > 0) {
+      const label = document.createElement("div");
+      label.className = "fork-group-label";
+      label.textContent = "Your forks";
+      listEl.appendChild(label);
+      userForks.forEach((repo) => {
+        listEl.appendChild(buildForkItem(repo, true));
+      });
+    }
+
+    if (forks.length > 0) {
+      const label = document.createElement("div");
+      label.className = "fork-group-label";
+      label.textContent = "Community forks";
+      listEl.appendChild(label);
+      forks.forEach((repo) => {
+        listEl.appendChild(buildForkItem(repo, false));
+      });
+    }
+  };
+
+  const loadForks = async () => {
+    if (forksData) {
+      renderForks();
+      return;
+    }
+
+    listEl.innerHTML = "";
+    const loading = document.createElement("div");
+    loading.className = "fork-empty";
+    loading.textContent = "Loading forks...";
+    listEl.appendChild(loading);
+
+    try {
+      const result = await window.ifactory.github.listIPlugForks();
+      if (result?.error) {
+        listEl.textContent = "Unable to load forks right now.";
+        return;
+      }
+      let forks = Array.isArray(result.forks) ? result.forks : [];
+      let userForks = Array.isArray(result.userForks) ? result.userForks : [];
+      const username = (result.username || "").toLowerCase();
+      if (username && userForks.length === 0 && forks.length > 0) {
+        const isUserFork = (repo) =>
+          repo?.owner?.login?.toLowerCase() === username;
+        userForks = forks.filter(isUserFork);
+        forks = forks.filter((repo) => !isUserFork(repo));
+      }
+      forksData = {
+        forks,
+        userForks
+      };
+      if (noteEl) {
+        noteEl.hidden = Boolean(result.connected);
+      }
+      renderForks();
+    } catch (error) {
+      listEl.textContent = "Unable to load forks right now.";
+    }
+  };
+
+  sourceButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const source = button.dataset.iplugSource;
+      if (source) {
+        setActiveSource(source);
+      }
+    });
+  });
+
+  searchInput.addEventListener("input", renderForks);
+
+  setActiveSource("official");
+};
+
 document.addEventListener("DOMContentLoaded", () => {
   scheduleReveals();
   hydrateAppMeta();
   setupGithubOAuth();
   setupWindowControls();
   setupCreateForm();
+  setupInstallScreen();
 });

@@ -277,6 +277,37 @@
             <p class="card-meta">
               This project needs iPlug2 before you can build and test plugins.
             </p>
+            <div class="source-toggle" role="tablist">
+              <button
+                class="ghost is-active"
+                data-iplug-source="official"
+                type="button"
+              >
+                Official
+              </button>
+              <button class="ghost" data-iplug-source="fork" type="button">
+                Fork
+              </button>
+            </div>
+            <div class="iplug-source" data-iplug-official>
+              <div class="repo-card">
+                <div class="repo-label">Official repository</div>
+                <div class="repo-url">https://github.com/iplug2/iplug2</div>
+              </div>
+            </div>
+            <div class="iplug-source" data-iplug-forks hidden>
+              <div class="fork-search">
+                <input
+                  type="text"
+                  placeholder="Search forks"
+                  data-iplug-search
+                />
+              </div>
+              <div class="fork-list" data-iplug-list></div>
+              <div class="fork-note" data-iplug-note hidden>
+                Connect GitHub to see your private forks.
+              </div>
+            </div>
             <div class="install-path">
               Project folder:
               <span data-install-path>Not set</span>
