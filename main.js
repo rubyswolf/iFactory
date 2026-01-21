@@ -298,6 +298,52 @@ const replaceAll = (value, search, replacement) => {
   return value.split(search).join(replacement);
 };
 
+const extractIPlugRoot = (content) => {
+  const lineMatch = content.match(/^\s*IPLUG2_ROOT\s*=\s*(.+)\s*$/m);
+  if (lineMatch) {
+    return lineMatch[1].trim();
+  }
+  const xmlMatch = content.match(/<IPLUG2_ROOT>\s*([^<]+)\s*<\/IPLUG2_ROOT>/);
+  if (xmlMatch) {
+    return xmlMatch[1].trim();
+  }
+  return "";
+};
+
+const getTemplateIPlugRoot = (configDir, templateName) => {
+  const candidates = [
+    path.join(configDir, `${templateName}-mac.xcconfig`),
+    path.join(configDir, `${templateName}-ios.xcconfig`),
+    path.join(configDir, `${templateName}-win.props`),
+    path.join(configDir, `${templateName}-web.mk`)
+  ];
+  for (const filePath of candidates) {
+    if (!fs.existsSync(filePath)) {
+      continue;
+    }
+    try {
+      const content = fs.readFileSync(filePath, "utf8");
+      const root = extractIPlugRoot(content);
+      if (root) {
+        return root;
+      }
+    } catch (error) {
+      // ignore config read errors
+    }
+  }
+  return "";
+};
+
+const getOutOfSourceRoot = (projectPath, targetPath) => {
+  const configPath = path.join(targetPath, "config");
+  const iplugPath = path.join(projectPath, "iPlug2");
+  let relativePath = path.relative(configPath, iplugPath);
+  if (!relativePath) {
+    return "";
+  }
+  return relativePath.split(path.sep).join("/");
+};
+
 const updateFileContents = (
   filePath,
   searchProject,
@@ -788,6 +834,10 @@ const registerIpc = () => {
       return { error: "already_exists" };
     }
 
+    const configDir = path.join(sourcePath, "config");
+    const oldRoot = getTemplateIPlugRoot(configDir, templateFolder);
+    const newRoot = getOutOfSourceRoot(projectPath, targetPath);
+
     const window = BrowserWindow.fromWebContents(event.sender);
     const sendProgress = (progress, stage) => {
       const normalized = Number.isFinite(progress)
@@ -829,16 +879,21 @@ const registerIpc = () => {
         cleanupTarget();
         return { error: "cancelled" };
       }
-      if (templateFolder !== name) {
-        sendProgress(0.7, "Renaming project...");
+      const needsRename = templateFolder !== name;
+      const needsRootUpdate = Boolean(oldRoot && newRoot && oldRoot !== newRoot);
+      if (needsRename || needsRootUpdate) {
+        sendProgress(
+          0.7,
+          needsRename ? "Renaming project..." : "Updating project references..."
+        );
         renameTemplateContents(
           targetPath,
           templateFolder,
           name,
           "AcmeInc",
           manufacturer,
-          "",
-          ""
+          oldRoot,
+          newRoot
         );
       }
       sendProgress(1, "Finished");
