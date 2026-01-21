@@ -15,6 +15,14 @@ const defaultSettings = {
       updatedAt: null
     }
   },
+  dependencies: {
+    git: {
+      installed: false,
+      skipped: false,
+      version: "",
+      checkedAt: null
+    }
+  },
   recentProjects: []
 };
 
@@ -27,6 +35,9 @@ const mergeSettings = (settings) => {
   const merged = cloneSettings(defaultSettings);
   if (settings?.integrations?.github) {
     Object.assign(merged.integrations.github, settings.integrations.github);
+  }
+  if (settings?.dependencies?.git) {
+    Object.assign(merged.dependencies.git, settings.dependencies.git);
   }
   if (Array.isArray(settings?.recentProjects)) {
     merged.recentProjects = settings.recentProjects;
@@ -119,6 +130,21 @@ const runGit = (args, cwd) => {
   }
 };
 
+const checkGitInstalled = () => {
+  const result = spawnSync("git", ["--version"], {
+    encoding: "utf8",
+    windowsHide: true
+  });
+  if (result.error || result.status !== 0) {
+    return { installed: false, version: "" };
+  }
+  const match = String(result.stdout || "").match(/git version ([^\s]+)/i);
+  return {
+    installed: true,
+    version: match ? match[1] : String(result.stdout || "").trim()
+  };
+};
+
 const pushRecentProject = ({ name, projectPath }) => {
   if (!projectPath) {
     return;
@@ -148,6 +174,29 @@ const registerIpc = () => {
   ipcMain.handle("recents:get", () =>
     Array.isArray(settings.recentProjects) ? settings.recentProjects : []
   );
+  ipcMain.handle("git:check", () => {
+    const result = checkGitInstalled();
+    settings.dependencies.git = {
+      ...settings.dependencies.git,
+      installed: result.installed,
+      skipped: false,
+      version: result.version || "",
+      checkedAt: new Date().toISOString()
+    };
+    saveSettings();
+    return settings.dependencies.git;
+  });
+  ipcMain.handle("git:skip", () => {
+    settings.dependencies.git = {
+      ...settings.dependencies.git,
+      installed: false,
+      skipped: true,
+      version: "",
+      checkedAt: new Date().toISOString()
+    };
+    saveSettings();
+    return settings.dependencies.git;
+  });
   ipcMain.handle("recents:remove", (event, payload) => {
     const removePath = payload?.path?.trim();
     if (!removePath) {

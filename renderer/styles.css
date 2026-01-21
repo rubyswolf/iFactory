@@ -736,6 +736,42 @@ body.is-setup-complete.is-installing .page-install {
   gap: 16px;
 }
 
+.connect[hidden] {
+  display: none;
+}
+
+.setup-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.setup-stack .connect {
+  margin-top: 0;
+}
+
+.git-instructions {
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(8, 12, 18, 0.7);
+  padding: 14px 16px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.instruction-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.instruction-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
 .connect-header {
   display: flex;
   justify-content: space-between;

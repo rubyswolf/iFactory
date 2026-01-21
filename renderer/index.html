@@ -33,40 +33,75 @@
               Build plugins with the iPlug2 framework, Codex and GitHub all in
               one integrated environment
             </p>
-            <div class="connect">
-              <div class="connect-header">
-                <div>
-                  <div class="connect-title">Connect to GitHub</div>
-                  <div class="connect-meta">
-                    Synchronize projects across devices, manage version history
-                    and more.
+            <div class="setup-stack">
+              <div class="connect connect-git" data-git-section>
+                <div class="connect-header">
+                  <div>
+                    <div class="connect-title">Install Git</div>
+                    <div class="connect-meta">
+                      Install dependencies faster and integrate with GitHub.
+                    </div>
                   </div>
+                  <span class="connect-status" data-git-status>
+                    Checking Installation
+                  </span>
                 </div>
-                <span class="connect-status" data-github-status>
-                  Not connected
-                </span>
+                <div class="git-instructions" data-git-instructions hidden>
+                  <div class="instruction-title">How to install</div>
+                  <ol class="instruction-list">
+                    <li>Download Git for Windows from git-scm.com.</li>
+                    <li>Run the installer and keep the defaults.</li>
+                    <li>Return here and click Check again.</li>
+                  </ol>
+                </div>
+                <div class="connect-actions">
+                  <button class="cta" data-git-check type="button">
+                    Check again
+                  </button>
+                  <button class="ghost" data-git-open type="button">
+                    Get Git for Windows
+                  </button>
+                  <button class="ghost" data-git-skip type="button">
+                    Skip for now
+                  </button>
+                </div>
               </div>
-              <div class="connect-actions">
-                <button class="cta" data-github-connect type="button">
-                  Connect with OAuth
-                </button>
-                <button class="ghost" data-github-skip type="button">
-                  Skip for now
-                </button>
-              </div>
-              <div class="oauth-flow" data-github-flow hidden>
-                <div class="oauth-step">
-                  <div class="step-content">
-                    <h3>Authorize</h3>
-                    <p>Copy the code and enter it at GitHub device login.</p>
-                    <div class="oauth-code-row">
-                      <span class="oauth-code" data-github-code>----</span>
-                      <button class="secondary" data-github-copy type="button">
-                        Copy Code
-                      </button>
-                      <button class="ghost" data-github-open type="button">
-                        Open GitHub
-                      </button>
+
+              <div class="connect connect-github" data-github-section hidden>
+                <div class="connect-header">
+                  <div>
+                    <div class="connect-title">Connect to GitHub</div>
+                    <div class="connect-meta">
+                      Synchronize projects across devices, manage version history
+                      and more.
+                    </div>
+                  </div>
+                  <span class="connect-status" data-github-status>
+                    Not connected
+                  </span>
+                </div>
+                <div class="connect-actions">
+                  <button class="cta" data-github-connect type="button">
+                    Connect with OAuth
+                  </button>
+                  <button class="ghost" data-github-skip type="button">
+                    Skip for now
+                  </button>
+                </div>
+                <div class="oauth-flow" data-github-flow hidden>
+                  <div class="oauth-step">
+                    <div class="step-content">
+                      <h3>Authorize</h3>
+                      <p>Copy the code and enter it at GitHub device login.</p>
+                      <div class="oauth-code-row">
+                        <span class="oauth-code" data-github-code>----</span>
+                        <button class="secondary" data-github-copy type="button">
+                          Copy Code
+                        </button>
+                        <button class="ghost" data-github-open type="button">
+                          Open GitHub
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

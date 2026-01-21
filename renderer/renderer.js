@@ -35,7 +35,11 @@ const hydrateAppMeta = async () => {
 };
 
 const setupGithubOAuth = () => {
-  if (!window.ifactory?.settings || !window.ifactory?.github) {
+  if (
+    !window.ifactory?.settings ||
+    !window.ifactory?.github ||
+    !window.ifactory?.git
+  ) {
     return;
   }
 
@@ -48,6 +52,13 @@ const setupGithubOAuth = () => {
   const copyButton = document.querySelector("[data-github-copy]");
   const openButton = document.querySelector("[data-github-open]");
   const resetButton = document.querySelector("[data-setup-reset]");
+  const gitSection = document.querySelector("[data-git-section]");
+  const githubSection = document.querySelector("[data-github-section]");
+  const gitStatusEl = document.querySelector("[data-git-status]");
+  const gitCheckButton = document.querySelector("[data-git-check]");
+  const gitSkipButton = document.querySelector("[data-git-skip]");
+  const gitInstructions = document.querySelector("[data-git-instructions]");
+  const gitOpenButton = document.querySelector("[data-git-open]");
   const createButton = document.querySelector("[data-action-create]");
   const cloneButton = document.querySelector("[data-action-clone]");
   const openProjectButton = document.querySelector("[data-action-open]");
@@ -62,7 +73,20 @@ const setupGithubOAuth = () => {
   const homeButtons = document.querySelectorAll("[data-action-home]");
   const recentListEl = document.querySelector("[data-recent-list]");
 
-  if (!statusEl || !connectButton || !flowEl || !codeEl || !resetButton) {
+  if (
+    !statusEl ||
+    !connectButton ||
+    !flowEl ||
+    !codeEl ||
+    !resetButton ||
+    !gitSection ||
+    !githubSection ||
+    !gitStatusEl ||
+    !gitCheckButton ||
+    !gitSkipButton ||
+    !gitInstructions ||
+    !gitOpenButton
+  ) {
     return;
   }
 
@@ -70,6 +94,9 @@ const setupGithubOAuth = () => {
   let verificationUri = "https://github.com/login/device";
   let githubConnected = false;
   let currentProjectPath = "";
+  let gitInstalled = false;
+  let gitSkipped = false;
+  let gitChecking = false;
 
   const renderRecents = (projects) => {
     if (!recentListEl) {
@@ -186,6 +213,60 @@ const setupGithubOAuth = () => {
     }
   };
 
+  const updateSetupState = () => {
+    if (gitSkipped) {
+      setSetupComplete(true);
+      return;
+    }
+    if (!gitInstalled) {
+      setSetupComplete(false);
+      return;
+    }
+    setSetupComplete(githubConnected || isSkipped());
+  };
+
+  const setGitChecking = (checking) => {
+    gitChecking = checking;
+    gitCheckButton.disabled = checking;
+    if (gitStatusEl && checking) {
+      gitStatusEl.textContent = "Checking Installation";
+    }
+  };
+
+  const applyGitState = (git) => {
+    gitInstalled = Boolean(git?.installed);
+    gitSkipped = Boolean(git?.skipped);
+    gitSection.hidden = gitInstalled || gitSkipped;
+    githubSection.hidden = !gitInstalled;
+    gitInstructions.hidden = gitInstalled || gitSkipped || gitChecking;
+    if (!gitChecking) {
+      if (gitInstalled) {
+        gitStatusEl.textContent = "Installed";
+      } else if (gitSkipped) {
+        gitStatusEl.textContent = "Skipped";
+      } else {
+        gitStatusEl.textContent = "Not Installed";
+      }
+    }
+    updateSetupState();
+  };
+
+  const checkGitInstallation = async () => {
+    try {
+      if (!window.ifactory?.git?.check) {
+        return;
+      }
+      setGitChecking(true);
+      gitInstructions.hidden = true;
+      const result = await window.ifactory.git.check();
+      setGitChecking(false);
+      applyGitState(result);
+    } catch (error) {
+      setGitChecking(false);
+      applyGitState({ installed: false, skipped: false });
+    }
+  };
+
   const openProjectPath = async (projectPath) => {
     try {
       if (!window.ifactory?.project) {
@@ -213,6 +294,7 @@ const setupGithubOAuth = () => {
     setCreating(false);
     setInstalling(false);
     setFlowVisible(false);
+    updateSetupState();
   };
 
   const applyGithubState = (settings) => {
@@ -227,7 +309,7 @@ const setupGithubOAuth = () => {
     if (githubConnected) {
       setSkipped(false);
     }
-    setSetupComplete(githubConnected || isSkipped());
+    updateSetupState();
     setCreating(false);
     setInstalling(false);
     if (createRepoToggle) {
@@ -241,7 +323,21 @@ const setupGithubOAuth = () => {
   const loadGithub = async () => {
     try {
       const settings = await window.ifactory.settings.get();
+      const gitState = settings?.dependencies?.git;
+      const needsCheck = !gitState?.installed && !gitState?.skipped;
+      if (needsCheck) {
+        setGitChecking(true);
+        gitSection.hidden = false;
+        githubSection.hidden = true;
+        gitInstructions.hidden = true;
+        gitStatusEl.textContent = "Checking Installation";
+      } else {
+        applyGitState(gitState);
+      }
       applyGithubState(settings);
+      if (needsCheck) {
+        await checkGitInstallation();
+      }
     } catch (error) {
       console.error("Failed to load GitHub settings", error);
       statusEl.textContent = "GitHub unavailable";
@@ -343,8 +439,34 @@ const setupGithubOAuth = () => {
     }
   };
 
+  const openGitInstaller = async () => {
+    try {
+      if (!window.ifactory?.openExternal) {
+        return;
+      }
+      await window.ifactory.openExternal("https://git-scm.com/download/win");
+    } catch (error) {
+      console.error("Failed to open Git installer", error);
+    }
+  };
+
+  const skipGit = async () => {
+    try {
+      if (!window.ifactory?.git?.skip) {
+        return;
+      }
+      const result = await window.ifactory.git.skip();
+      applyGitState(result);
+    } catch (error) {
+      console.error("Failed to skip Git install", error);
+    }
+  };
+
   connectButton.addEventListener("click", startFlow);
   resetButton.addEventListener("click", disconnect);
+  gitCheckButton.addEventListener("click", checkGitInstallation);
+  gitSkipButton.addEventListener("click", skipGit);
+  gitOpenButton.addEventListener("click", openGitInstaller);
   if (copyButton) {
     copyButton.addEventListener("click", copyCode);
   }

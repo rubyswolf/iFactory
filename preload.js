@@ -11,6 +11,10 @@ contextBridge.exposeInMainWorld("ifactory", {
     get: () => ipcRenderer.invoke("recents:get"),
     remove: (path) => ipcRenderer.invoke("recents:remove", { path })
   },
+  git: {
+    check: () => ipcRenderer.invoke("git:check"),
+    skip: () => ipcRenderer.invoke("git:skip")
+  },
   github: {
     startDeviceFlow: (scopes) =>
       ipcRenderer.invoke("github:deviceStart", { scopes }),
