@@ -192,6 +192,28 @@ const expandArchive = (zipPath, destDir, onChild) =>
     });
   });
 
+const getDepsConfig = () => {
+  const platform = process.platform;
+  if (platform === "darwin") {
+    return { zipFile: "IPLUG2_DEPS_MAC", folder: "mac" };
+  }
+  if (platform === "win32") {
+    return { zipFile: "IPLUG2_DEPS_WIN", folder: "win" };
+  }
+  if (platform === "linux") {
+    return { zipFile: "", folder: "" };
+  }
+  return { zipFile: "", folder: "" };
+};
+
+const getDepsBuildPath = (iplugPath) => {
+  const config = getDepsConfig();
+  if (!config.folder) {
+    return "";
+  }
+  return path.join(iplugPath, "Dependencies", "Build", config.folder);
+};
+
 const sanitizeSettings = (settings) => {
   const sanitized = cloneSettings(settings);
   const github = sanitized.integrations.github;
@@ -434,8 +456,13 @@ const registerIpc = () => {
       }
       const iPlugPath = path.join(projectPath, "iPlug2");
       const needsIPlug = !fs.existsSync(iPlugPath);
+      let needsDependencies = false;
+      if (!needsIPlug) {
+        const depsPath = getDepsBuildPath(iPlugPath);
+        needsDependencies = !depsPath || !fs.existsSync(depsPath);
+      }
       pushRecentProject({ projectPath });
-      return { path: projectPath, needsIPlug };
+      return { path: projectPath, needsIPlug, needsDependencies };
     } catch (error) {
       return { error: "open_failed" };
     }
@@ -697,6 +724,78 @@ const registerIpc = () => {
     }
   });
 
+  const installDependencies = async ({ targetPath, event, token }) => {
+    const depsDir = path.join(targetPath, "Dependencies");
+    if (!fs.existsSync(depsDir)) {
+      throw new Error("Dependencies folder missing");
+    }
+
+    const config = getDepsConfig();
+    if (!config.zipFile || !config.folder) {
+      throw new Error("Unsupported platform");
+    }
+
+    const depsTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ifactory-"));
+    const depsZipPath = path.join(depsTmpDir, `${config.zipFile}.zip`);
+    const depsExtractDir = path.join(depsTmpDir, "extract");
+    fs.mkdirSync(depsExtractDir, { recursive: true });
+
+    event.sendProgress(0.68, "Downloading dependencies...");
+    await downloadFile(
+      `https://github.com/iPlug2/iPlug2/releases/download/v1.0.0-beta/${config.zipFile}.zip`,
+      depsZipPath,
+      {
+        onProgress: (progress) => {
+          event.sendProgress(0.68 + progress * 0.2, "Downloading dependencies...");
+        },
+        onRequest: (request) => {
+          event.setRequest(request);
+        },
+        shouldAbort: () => event.isCanceled()
+      }
+    );
+
+    if (event.isCanceled()) {
+      throw new Error("cancelled");
+    }
+
+    event.sendProgress(0.9, "Extracting dependencies...");
+    await expandArchive(depsZipPath, depsExtractDir, (child) => {
+      event.setChild(child);
+    });
+
+    if (event.isCanceled()) {
+      throw new Error("cancelled");
+    }
+
+    const depsRootEntries = fs.readdirSync(depsExtractDir, {
+      withFileTypes: true
+    });
+    const depsRootDir = depsRootEntries.find((entry) => entry.isDirectory());
+    if (!depsRootDir) {
+      throw new Error("Dependencies archive invalid");
+    }
+    const depsRootPath = path.join(depsExtractDir, depsRootDir.name);
+    const buildDir = path.join(depsDir, "Build");
+    fs.mkdirSync(buildDir, { recursive: true });
+    fs.rmSync(path.join(buildDir, config.folder), { recursive: true, force: true });
+    fs.rmSync(path.join(buildDir, "src"), { recursive: true, force: true });
+
+    const depsEntries = fs.readdirSync(depsRootPath, {
+      withFileTypes: true
+    });
+    depsEntries.forEach((entry) => {
+      const sourcePath = path.join(depsRootPath, entry.name);
+      const destPath = path.join(buildDir, entry.name);
+      if (fs.existsSync(destPath)) {
+        fs.rmSync(destPath, { recursive: true, force: true });
+      }
+      fs.renameSync(sourcePath, destPath);
+    });
+
+    fs.rmSync(depsTmpDir, { recursive: true, force: true });
+  };
+
   ipcMain.handle("iplug:install", async (event, payload) => {
     if (activeInstall) {
       return { error: "install_in_progress" };
@@ -733,7 +832,6 @@ const registerIpc = () => {
       ? `https://x-access-token:${tokenValue}@github.com/${repoFullName}.git`
       : sanitizedUrl;
     let tmpDir = null;
-    let depsTmpDir = null;
     let gitmodulesBackup = null;
     let usedSubmodule = false;
 
@@ -750,6 +848,17 @@ const registerIpc = () => {
         progress: normalized,
         stage
       });
+    };
+
+    const installContext = {
+      sendProgress,
+      setRequest: (request) => {
+        activeInstall.request = request;
+      },
+      setChild: (child) => {
+        activeInstall.child = child;
+      },
+      isCanceled: () => activeInstall?.canceled
     };
 
     const cleanup = () => {
@@ -790,13 +899,6 @@ const registerIpc = () => {
       if (tmpDir) {
         try {
           fs.rmSync(tmpDir, { recursive: true, force: true });
-        } catch (error) {
-          // ignore cleanup errors
-        }
-      }
-      if (depsTmpDir) {
-        try {
-          fs.rmSync(depsTmpDir, { recursive: true, force: true });
         } catch (error) {
           // ignore cleanup errors
         }
@@ -925,88 +1027,11 @@ const registerIpc = () => {
         throw new Error("cancelled");
       }
 
-      const depsDir = path.join(targetPath, "Dependencies");
-      if (!fs.existsSync(depsDir)) {
-        throw new Error("Dependencies folder missing");
-      }
-
-      const platform = process.platform;
-      let zipFile = "";
-      let folder = "";
-      if (platform === "darwin") {
-        zipFile = "IPLUG2_DEPS_MAC";
-        folder = "mac";
-      } else if (platform === "win32") {
-        zipFile = "IPLUG2_DEPS_WIN";
-        folder = "win";
-      } else if (platform === "linux") {
-        throw new Error("Dependencies unavailable on Linux");
-      }
-
-      if (!zipFile || !folder) {
-        throw new Error("Unsupported platform");
-      }
-
-      depsTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ifactory-"));
-      const depsZipPath = path.join(depsTmpDir, `${zipFile}.zip`);
-      const depsExtractDir = path.join(depsTmpDir, "extract");
-      fs.mkdirSync(depsExtractDir, { recursive: true });
-
-      sendProgress(0.68, "Downloading dependencies...");
-      await downloadFile(
-        `https://github.com/iPlug2/iPlug2/releases/download/v1.0.0-beta/${zipFile}.zip`,
-        depsZipPath,
-        {
-          onProgress: (progress) => {
-            sendProgress(0.68 + progress * 0.2, "Downloading dependencies...");
-          },
-          onRequest: (request) => {
-            activeInstall.request = request;
-          },
-          shouldAbort: () => activeInstall?.canceled
-        }
-      );
-
-      if (activeInstall.canceled) {
-        throw new Error("cancelled");
-      }
-
-      sendProgress(0.9, "Extracting dependencies...");
-      await expandArchive(depsZipPath, depsExtractDir, (child) => {
-        activeInstall.child = child;
+      await installDependencies({
+        targetPath,
+        event: installContext,
+        token
       });
-
-      if (activeInstall.canceled) {
-        throw new Error("cancelled");
-      }
-
-      const depsRootEntries = fs.readdirSync(depsExtractDir, {
-        withFileTypes: true
-      });
-      const depsRootDir = depsRootEntries.find((entry) => entry.isDirectory());
-      if (!depsRootDir) {
-        throw new Error("Dependencies archive invalid");
-      }
-      const depsRootPath = path.join(depsExtractDir, depsRootDir.name);
-      const buildDir = path.join(depsDir, "Build");
-      fs.mkdirSync(buildDir, { recursive: true });
-      fs.rmSync(path.join(buildDir, folder), { recursive: true, force: true });
-      fs.rmSync(path.join(buildDir, "src"), { recursive: true, force: true });
-
-      const depsEntries = fs.readdirSync(depsRootPath, {
-        withFileTypes: true
-      });
-      depsEntries.forEach((entry) => {
-        const sourcePath = path.join(depsRootPath, entry.name);
-        const destPath = path.join(buildDir, entry.name);
-        if (fs.existsSync(destPath)) {
-          fs.rmSync(destPath, { recursive: true, force: true });
-        }
-        fs.renameSync(sourcePath, destPath);
-      });
-
-      fs.rmSync(depsTmpDir, { recursive: true, force: true });
-      depsTmpDir = null;
 
       sendProgress(0.97, "Finalizing...");
       sendProgress(1, "Finished");
@@ -1032,6 +1057,100 @@ const registerIpc = () => {
       return {
         error: "install_failed",
         details: message
+      };
+    } finally {
+      if (window && !window.isDestroyed()) {
+        window.setProgressBar(-1);
+      }
+      activeInstall = null;
+    }
+  });
+
+  ipcMain.handle("iplug:installDependencies", async (event, payload) => {
+    if (activeInstall) {
+      return { error: "install_in_progress" };
+    }
+    const projectPath = payload?.projectPath?.trim();
+    if (!projectPath) {
+      return { error: "missing_fields" };
+    }
+    if (!fs.existsSync(projectPath)) {
+      return { error: "path_not_found" };
+    }
+    const targetPath = path.join(projectPath, "iPlug2");
+    if (!fs.existsSync(targetPath)) {
+      return { error: "missing_iplug" };
+    }
+    const depsConfig = getDepsConfig();
+    const buildDir = path.join(targetPath, "Dependencies", "Build");
+
+    const cleanupDeps = () => {
+      if (!depsConfig.folder) {
+        return;
+      }
+      try {
+        fs.rmSync(path.join(buildDir, depsConfig.folder), {
+          recursive: true,
+          force: true
+        });
+        fs.rmSync(path.join(buildDir, "src"), {
+          recursive: true,
+          force: true
+        });
+      } catch (error) {
+        // ignore cleanup errors
+      }
+    };
+
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const sendProgress = (progress, stage) => {
+      const normalized = Number.isFinite(progress)
+        ? Math.max(0, Math.min(progress, 1))
+        : null;
+      if (window && !window.isDestroyed()) {
+        window.setProgressBar(
+          normalized === null ? -1 : normalized
+        );
+      }
+      event.sender.send("iplug:progress", {
+        progress: normalized,
+        stage
+      });
+    };
+
+    activeInstall = {
+      canceled: false,
+      child: null,
+      request: null
+    };
+
+    try {
+      sendProgress(0.05, "Preparing dependencies...");
+      await installDependencies({
+        targetPath,
+        event: {
+          sendProgress,
+          setRequest: (request) => {
+            activeInstall.request = request;
+          },
+          setChild: (child) => {
+            activeInstall.child = child;
+          },
+          isCanceled: () => activeInstall?.canceled
+        },
+        token: settings?.integrations?.github?.token || ""
+      });
+      sendProgress(1, "Finished");
+      return { path: targetPath };
+    } catch (error) {
+      if (activeInstall?.canceled || error?.message === "cancelled") {
+        cleanupDeps();
+        return { error: "cancelled" };
+      }
+      cleanupDeps();
+      return {
+        error: "install_failed",
+        details: String(error?.message || "")
       };
     } finally {
       if (window && !window.isDestroyed()) {

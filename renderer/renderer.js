@@ -283,6 +283,15 @@ const setupGithubOAuth = () => {
       updateInstallPath(result.path);
       if (result.needsIPlug) {
         setInstalling(true);
+        document.body.classList.remove("is-ready");
+      } else if (result.needsDependencies) {
+        setInstalling(true);
+        document.body.classList.remove("is-ready");
+        if (window.ifactoryInstall?.installDependencies) {
+          await window.ifactoryInstall.installDependencies(result.path);
+        }
+      } else {
+        document.body.classList.add("is-ready");
       }
       await loadRecents();
       return result;
@@ -784,6 +793,37 @@ const setupInstallScreen = () => {
     }
   };
 
+  const runDependenciesInstall = async (projectPath) => {
+    if (!window.ifactory?.iplug?.installDependencies) {
+      return;
+    }
+    setReadyScreen(false);
+    setInstallStatus("Installing dependencies...", "");
+    installButton.disabled = true;
+    setInstallingScreen(true);
+    try {
+      const result = await window.ifactory.iplug.installDependencies({
+        projectPath
+      });
+      if (result?.error) {
+        const message = result.error === "cancelled"
+          ? "Installation cancelled."
+          : result.details
+            ? `Installation failed: ${result.details}`
+            : "Installation failed. Check your settings and try again.";
+        setInstallStatus(message, result.error === "cancelled" ? "" : "error");
+        return;
+      }
+      setInstallStatus("Dependencies installed.", "success");
+      setReadyScreen(true);
+    } catch (error) {
+      setInstallStatus("Installation failed. Check your settings and try again.", "error");
+    } finally {
+      setInstallingScreen(false);
+      installButton.disabled = false;
+    }
+  };
+
   const updateProgress = (progress, stage) => {
     if (typeof progress === "number" && Number.isFinite(progress)) {
       const clamped = Math.max(0, Math.min(progress, 1));
@@ -1177,7 +1217,7 @@ const setupInstallScreen = () => {
       return;
     }
     installCancel.disabled = true;
-    installStage.textContent = "Cancelling installation…";
+    installStage.textContent = "Cancelling installation...";
     try {
       await window.ifactory.iplug.cancel();
     } catch (error) {
@@ -1192,6 +1232,10 @@ const setupInstallScreen = () => {
   }
 
   installButton.addEventListener("click", handleInstall);
+
+  window.ifactoryInstall = {
+    installDependencies: runDependenciesInstall
+  };
 
   setActiveSource("official");
   setActiveBranchMode("master");

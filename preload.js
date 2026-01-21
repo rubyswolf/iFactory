@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld("ifactory", {
   },
   iplug: {
     install: (payload) => ipcRenderer.invoke("iplug:install", payload),
+    installDependencies: (payload) =>
+      ipcRenderer.invoke("iplug:installDependencies", payload),
     cancel: () => ipcRenderer.invoke("iplug:cancel"),
     onProgress: (callback) => {
       if (typeof callback !== "function") {
