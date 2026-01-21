@@ -381,6 +381,44 @@ body.is-templates .page-templates {
   width: min(520px, 100%);
 }
 
+.templates-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.template-name {
+  margin-top: 16px;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateY(-6px);
+  transition: opacity 0.25s ease, max-height 0.25s ease, transform 0.25s ease;
+}
+
+body.is-template-selected .template-name {
+  max-height: 160px;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.template-search {
+  margin-top: 12px;
+  max-height: 60px;
+  opacity: 1;
+  transition: opacity 0.25s ease, max-height 0.25s ease, margin 0.25s ease,
+    transform 0.25s ease;
+  overflow: hidden;
+}
+
+body.is-template-selected .template-search {
+  opacity: 0;
+  max-height: 0;
+  margin: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+}
+
 .ready-choices {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -569,6 +607,7 @@ body.is-templates .page-templates {
   max-height: 260px;
   overflow-y: auto;
   padding-right: 6px;
+  transition: max-height 0.3s ease, margin-top 0.3s ease;
 }
 
 .branch-list[hidden] {
@@ -593,6 +632,45 @@ body.is-templates .page-templates {
   color: var(--ink);
   text-align: left;
   cursor: pointer;
+}
+
+.template-item {
+  position: relative;
+}
+
+body.is-template-selected .template-list {
+  margin-top: 0;
+  max-height: 140px;
+  overflow-y: hidden;
+}
+
+.template-clear {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(8, 12, 18, 0.7);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.template-item.is-selected .template-clear {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.template-item.is-selected .template-clear:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: var(--text);
 }
 
 .fork-item:hover {
@@ -861,6 +939,14 @@ body.is-templates .titlebar-group--templates {
 .cta:hover {
   transform: translateY(-2px);
   box-shadow: 0 18px 38px var(--accent-focus);
+}
+
+.cta:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  background: linear-gradient(120deg, rgba(129, 160, 120, 0.6), rgba(139, 175, 120, 0.6));
 }
 
 .layout {

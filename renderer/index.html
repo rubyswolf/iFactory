@@ -411,7 +411,7 @@
       <div class="page page-templates" data-page-templates>
         <main class="templates-grid">
           <section class="panel templates-panel reveal">
-            <div class="eyebrow">Choose a template</div>
+            <div class="eyebrow">Create a plugin</div>
             <h2 data-template-title>Loading templates.</h2>
             <p class="card-meta" data-template-status>
               Fetching available iPlug2 templates.
@@ -425,6 +425,27 @@
               />
             </div>
             <div class="template-list" data-template-list></div>
+            <div class="template-name" data-template-name-section>
+              <label class="field">
+                <span>Name your plugin</span>
+                <input
+                  type="text"
+                  placeholder="MyPlugin"
+                  data-template-name
+                  autocomplete="off"
+                />
+              </label>
+            </div>
+            <div class="templates-actions">
+              <button
+                class="cta"
+                type="button"
+                data-template-continue
+                disabled
+              >
+                Continue
+              </button>
+            </div>
           </section>
         </main>
       </div>

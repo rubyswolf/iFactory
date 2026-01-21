@@ -77,6 +77,10 @@ const setupGithubOAuth = () => {
   const templateStatusEl = document.querySelector("[data-template-status]");
   const templateSearchInput = document.querySelector("[data-template-search]");
   const templateListEl = document.querySelector("[data-template-list]");
+  const templateContinueButton = document.querySelector(
+    "[data-template-continue]"
+  );
+  const templateNameInput = document.querySelector("[data-template-name]");
   const recentListEl = document.querySelector("[data-recent-list]");
 
   if (
@@ -104,6 +108,17 @@ const setupGithubOAuth = () => {
   let gitSkipped = false;
   let gitChecking = false;
   let templatesData = [];
+  let selectedTemplate = "";
+
+  const sanitizeTemplateName = (value) => value.replace(/[^a-zA-Z0-9]/g, "");
+
+  const updateTemplateContinue = () => {
+    if (!templateContinueButton) {
+      return;
+    }
+    const nameValue = templateNameInput?.value.trim() || "";
+    templateContinueButton.disabled = !selectedTemplate || !nameValue;
+  };
 
   const renderRecents = (projects) => {
     if (!recentListEl) {
@@ -206,17 +221,24 @@ const setupGithubOAuth = () => {
         })
       : templates;
 
+    const displayTemplates = selectedTemplate
+      ? templates.filter((template) => template.folder === selectedTemplate)
+      : filtered;
+
     templateListEl.innerHTML = "";
-    if (!filtered.length) {
+    if (!displayTemplates.length) {
       showTemplateMessage("No templates found.");
       return;
     }
 
-    filtered.forEach((template) => {
+    displayTemplates.forEach((template) => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "fork-item template-item";
       button.dataset.templateFolder = template.folder || "";
+      if (template.folder && template.folder === selectedTemplate) {
+        button.classList.add("is-selected");
+      }
 
       const title = document.createElement("div");
       title.className = "fork-title";
@@ -231,8 +253,37 @@ const setupGithubOAuth = () => {
         button.appendChild(desc);
       }
 
+      if (template.folder && template.folder === selectedTemplate) {
+        const clear = document.createElement("span");
+        clear.className = "template-clear";
+        clear.textContent = "x";
+        clear.setAttribute("aria-label", "Clear selection");
+        button.appendChild(clear);
+      }
+
+      button.addEventListener("click", (event) => {
+        if (event.target?.classList?.contains("template-clear")) {
+          selectedTemplate = "";
+          if (templateNameInput) {
+            templateNameInput.value = "";
+          }
+          renderTemplates();
+          return;
+        }
+        selectedTemplate = template.folder || "";
+        if (templateNameInput) {
+          templateNameInput.value = selectedTemplate;
+        }
+        renderTemplates();
+      });
+
       templateListEl.appendChild(button);
     });
+    updateTemplateContinue();
+    document.body.classList.toggle(
+      "is-template-selected",
+      Boolean(selectedTemplate)
+    );
   };
 
   const loadTemplates = async () => {
@@ -242,6 +293,12 @@ const setupGithubOAuth = () => {
     if (templateSearchInput) {
       templateSearchInput.value = "";
     }
+    selectedTemplate = "";
+    if (templateNameInput) {
+      templateNameInput.value = "";
+    }
+    document.body.classList.remove("is-template-selected");
+    updateTemplateContinue();
     templateTitleEl.textContent = "Loading templates.";
     setTemplateStatus("Fetching available iPlug2 templates.");
     templateListEl.innerHTML = "";
@@ -272,7 +329,7 @@ const setupGithubOAuth = () => {
         return;
       }
       templatesData = Array.isArray(result?.templates) ? result.templates : [];
-      templateTitleEl.textContent = "Choose a template.";
+      templateTitleEl.textContent = "Choose a plugin template.";
       setTemplateStatus("");
       renderTemplates();
     } catch (error) {
@@ -745,6 +802,22 @@ const setupGithubOAuth = () => {
   });
   if (templateSearchInput) {
     templateSearchInput.addEventListener("input", renderTemplates);
+  }
+  if (templateNameInput) {
+    templateNameInput.addEventListener("input", () => {
+      const sanitized = sanitizeTemplateName(templateNameInput.value);
+      if (sanitized !== templateNameInput.value) {
+        templateNameInput.value = sanitized;
+      }
+      updateTemplateContinue();
+    });
+  }
+  if (templateContinueButton) {
+    templateContinueButton.addEventListener("click", () => {
+      if (!selectedTemplate) {
+        return;
+      }
+    });
   }
 
   loadGithub();
