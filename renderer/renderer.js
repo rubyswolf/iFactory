@@ -60,6 +60,7 @@ const setupGithubOAuth = () => {
   const createFolderToggle = document.querySelector("[data-create-folder]");
   const installPath = document.querySelector("[data-install-path]");
   const homeButtons = document.querySelectorAll("[data-action-home]");
+  const recentListEl = document.querySelector("[data-recent-list]");
 
   if (!statusEl || !connectButton || !flowEl || !codeEl || !resetButton) {
     return;
@@ -69,6 +70,58 @@ const setupGithubOAuth = () => {
   let verificationUri = "https://github.com/login/device";
   let githubConnected = false;
   let currentProjectPath = "";
+
+  const renderRecents = (projects) => {
+    if (!recentListEl) {
+      return;
+    }
+    recentListEl.innerHTML = "";
+    if (!Array.isArray(projects) || projects.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "recent-empty";
+      empty.textContent = "No recent projects yet.";
+      recentListEl.appendChild(empty);
+      return;
+    }
+
+    projects.slice(0, 3).forEach((project) => {
+      if (!project?.path) {
+        return;
+      }
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "recent-item";
+      button.dataset.recentPath = project.path;
+
+      const name = document.createElement("div");
+      name.className = "recent-name";
+      name.textContent = project.name || project.path;
+
+      const pathEl = document.createElement("div");
+      pathEl.className = "recent-path";
+      pathEl.textContent = project.path;
+
+      button.appendChild(name);
+      button.appendChild(pathEl);
+      button.addEventListener("click", async () => {
+        await openProjectPath(project.path);
+      });
+
+      recentListEl.appendChild(button);
+    });
+  };
+
+  const loadRecents = async () => {
+    if (!window.ifactory?.recents?.get) {
+      return;
+    }
+    try {
+      const projects = await window.ifactory.recents.get();
+      renderRecents(projects);
+    } catch (error) {
+      console.error("Failed to load recent projects", error);
+    }
+  };
 
   const setFlowVisible = (visible) => {
     flowEl.hidden = !visible;
@@ -110,6 +163,25 @@ const setupGithubOAuth = () => {
     currentProjectPath = pathValue || "";
     if (installPath) {
       installPath.textContent = currentProjectPath || "Not set";
+    }
+  };
+
+  const openProjectPath = async (projectPath) => {
+    try {
+      if (!window.ifactory?.project) {
+        return;
+      }
+      const result = await window.ifactory.project.open({ path: projectPath });
+      if (result?.error) {
+        return;
+      }
+      updateInstallPath(result.path);
+      if (result.needsIPlug) {
+        setInstalling(true);
+      }
+      await loadRecents();
+    } catch (error) {
+      console.error("Failed to open project", error);
     }
   };
 
@@ -279,14 +351,7 @@ const setupGithubOAuth = () => {
         if (!folder) {
           return;
         }
-        const result = await window.ifactory.project.open({ path: folder });
-        if (result?.error) {
-          return;
-        }
-        updateInstallPath(result.path);
-        if (result.needsIPlug) {
-          setInstalling(true);
-        }
+        await openProjectPath(folder);
       } catch (error) {
         console.error("Failed to open project", error);
       }
@@ -329,6 +394,7 @@ const setupGithubOAuth = () => {
         }
         updateInstallPath(result.path);
         setInstalling(true);
+        await loadRecents();
       } catch (error) {
         console.error("Failed to create project", error);
       }
@@ -357,6 +423,7 @@ const setupGithubOAuth = () => {
   });
 
   loadGithub();
+  loadRecents();
 };
 
 const setupWindowControls = () => {

@@ -535,10 +535,20 @@ body.is-setup-complete.is-installing .page-install {
 }
 
 .recent-item {
+  width: 100%;
   padding: 12px 14px;
   border-radius: var(--radius-sm);
   border: 1px solid rgba(255, 255, 255, 0.06);
   background: rgba(10, 16, 24, 0.65);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+.recent-item:hover {
+  border-color: rgba(255, 255, 255, 0.24);
 }
 
 .recent-name {
@@ -551,6 +561,12 @@ body.is-setup-complete.is-installing .page-install {
   color: var(--muted);
   margin-top: 6px;
   word-break: break-all;
+}
+
+.recent-empty {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 8px 0 4px;
 }
 .titlebar {
   display: grid;

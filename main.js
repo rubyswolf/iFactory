@@ -13,7 +13,8 @@ const defaultSettings = {
       authMethod: "",
       updatedAt: null
     }
-  }
+  },
+  recentProjects: []
 };
 
 const cloneSettings = (value) => JSON.parse(JSON.stringify(value));
@@ -25,6 +26,9 @@ const mergeSettings = (settings) => {
   const merged = cloneSettings(defaultSettings);
   if (settings?.integrations?.github) {
     Object.assign(merged.integrations.github, settings.integrations.github);
+  }
+  if (Array.isArray(settings?.recentProjects)) {
+    merged.recentProjects = settings.recentProjects;
   }
   return merged;
 };
@@ -100,6 +104,25 @@ const saveSettings = () => {
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
 };
 
+const pushRecentProject = ({ name, projectPath }) => {
+  if (!projectPath) {
+    return;
+  }
+
+  const title = name || path.basename(projectPath);
+  const existing = Array.isArray(settings.recentProjects)
+    ? settings.recentProjects
+    : [];
+  const filtered = existing.filter((item) => item?.path !== projectPath);
+  filtered.unshift({
+    name: title,
+    path: projectPath,
+    updatedAt: new Date().toISOString()
+  });
+  settings.recentProjects = filtered.slice(0, 3);
+  saveSettings();
+};
+
 const registerIpc = () => {
   ipcMain.handle("app:getMeta", () => ({
     name: pkg.productName || pkg.name || app.getName(),
@@ -107,6 +130,9 @@ const registerIpc = () => {
     description: pkg.description || ""
   }));
   ipcMain.handle("settings:get", () => sanitizeSettings(settings));
+  ipcMain.handle("recents:get", () =>
+    Array.isArray(settings.recentProjects) ? settings.recentProjects : []
+  );
   ipcMain.handle("shell:openExternal", (event, url) => {
     if (typeof url !== "string") {
       return false;
@@ -167,6 +193,8 @@ const registerIpc = () => {
         repoUrl = repo?.html_url || null;
       }
 
+      pushRecentProject({ name, projectPath });
+
       return {
         path: projectPath,
         repoUrl,
@@ -187,6 +215,7 @@ const registerIpc = () => {
       }
       const iPlugPath = path.join(projectPath, "iPlug2");
       const needsIPlug = !fs.existsSync(iPlugPath);
+      pushRecentProject({ projectPath });
       return { path: projectPath, needsIPlug };
     } catch (error) {
       return { error: "open_failed" };
