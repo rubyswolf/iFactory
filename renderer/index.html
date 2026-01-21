@@ -14,17 +14,39 @@
     </div>
 
     <div class="app">
-      <div class="page page-setup" data-page-setup>
-        <header class="titlebar reveal">
-          <div class="brand">
-            <div class="logo">iFactory</div>
-            <div class="byline">
-              by Dart Spark <span class="dot">|</span>
-              <span data-app-version>v0.1.0</span>
-            </div>
+      <header class="titlebar reveal titlebar-global">
+        <div class="brand">
+          <div class="logo">iFactory</div>
+          <div class="byline">
+            by Dart Spark <span class="dot">|</span>
+            <span data-app-version>v0.1.0</span>
           </div>
-        </header>
+        </div>
+        <div class="titlebar-actions">
+          <div class="titlebar-group titlebar-group--home">
+            <button class="ghost" data-setup-reset type="button">
+              Reset setup
+            </button>
+          </div>
+          <div class="titlebar-group titlebar-group--create">
+            <button class="ghost" data-action-back type="button">
+              Back
+            </button>
+          </div>
+          <div class="titlebar-group titlebar-group--install">
+            <button class="ghost" data-action-home type="button">
+              Back to home
+            </button>
+          </div>
+          <div class="titlebar-group titlebar-group--ready">
+            <button class="ghost" data-action-home type="button">
+              Back to home
+            </button>
+          </div>
+        </div>
+      </header>
 
+      <div class="page page-setup" data-page-setup>
         <main class="layout">
           <section class="panel hero reveal">
             <div class="eyebrow">Get started</div>
@@ -147,21 +169,6 @@
       </div>
 
       <div class="page page-home" data-page-home>
-        <header class="titlebar reveal">
-          <div class="brand">
-            <div class="logo">iFactory</div>
-            <div class="byline">
-              by Dart Spark <span class="dot">|</span>
-              <span data-app-version>v0.1.0</span>
-            </div>
-          </div>
-          <div class="home-actions">
-            <button class="ghost" data-setup-reset type="button">
-              Reset setup
-            </button>
-          </div>
-        </header>
-
         <main class="home-grid">
           <section class="panel home-card home-recent reveal">
             <div class="eyebrow">Open recent</div>
@@ -200,21 +207,6 @@
       </div>
 
       <div class="page page-create" data-page-create>
-        <header class="titlebar reveal">
-          <div class="brand">
-            <div class="logo">iFactory</div>
-            <div class="byline">
-              by Dart Spark <span class="dot">|</span>
-              <span data-app-version>v0.1.0</span>
-            </div>
-          </div>
-          <div class="home-actions">
-            <button class="ghost" data-action-back type="button">
-              Back
-            </button>
-          </div>
-        </header>
-
         <main class="create-grid">
           <section class="panel create-panel reveal">
             <div class="eyebrow">Create project</div>
@@ -276,21 +268,6 @@
       </div>
 
       <div class="page page-install" data-page-install>
-        <header class="titlebar reveal">
-          <div class="brand">
-            <div class="logo">iFactory</div>
-            <div class="byline">
-              by Dart Spark <span class="dot">|</span>
-              <span data-app-version>v0.1.0</span>
-            </div>
-          </div>
-          <div class="home-actions">
-            <button class="ghost" data-action-home type="button">
-              Back to home
-            </button>
-          </div>
-        </header>
-
         <main class="install-grid">
           <section class="panel install-panel reveal">
             <div class="eyebrow">Install iPlug2</div>
@@ -360,13 +337,43 @@
               <span data-install-path>Not set</span>
             </div>
             <div class="install-actions">
-              <button class="cta" type="button">
+              <button class="cta" type="button" data-iplug-install>
                 Install iPlug2
               </button>
               <button class="ghost" data-action-home type="button">
                 Do this later
               </button>
             </div>
+            <div class="install-status" data-iplug-status hidden></div>
+          </section>
+        </main>
+      </div>
+
+      <div class="page page-installing" data-page-installing>
+        <main class="installing-grid">
+          <section class="panel installing-panel reveal">
+            <div class="eyebrow">Installing</div>
+            <h2>
+              Setting up iPlug2<span class="ellipsis" data-ellipsis>...</span>
+            </h2>
+            <p class="card-meta" data-install-stage>Preparing iPlug2…</p>
+            <div class="progress-track">
+              <div class="progress-fill" data-install-progress></div>
+            </div>
+            <div class="installing-actions">
+              <button class="ghost" type="button" data-install-cancel>
+                Cancel installation
+              </button>
+            </div>
+          </section>
+        </main>
+      </div>
+
+      <div class="page page-ready" data-page-ready>
+        <main class="ready-grid">
+          <section class="panel ready-panel reveal">
+            <div class="eyebrow">Ready</div>
+            <h2>Ready.</h2>
           </section>
         </main>
       </div>

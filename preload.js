@@ -15,6 +15,18 @@ contextBridge.exposeInMainWorld("ifactory", {
     check: () => ipcRenderer.invoke("git:check"),
     skip: () => ipcRenderer.invoke("git:skip")
   },
+  iplug: {
+    install: (payload) => ipcRenderer.invoke("iplug:install", payload),
+    cancel: () => ipcRenderer.invoke("iplug:cancel"),
+    onProgress: (callback) => {
+      if (typeof callback !== "function") {
+        return () => {};
+      }
+      const listener = (event, payload) => callback(payload);
+      ipcRenderer.on("iplug:progress", listener);
+      return () => ipcRenderer.removeListener("iplug:progress", listener);
+    }
+  },
   github: {
     startDeviceFlow: (scopes) =>
       ipcRenderer.invoke("github:deviceStart", { scopes }),

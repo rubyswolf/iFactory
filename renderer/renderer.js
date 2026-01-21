@@ -179,6 +179,7 @@ const setupGithubOAuth = () => {
     if (!complete) {
       document.body.classList.remove("is-creating");
       document.body.classList.remove("is-installing");
+      document.body.classList.remove("is-ready");
     }
   };
 
@@ -196,6 +197,7 @@ const setupGithubOAuth = () => {
     document.body.classList.toggle("is-creating", creating);
     if (creating) {
       document.body.classList.remove("is-installing");
+      document.body.classList.remove("is-ready");
     }
   };
 
@@ -203,6 +205,7 @@ const setupGithubOAuth = () => {
     document.body.classList.toggle("is-installing", installing);
     if (installing) {
       document.body.classList.remove("is-creating");
+      document.body.classList.remove("is-ready");
     }
   };
 
@@ -211,6 +214,7 @@ const setupGithubOAuth = () => {
     if (installPath) {
       installPath.textContent = currentProjectPath || "Not set";
     }
+    document.body.dataset.projectPath = currentProjectPath;
   };
 
   const updateSetupState = () => {
@@ -563,6 +567,7 @@ const setupGithubOAuth = () => {
   homeButtons.forEach((button) => {
     button.addEventListener("click", () => {
       setInstalling(false);
+      document.body.classList.remove("is-ready");
     });
   });
 
@@ -696,7 +701,7 @@ const setupCreateForm = () => {
 };
 
 const setupInstallScreen = () => {
-  if (!window.ifactory?.github) {
+  if (!window.ifactory?.github || !window.ifactory?.iplug) {
     return;
   }
 
@@ -713,6 +718,11 @@ const setupInstallScreen = () => {
   const branchSearchInput = document.querySelector(
     "[data-iplug-branch-query]"
   );
+  const installButton = document.querySelector("[data-iplug-install]");
+  const installStatus = document.querySelector("[data-iplug-status]");
+  const installProgress = document.querySelector("[data-install-progress]");
+  const installStage = document.querySelector("[data-install-stage]");
+  const installCancel = document.querySelector("[data-install-cancel]");
 
   if (
     !officialSection ||
@@ -722,7 +732,12 @@ const setupInstallScreen = () => {
     !branchListEl ||
     !branchSection ||
     !branchSearchWrap ||
-    !branchSearchInput
+    !branchSearchInput ||
+    !installButton ||
+    !installStatus ||
+    !installProgress ||
+    !installStage ||
+    !installCancel
   ) {
     return;
   }
@@ -734,6 +749,50 @@ const setupInstallScreen = () => {
   let selectedBranch = "master";
   let currentBranches = [];
   const branchesCache = new Map();
+
+  const setInstallStatus = (message, tone) => {
+    if (!message) {
+      installStatus.textContent = "";
+      installStatus.hidden = true;
+      installStatus.removeAttribute("data-tone");
+      return;
+    }
+    installStatus.textContent = message;
+    installStatus.hidden = false;
+    if (tone) {
+      installStatus.setAttribute("data-tone", tone);
+    } else {
+      installStatus.removeAttribute("data-tone");
+    }
+  };
+
+  const setInstallingScreen = (active) => {
+    document.body.classList.toggle("is-installing-run", active);
+    if (active) {
+      document.body.classList.remove("is-ready");
+      installProgress.style.width = "0%";
+      installStage.textContent = "Preparing iPlug2...";
+      installCancel.disabled = false;
+    }
+  };
+
+  const setReadyScreen = (active) => {
+    document.body.classList.toggle("is-ready", active);
+    if (active) {
+      document.body.classList.remove("is-installing-run");
+      document.body.classList.remove("is-installing");
+    }
+  };
+
+  const updateProgress = (progress, stage) => {
+    if (typeof progress === "number" && Number.isFinite(progress)) {
+      const clamped = Math.max(0, Math.min(progress, 1));
+      installProgress.style.width = `${Math.round(clamped * 100)}%`;
+    }
+    if (stage) {
+      installStage.textContent = stage;
+    }
+  };
 
   const updateBranchVisibility = () => {
     const hasRepo =
@@ -1059,6 +1118,81 @@ const setupInstallScreen = () => {
     renderBranches(currentBranches);
   });
 
+  const handleInstall = async () => {
+    if (!window.ifactory?.iplug?.install) {
+      return;
+    }
+    const projectPath = document.body.dataset.projectPath || "";
+    const repoFullName = getSelectedRepoFullName();
+    const branch = branchMode === "master" ? "master" : selectedBranch;
+
+    setReadyScreen(false);
+
+    if (!projectPath) {
+      setInstallStatus("Select a project folder first.", "warning");
+      return;
+    }
+    if (!repoFullName) {
+      setInstallStatus("Select a fork to continue.", "warning");
+      return;
+    }
+
+    setInstallStatus("Installing iPlug2...", "");
+    installButton.disabled = true;
+    setInstallingScreen(true);
+    try {
+      const result = await window.ifactory.iplug.install({
+        projectPath,
+        repoFullName,
+        branch
+      });
+      if (result?.error) {
+        const message =
+          result.error === "github_required"
+            ? "Private repository detected. Connect GitHub to continue."
+            : result.error === "git_required"
+              ? "Git is required to add iPlug2 as a submodule."
+            : result.error === "cancelled"
+              ? "Installation cancelled."
+            : result.error === "already_exists"
+              ? "iPlug2 already exists in this project."
+              : result.details
+                ? `Installation failed: ${result.details}`
+                : "Installation failed. Check your settings and try again.";
+        setInstallStatus(message, result.error === "cancelled" ? "" : "error");
+        return;
+      }
+      setInstallStatus("iPlug2 installed.", "success");
+      setReadyScreen(true);
+    } catch (error) {
+      setInstallStatus("Installation failed. Check your settings and try again.", "error");
+    } finally {
+      setInstallingScreen(false);
+      installButton.disabled = false;
+    }
+  };
+
+  installCancel.addEventListener("click", async () => {
+    if (!window.ifactory?.iplug?.cancel) {
+      return;
+    }
+    installCancel.disabled = true;
+    installStage.textContent = "Cancelling installation…";
+    try {
+      await window.ifactory.iplug.cancel();
+    } catch (error) {
+      console.error("Failed to cancel install", error);
+    }
+  });
+
+  if (window.ifactory?.iplug?.onProgress) {
+    window.ifactory.iplug.onProgress((payload) => {
+      updateProgress(payload?.progress, payload?.stage);
+    });
+  }
+
+  installButton.addEventListener("click", handleInstall);
+
   setActiveSource("official");
   setActiveBranchMode("master");
   updateBranchVisibility();
@@ -1071,4 +1205,13 @@ document.addEventListener("DOMContentLoaded", () => {
   setupWindowControls();
   setupCreateForm();
   setupInstallScreen();
+  const ellipsis = document.querySelector("[data-ellipsis]");
+  if (ellipsis) {
+    const frames = [".", "..", "..."];
+    let index = 0;
+    window.setInterval(() => {
+      ellipsis.textContent = frames[index];
+      index = (index + 1) % frames.length;
+    }, 400);
+  }
 });

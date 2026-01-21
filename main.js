@@ -1,6 +1,7 @@
 const fs = require("fs");
-const { spawnSync } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 const https = require("https");
+const os = require("os");
 const path = require("path");
 const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 const pkg = require("./package.json");
@@ -100,6 +101,97 @@ const requestJson = (urlString, { method = "GET", headers, body } = {}) =>
     request.end();
   });
 
+const downloadFile = (
+  urlString,
+  destPath,
+  { headers = {}, redirectCount = 0, onProgress, onRequest, shouldAbort } = {}
+) =>
+  new Promise((resolve, reject) => {
+    if (redirectCount > 5) {
+      return reject(new Error("Too many redirects"));
+    }
+    const url = new URL(urlString);
+    const request = https.request(
+      {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        path: `${url.pathname}${url.search}`,
+        method: "GET",
+        headers
+      },
+      (response) => {
+        const status = response.statusCode || 0;
+        if ([301, 302, 307, 308].includes(status)) {
+          const location = response.headers.location;
+          if (!location) {
+            return reject(new Error("Redirect missing location"));
+          }
+          return resolve(
+            downloadFile(location, destPath, {
+              headers,
+              redirectCount: redirectCount + 1
+            })
+          );
+        }
+        if (status < 200 || status >= 300) {
+          return reject(new Error(`Download failed (${status})`));
+        }
+        const total = Number(response.headers["content-length"] || 0);
+        let received = 0;
+        if (onRequest) {
+          onRequest(request);
+        }
+        const file = fs.createWriteStream(destPath);
+        response.on("data", (chunk) => {
+          if (shouldAbort && shouldAbort()) {
+            request.destroy(new Error("cancelled"));
+            return;
+          }
+          received += chunk.length;
+          if (total > 0 && onProgress) {
+            onProgress(received / total);
+          }
+        });
+        response.pipe(file);
+        file.on("finish", () => file.close(resolve));
+        file.on("error", reject);
+      }
+    );
+
+    request.on("error", reject);
+    request.end();
+  });
+
+const expandArchive = (zipPath, destDir, onChild) =>
+  new Promise((resolve, reject) => {
+    const escapedZip = zipPath.replace(/'/g, "''");
+    const escapedDest = destDir.replace(/'/g, "''");
+    const command = `Expand-Archive -LiteralPath '${escapedZip}' -DestinationPath '${escapedDest}' -Force`;
+    const child = spawn(
+      "powershell",
+      ["-NoProfile", "-Command", command],
+      {
+        encoding: "utf8",
+        windowsHide: true
+      }
+    );
+    if (onChild) {
+      onChild(child);
+    }
+    let stderr = "";
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(stderr || "Failed to extract archive"));
+      }
+    });
+  });
+
 const sanitizeSettings = (settings) => {
   const sanitized = cloneSettings(settings);
   const github = sanitized.integrations.github;
@@ -109,6 +201,7 @@ const sanitizeSettings = (settings) => {
 };
 
 let settings = null;
+let activeInstall = null;
 
 const saveSettings = () => {
   const settingsPath = getSettingsPath();
@@ -128,6 +221,50 @@ const runGit = (args, cwd) => {
   if (result.status !== 0) {
     throw new Error(result.stderr || "Git command failed");
   }
+};
+
+const runGitWithProgress = (args, cwd, onProgress, onChild) =>
+  new Promise((resolve, reject) => {
+    let stderr = "";
+    const child = spawn("git", args, {
+      cwd,
+      windowsHide: true,
+      env: {
+        ...process.env,
+        GIT_TERMINAL_PROMPT: "0"
+      }
+    });
+    if (onChild) {
+      onChild(child);
+    }
+    child.stderr.on("data", (chunk) => {
+      const text = chunk.toString();
+      stderr += text;
+      const match = text.match(/(\d+)%/);
+      if (match && onProgress) {
+        const value = Number.parseInt(match[1], 10);
+        if (Number.isFinite(value)) {
+          onProgress(value / 100);
+        }
+      }
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(stderr || "Git command failed"));
+      }
+    });
+  });
+
+const isGitRepo = (cwd) => {
+  const result = spawnSync("git", ["rev-parse", "--is-inside-work-tree"], {
+    cwd,
+    encoding: "utf8",
+    windowsHide: true
+  });
+  return result.status === 0;
 };
 
 const checkGitInstalled = () => {
@@ -558,6 +695,364 @@ const registerIpc = () => {
         }
       };
     }
+  });
+
+  ipcMain.handle("iplug:install", async (event, payload) => {
+    if (activeInstall) {
+      return { error: "install_in_progress" };
+    }
+    const projectPath = payload?.projectPath?.trim();
+    const repoFullName = payload?.repoFullName?.trim();
+    const branch = payload?.branch?.trim() || "master";
+    if (!projectPath || !repoFullName) {
+      return { error: "missing_fields" };
+    }
+    if (!fs.existsSync(projectPath)) {
+      return { error: "path_not_found" };
+    }
+
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const targetPath = path.join(projectPath, "iPlug2");
+    if (fs.existsSync(targetPath)) {
+      return { error: "already_exists" };
+    }
+
+    const gitState = checkGitInstalled();
+    const token = settings?.integrations?.github?.token || "";
+    const hasGitFolder = fs.existsSync(path.join(projectPath, ".git"));
+    const isRepo = gitState.installed
+      ? isGitRepo(projectPath)
+      : hasGitFolder;
+    if (!gitState.installed && isRepo) {
+      return { error: "git_required" };
+    }
+
+    const sanitizedUrl = `https://github.com/${repoFullName}.git`;
+    const tokenValue = token ? encodeURIComponent(token) : "";
+    const authUrl = tokenValue
+      ? `https://x-access-token:${tokenValue}@github.com/${repoFullName}.git`
+      : sanitizedUrl;
+    let tmpDir = null;
+    let depsTmpDir = null;
+    let gitmodulesBackup = null;
+    let usedSubmodule = false;
+
+    const sendProgress = (progress, stage) => {
+      const normalized = Number.isFinite(progress)
+        ? Math.max(0, Math.min(progress, 1))
+        : null;
+      if (window && !window.isDestroyed()) {
+        window.setProgressBar(
+          normalized === null ? -1 : normalized
+        );
+      }
+      event.sender.send("iplug:progress", {
+        progress: normalized,
+        stage
+      });
+    };
+
+    const cleanup = () => {
+      try {
+        if (usedSubmodule && gitState.installed) {
+          try {
+            runGit(["submodule", "deinit", "-f", "iPlug2"], projectPath);
+          } catch (error) {
+            // ignore cleanup errors
+          }
+          try {
+            runGit(["rm", "-f", "iPlug2"], projectPath);
+          } catch (error) {
+            // ignore cleanup errors
+          }
+          try {
+            fs.rmSync(
+              path.join(projectPath, ".git", "modules", "iPlug2"),
+              { recursive: true, force: true }
+            );
+          } catch (error) {
+            // ignore cleanup errors
+          }
+          const gitmodulesPath = path.join(projectPath, ".gitmodules");
+          if (gitmodulesBackup === null && fs.existsSync(gitmodulesPath)) {
+            fs.rmSync(gitmodulesPath, { force: true });
+          }
+          if (typeof gitmodulesBackup === "string") {
+            fs.writeFileSync(gitmodulesPath, gitmodulesBackup);
+          }
+        }
+        if (fs.existsSync(targetPath)) {
+          fs.rmSync(targetPath, { recursive: true, force: true });
+        }
+      } catch (error) {
+        // ignore cleanup errors
+      }
+      if (tmpDir) {
+        try {
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+        } catch (error) {
+          // ignore cleanup errors
+        }
+      }
+      if (depsTmpDir) {
+        try {
+          fs.rmSync(depsTmpDir, { recursive: true, force: true });
+        } catch (error) {
+          // ignore cleanup errors
+        }
+      }
+    };
+
+    activeInstall = {
+      canceled: false,
+      child: null,
+      request: null
+    };
+
+    try {
+      sendProgress(0.02, "Preparing iPlug2...");
+
+      if (gitState.installed) {
+        const progressStage = isRepo
+          ? "Adding iPlug2 as submodule..."
+          : "Cloning iPlug2...";
+        sendProgress(0.06, progressStage);
+
+        if (isRepo) {
+          usedSubmodule = true;
+          const gitmodulesPath = path.join(projectPath, ".gitmodules");
+          if (fs.existsSync(gitmodulesPath)) {
+            gitmodulesBackup = fs.readFileSync(gitmodulesPath, "utf8");
+          }
+          await runGitWithProgress(
+            [
+              "submodule",
+              "add",
+              "--progress",
+              "-b",
+              branch,
+              authUrl,
+              "iPlug2"
+            ],
+            projectPath,
+            (progress) => {
+              sendProgress(0.06 + progress * 0.54, progressStage);
+            },
+            (child) => {
+              activeInstall.child = child;
+            }
+          );
+          if (tokenValue) {
+            runGit(["submodule", "set-url", "iPlug2", sanitizedUrl], projectPath);
+            runGit(["submodule", "sync", "--", "iPlug2"], projectPath);
+          }
+        } else {
+          await runGitWithProgress(
+            [
+              "clone",
+              "--progress",
+              "--branch",
+              branch,
+              "--single-branch",
+              authUrl,
+              targetPath
+            ],
+            projectPath,
+            (progress) => {
+              sendProgress(0.06 + progress * 0.54, progressStage);
+            },
+            (child) => {
+              activeInstall.child = child;
+            }
+          );
+          if (tokenValue) {
+            runGit(["remote", "set-url", "origin", sanitizedUrl], targetPath);
+          }
+        }
+      } else {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ifactory-"));
+        const zipPath = path.join(tmpDir, "iplug2.zip");
+        const extractDir = path.join(tmpDir, "extract");
+        fs.mkdirSync(extractDir, { recursive: true });
+
+        const headers = {
+          "User-Agent": "iFactory"
+        };
+        let zipUrl = `https://github.com/${repoFullName}/archive/refs/heads/${encodeURIComponent(
+          branch
+        )}.zip`;
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+          zipUrl = `https://api.github.com/repos/${repoFullName}/zipball/${encodeURIComponent(
+            branch
+          )}`;
+        }
+
+        try {
+          await downloadFile(zipUrl, zipPath, {
+            headers,
+            onProgress: (progress) => {
+              sendProgress(0.06 + progress * 0.54, "Downloading iPlug2...");
+            },
+            onRequest: (request) => {
+              activeInstall.request = request;
+            },
+            shouldAbort: () => activeInstall?.canceled
+          });
+        } catch (error) {
+          if (!token) {
+            return { error: "github_required" };
+          }
+          throw error;
+        }
+
+        sendProgress(0.62, "Extracting iPlug2...");
+        await expandArchive(zipPath, extractDir, (child) => {
+          activeInstall.child = child;
+        });
+        const entries = fs.readdirSync(extractDir, { withFileTypes: true });
+        const rootDir = entries.find((entry) => entry.isDirectory());
+        if (!rootDir) {
+          throw new Error("Archive structure invalid");
+        }
+        const rootPath = path.join(extractDir, rootDir.name);
+        fs.renameSync(rootPath, targetPath);
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+        tmpDir = null;
+      }
+
+      if (activeInstall.canceled) {
+        throw new Error("cancelled");
+      }
+
+      const depsDir = path.join(targetPath, "Dependencies");
+      if (!fs.existsSync(depsDir)) {
+        throw new Error("Dependencies folder missing");
+      }
+
+      const platform = process.platform;
+      let zipFile = "";
+      let folder = "";
+      if (platform === "darwin") {
+        zipFile = "IPLUG2_DEPS_MAC";
+        folder = "mac";
+      } else if (platform === "win32") {
+        zipFile = "IPLUG2_DEPS_WIN";
+        folder = "win";
+      } else if (platform === "linux") {
+        throw new Error("Dependencies unavailable on Linux");
+      }
+
+      if (!zipFile || !folder) {
+        throw new Error("Unsupported platform");
+      }
+
+      depsTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ifactory-"));
+      const depsZipPath = path.join(depsTmpDir, `${zipFile}.zip`);
+      const depsExtractDir = path.join(depsTmpDir, "extract");
+      fs.mkdirSync(depsExtractDir, { recursive: true });
+
+      sendProgress(0.68, "Downloading dependencies...");
+      await downloadFile(
+        `https://github.com/iPlug2/iPlug2/releases/download/v1.0.0-beta/${zipFile}.zip`,
+        depsZipPath,
+        {
+          onProgress: (progress) => {
+            sendProgress(0.68 + progress * 0.2, "Downloading dependencies...");
+          },
+          onRequest: (request) => {
+            activeInstall.request = request;
+          },
+          shouldAbort: () => activeInstall?.canceled
+        }
+      );
+
+      if (activeInstall.canceled) {
+        throw new Error("cancelled");
+      }
+
+      sendProgress(0.9, "Extracting dependencies...");
+      await expandArchive(depsZipPath, depsExtractDir, (child) => {
+        activeInstall.child = child;
+      });
+
+      if (activeInstall.canceled) {
+        throw new Error("cancelled");
+      }
+
+      const depsRootEntries = fs.readdirSync(depsExtractDir, {
+        withFileTypes: true
+      });
+      const depsRootDir = depsRootEntries.find((entry) => entry.isDirectory());
+      if (!depsRootDir) {
+        throw new Error("Dependencies archive invalid");
+      }
+      const depsRootPath = path.join(depsExtractDir, depsRootDir.name);
+      const buildDir = path.join(depsDir, "Build");
+      fs.mkdirSync(buildDir, { recursive: true });
+      fs.rmSync(path.join(buildDir, folder), { recursive: true, force: true });
+      fs.rmSync(path.join(buildDir, "src"), { recursive: true, force: true });
+
+      const depsEntries = fs.readdirSync(depsRootPath, {
+        withFileTypes: true
+      });
+      depsEntries.forEach((entry) => {
+        const sourcePath = path.join(depsRootPath, entry.name);
+        const destPath = path.join(buildDir, entry.name);
+        if (fs.existsSync(destPath)) {
+          fs.rmSync(destPath, { recursive: true, force: true });
+        }
+        fs.renameSync(sourcePath, destPath);
+      });
+
+      fs.rmSync(depsTmpDir, { recursive: true, force: true });
+      depsTmpDir = null;
+
+      sendProgress(0.97, "Finalizing...");
+      sendProgress(1, "Finished");
+      return {
+        path: targetPath
+      };
+    } catch (error) {
+      if (activeInstall?.canceled || error?.message === "cancelled") {
+        cleanup();
+        return { error: "cancelled" };
+      }
+      const message = String(error?.message || "");
+      const authError =
+        !token &&
+        /authentication|access denied|repository not found|not found|permission|could not read username/i.test(
+          message
+        );
+      if (authError) {
+        cleanup();
+        return { error: "github_required" };
+      }
+      cleanup();
+      return {
+        error: "install_failed",
+        details: message
+      };
+    } finally {
+      if (window && !window.isDestroyed()) {
+        window.setProgressBar(-1);
+      }
+      activeInstall = null;
+    }
+  });
+
+  ipcMain.handle("iplug:cancel", () => {
+    if (!activeInstall) {
+      return false;
+    }
+    activeInstall.canceled = true;
+    if (activeInstall.request) {
+      activeInstall.request.destroy(new Error("cancelled"));
+    }
+    if (activeInstall.child) {
+      activeInstall.child.kill();
+    }
+    return true;
   });
 
   ipcMain.handle("github:disconnect", () => {
