@@ -289,6 +289,10 @@ body.is-setup-complete.is-creating .page-create {
   color: var(--ink);
 }
 
+.checkbox-field input:disabled + span {
+  color: var(--muted);
+}
+
 .checkbox-field input {
   width: 18px;
   height: 18px;

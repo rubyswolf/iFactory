@@ -52,6 +52,7 @@ const setupGithubOAuth = () => {
   const cloneButton = document.querySelector("[data-action-clone]");
   const backButtons = document.querySelectorAll("[data-action-back]");
   const createRepoToggle = document.querySelector("[data-create-repo]");
+  const privateRepoToggle = document.querySelector("[data-create-private]");
 
   if (!statusEl || !connectButton || !flowEl || !codeEl || !resetButton) {
     return;
@@ -109,6 +110,9 @@ const setupGithubOAuth = () => {
     setCreating(false);
     if (createRepoToggle) {
       createRepoToggle.checked = githubConnected;
+    }
+    if (privateRepoToggle) {
+      privateRepoToggle.disabled = !createRepoToggle?.checked;
     }
   };
 
@@ -249,6 +253,9 @@ const setupGithubOAuth = () => {
       if (createRepoToggle.checked && !githubConnected) {
         createRepoToggle.checked = false;
         goToSetup();
+      }
+      if (privateRepoToggle) {
+        privateRepoToggle.disabled = !createRepoToggle.checked;
       }
     });
   }
