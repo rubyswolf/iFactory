@@ -1,4 +1,5 @@
 const fs = require("fs");
+const { spawnSync } = require("child_process");
 const https = require("https");
 const path = require("path");
 const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
@@ -104,6 +105,20 @@ const saveSettings = () => {
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
 };
 
+const runGit = (args, cwd) => {
+  const result = spawnSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    windowsHide: true
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(result.stderr || "Git command failed");
+  }
+};
+
 const pushRecentProject = ({ name, projectPath }) => {
   if (!projectPath) {
     return;
@@ -133,6 +148,20 @@ const registerIpc = () => {
   ipcMain.handle("recents:get", () =>
     Array.isArray(settings.recentProjects) ? settings.recentProjects : []
   );
+  ipcMain.handle("recents:remove", (event, payload) => {
+    const removePath = payload?.path?.trim();
+    if (!removePath) {
+      return false;
+    }
+    const existing = Array.isArray(settings.recentProjects)
+      ? settings.recentProjects
+      : [];
+    settings.recentProjects = existing.filter(
+      (item) => item?.path !== removePath
+    );
+    saveSettings();
+    return true;
+  });
   ipcMain.handle("shell:openExternal", (event, url) => {
     if (typeof url !== "string") {
       return false;
@@ -191,6 +220,10 @@ const registerIpc = () => {
           })
         });
         repoUrl = repo?.html_url || null;
+        if (repoUrl) {
+          runGit(["init"], projectPath);
+          runGit(["remote", "add", "origin", repoUrl], projectPath);
+        }
       }
 
       pushRecentProject({ name, projectPath });

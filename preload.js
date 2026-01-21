@@ -8,7 +8,8 @@ contextBridge.exposeInMainWorld("ifactory", {
       ipcRenderer.invoke("settings:update", { scope: "github", values })
   },
   recents: {
-    get: () => ipcRenderer.invoke("recents:get")
+    get: () => ipcRenderer.invoke("recents:get"),
+    remove: (path) => ipcRenderer.invoke("recents:remove", { path })
   },
   github: {
     startDeviceFlow: (scopes) =>

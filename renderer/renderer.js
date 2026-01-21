@@ -101,10 +101,30 @@ const setupGithubOAuth = () => {
       pathEl.className = "recent-path";
       pathEl.textContent = project.path;
 
+      const status = document.createElement("span");
+      status.className = "recent-status";
+      status.textContent = "NOT FOUND";
+
       button.appendChild(name);
       button.appendChild(pathEl);
+      button.appendChild(status);
       button.addEventListener("click", async () => {
-        await openProjectPath(project.path);
+        const result = await openProjectPath(project.path);
+        if (result?.error === "path_not_found") {
+          button.classList.add("is-missing");
+          if (window.ifactory?.recents?.remove) {
+            await window.ifactory.recents.remove(project.path);
+          }
+          window.setTimeout(() => {
+            button.classList.add("is-removing");
+            window.setTimeout(() => {
+              button.remove();
+              if (recentListEl.childElementCount === 0) {
+                renderRecents([]);
+              }
+            }, 400);
+          }, 3000);
+        }
       });
 
       recentListEl.appendChild(button);
@@ -169,19 +189,21 @@ const setupGithubOAuth = () => {
   const openProjectPath = async (projectPath) => {
     try {
       if (!window.ifactory?.project) {
-        return;
+        return null;
       }
       const result = await window.ifactory.project.open({ path: projectPath });
       if (result?.error) {
-        return;
+        return result;
       }
       updateInstallPath(result.path);
       if (result.needsIPlug) {
         setInstalling(true);
       }
       await loadRecents();
+      return result;
     } catch (error) {
       console.error("Failed to open project", error);
+      return { error: "open_failed" };
     }
   };
 
@@ -494,9 +516,11 @@ const setupCreateForm = () => {
     const style = window.getComputedStyle(locationInput);
     measureEl.style.font = style.font;
     measureEl.style.letterSpacing = style.letterSpacing;
+    suffixEl.style.font = style.font;
+    suffixEl.style.letterSpacing = style.letterSpacing;
     measureEl.textContent = locationInput.value || "";
     const paddingLeft = Number.parseFloat(style.paddingLeft) || 0;
-    const left = paddingLeft + measureEl.offsetWidth;
+    const left = paddingLeft + measureEl.getBoundingClientRect().width;
     suffixEl.style.left = `${left}px`;
   };
 

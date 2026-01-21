@@ -272,12 +272,14 @@ body.is-setup-complete.is-installing .page-install {
 
 .field .path-suffix {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
   color: var(--muted);
   font-size: inherit;
   font-family: inherit;
-  letter-spacing: normal;
+  letter-spacing: inherit;
   text-transform: none;
   pointer-events: none;
   white-space: nowrap;
@@ -545,10 +547,22 @@ body.is-setup-complete.is-installing .page-install {
   cursor: pointer;
   font: inherit;
   letter-spacing: inherit;
+  position: relative;
+  transition: border-color 0.2s ease, background 0.2s ease, opacity 0.4s ease, transform 0.4s ease;
 }
 
 .recent-item:hover {
   border-color: rgba(255, 255, 255, 0.24);
+}
+
+.recent-item.is-missing {
+  border-color: rgba(255, 123, 123, 0.6);
+  background: rgba(70, 18, 24, 0.65);
+}
+
+.recent-item.is-removing {
+  opacity: 0;
+  transform: translateY(6px);
 }
 
 .recent-name {
@@ -561,6 +575,22 @@ body.is-setup-complete.is-installing .page-install {
   color: var(--muted);
   margin-top: 6px;
   word-break: break-all;
+}
+
+.recent-status {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: #ff7b7b;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.recent-item.is-missing .recent-status {
+  opacity: 1;
 }
 
 .recent-empty {
