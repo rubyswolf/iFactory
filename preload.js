@@ -21,5 +21,8 @@ contextBridge.exposeInMainWorld("ifactory", {
     isMaximized: () => ipcRenderer.invoke("window:isMaximized"),
     close: () => ipcRenderer.invoke("window:close")
   },
-  openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url)
+  openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
+  dialog: {
+    selectFolder: () => ipcRenderer.invoke("dialog:selectFolder")
+  }
 });

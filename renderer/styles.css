@@ -124,7 +124,11 @@ body:not(.is-setup-complete) .page-setup {
   display: block;
 }
 
-body.is-setup-complete .page-next {
+body.is-setup-complete:not(.is-creating) .page-home {
+  display: block;
+}
+
+body.is-setup-complete.is-creating .page-create {
   display: block;
 }
 
@@ -188,6 +192,113 @@ body.is-setup-complete .page-next {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
   gap: 22px;
+}
+
+.create-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 22px;
+}
+
+.create-panel {
+  grid-column: span 7;
+}
+
+.form-grid {
+  display: grid;
+  gap: 16px;
+  margin: 20px 0;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+}
+
+.field span {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.field input {
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(8, 12, 18, 0.8);
+  color: var(--ink);
+  padding: 0 12px;
+  font-family: var(--font-body);
+}
+
+.field input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-focus);
+}
+
+.field-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.path-input {
+  position: relative;
+  flex: 1 1 260px;
+  min-width: 220px;
+}
+
+.path-measure {
+  position: absolute;
+  visibility: hidden;
+  white-space: pre;
+}
+
+.field-row input {
+  flex: 1 1 260px;
+}
+
+.path-input input {
+  width: 100%;
+  padding-right: 160px;
+}
+
+.field .path-suffix {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: inherit;
+  font-family: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+  pointer-events: none;
+  white-space: nowrap;
+  max-width: calc(100% - 12px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.checkbox-field input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.create-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .home-card h2 {
@@ -558,6 +669,14 @@ body.is-setup-complete .page-next {
   .home-create,
   .home-open,
   .home-clone {
+    grid-column: 1 / -1;
+  }
+
+  .create-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .create-panel {
     grid-column: 1 / -1;
   }
 

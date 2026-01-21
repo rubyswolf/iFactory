@@ -48,6 +48,10 @@ const setupGithubOAuth = () => {
   const copyButton = document.querySelector("[data-github-copy]");
   const openButton = document.querySelector("[data-github-open]");
   const resetButton = document.querySelector("[data-setup-reset]");
+  const createButton = document.querySelector("[data-action-create]");
+  const cloneButton = document.querySelector("[data-action-clone]");
+  const backButtons = document.querySelectorAll("[data-action-back]");
+  const createRepoToggle = document.querySelector("[data-create-repo]");
 
   if (!statusEl || !connectButton || !flowEl || !codeEl || !resetButton) {
     return;
@@ -55,6 +59,7 @@ const setupGithubOAuth = () => {
 
   let pollTimer = null;
   let verificationUri = "https://github.com/login/device";
+  let githubConnected = false;
 
   const setFlowVisible = (visible) => {
     flowEl.hidden = !visible;
@@ -62,6 +67,9 @@ const setupGithubOAuth = () => {
 
   const setSetupComplete = (complete) => {
     document.body.classList.toggle("is-setup-complete", complete);
+    if (!complete) {
+      document.body.classList.remove("is-creating");
+    }
   };
 
   const isSkipped = () => window.localStorage.getItem(skipKey) === "1";
@@ -74,16 +82,34 @@ const setupGithubOAuth = () => {
     }
   };
 
+  const setCreating = (creating) => {
+    document.body.classList.toggle("is-creating", creating);
+  };
+
+  const goToSetup = () => {
+    setSkipped(false);
+    setSetupComplete(false);
+    setCreating(false);
+    setFlowVisible(false);
+  };
+
   const applyGithubState = (settings) => {
     const github = settings?.integrations?.github;
     if (!github) {
       return;
     }
 
-    const isConnected = Boolean(github.connected || github.tokenStored);
+    githubConnected = Boolean(github.connected || github.tokenStored);
     statusEl.textContent = "Not connected";
     setFlowVisible(false);
-    setSetupComplete(isConnected || isSkipped());
+    if (githubConnected) {
+      setSkipped(false);
+    }
+    setSetupComplete(githubConnected || isSkipped());
+    setCreating(false);
+    if (createRepoToggle) {
+      createRepoToggle.checked = githubConnected;
+    }
   };
 
   const loadGithub = async () => {
@@ -203,8 +229,34 @@ const setupGithubOAuth = () => {
     skipButton.addEventListener("click", () => {
       setSkipped(true);
       setSetupComplete(true);
+      setCreating(false);
     });
   }
+  if (createButton) {
+    createButton.addEventListener("click", () => {
+      setCreating(true);
+    });
+  }
+  if (cloneButton) {
+    cloneButton.addEventListener("click", () => {
+      if (!githubConnected) {
+        goToSetup();
+      }
+    });
+  }
+  if (createRepoToggle) {
+    createRepoToggle.addEventListener("change", () => {
+      if (createRepoToggle.checked && !githubConnected) {
+        createRepoToggle.checked = false;
+        goToSetup();
+      }
+    });
+  }
+  backButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      setCreating(false);
+    });
+  });
 
   loadGithub();
 };
@@ -249,9 +301,93 @@ const setupWindowControls = () => {
   refreshMaxState();
 };
 
+const setupCreateForm = () => {
+  const browseButton = document.querySelector("[data-create-browse]");
+  const locationInput = document.querySelector("[data-create-location]");
+  const nameInput = document.querySelector("[data-create-name]");
+  const suffixEl = document.querySelector("[data-path-suffix]");
+  const createFolderToggle = document.querySelector("[data-create-folder]");
+
+  if (!browseButton || !locationInput || !suffixEl || !nameInput) {
+    return;
+  }
+
+  const measureEl = document.createElement("span");
+  measureEl.className = "path-measure";
+  measureEl.style.position = "absolute";
+  measureEl.style.visibility = "hidden";
+  measureEl.style.whiteSpace = "pre";
+  measureEl.style.pointerEvents = "none";
+  suffixEl.parentElement?.appendChild(measureEl);
+
+  const getProjectName = () => {
+    const value = nameInput.value.trim();
+    return value || nameInput.getAttribute("placeholder") || "Project";
+  };
+
+  const updateSuffixPosition = () => {
+    const style = window.getComputedStyle(locationInput);
+    measureEl.style.font = style.font;
+    measureEl.style.letterSpacing = style.letterSpacing;
+    measureEl.textContent = locationInput.value || "";
+    const paddingLeft = Number.parseFloat(style.paddingLeft) || 0;
+    const left = paddingLeft + measureEl.offsetWidth;
+    suffixEl.style.left = `${left}px`;
+  };
+
+  const updateSuffix = () => {
+    const createFolder =
+      createFolderToggle && createFolderToggle.checked !== false;
+    const basePath = locationInput.value.trim();
+    if (!createFolder || basePath.length === 0) {
+      suffixEl.textContent = "";
+      suffixEl.hidden = true;
+      return;
+    }
+    const separator = basePath.endsWith("\\") ? "" : "\\";
+    suffixEl.textContent = `${separator}${getProjectName()}`;
+    suffixEl.hidden = false;
+    updateSuffixPosition();
+  };
+
+  const handleLocationInput = () => {
+    updateSuffix();
+  };
+
+  const handleNameInput = () => {
+    updateSuffix();
+  };
+
+  if (createFolderToggle) {
+    createFolderToggle.addEventListener("change", updateSuffix);
+  }
+
+  locationInput.addEventListener("input", handleLocationInput);
+  nameInput.addEventListener("input", handleNameInput);
+
+  browseButton.addEventListener("click", async () => {
+    try {
+      if (!window.ifactory?.dialog) {
+        return;
+      }
+      const folder = await window.ifactory.dialog.selectFolder();
+      if (folder) {
+        locationInput.value = folder;
+        updateSuffix();
+      }
+    } catch (error) {
+      console.error("Failed to select folder", error);
+    }
+  });
+
+  window.addEventListener("resize", updateSuffixPosition);
+  updateSuffix();
+};
+
 document.addEventListener("DOMContentLoaded", () => {
   scheduleReveals();
   hydrateAppMeta();
   setupGithubOAuth();
   setupWindowControls();
+  setupCreateForm();
 });

@@ -1,7 +1,7 @@
 const fs = require("fs");
 const https = require("https");
 const path = require("path");
-const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 const pkg = require("./package.json");
 
 const defaultSettings = {
@@ -106,6 +106,16 @@ const registerIpc = () => {
       return false;
     }
     return shell.openExternal(url);
+  });
+  ipcMain.handle("dialog:selectFolder", async (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const result = await dialog.showOpenDialog(window, {
+      properties: ["openDirectory", "createDirectory"]
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+      return null;
+    }
+    return result.filePaths[0];
   });
   ipcMain.handle("window:minimize", (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);

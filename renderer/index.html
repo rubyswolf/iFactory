@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -111,7 +111,7 @@
         </main>
       </div>
 
-      <div class="page page-next" data-page-next>
+      <div class="page page-home" data-page-home>
         <header class="titlebar reveal">
           <div class="brand">
             <div class="logo">iFactory</div>
@@ -155,7 +155,7 @@
               Create a new workspace where you can build plugins and related
               tools in one place.
             </p>
-            <button class="cta">Create project</button>
+            <button class="cta" data-action-create>Create project</button>
           </section>
 
           <section class="panel home-card home-open reveal">
@@ -164,7 +164,7 @@
             <p class="card-meta">
               Open an existing workspace on disk and resume work instantly.
             </p>
-            <button class="secondary">Open project</button>
+            <button class="secondary" data-action-open>Open project</button>
           </section>
 
           <section class="panel home-card home-clone reveal">
@@ -173,7 +173,79 @@
             <p class="card-meta">
               Clone from GitHub to sync your projects across machines.
             </p>
-            <button class="secondary">Clone project</button>
+            <button class="secondary" data-action-clone>Clone project</button>
+          </section>
+        </main>
+      </div>
+
+      <div class="page page-create" data-page-create>
+        <header class="titlebar reveal">
+          <div class="brand">
+            <div class="logo">iFactory</div>
+            <div class="byline">
+              by Dart Spark <span class="dot">|</span>
+              <span data-app-version>v0.1.0</span>
+            </div>
+          </div>
+          <div class="home-actions">
+            <button class="ghost" data-action-back type="button">
+              Back
+            </button>
+          </div>
+        </header>
+
+        <main class="create-grid">
+          <section class="panel create-panel reveal">
+            <div class="eyebrow">Create project</div>
+            <h2>Start a new workspace.</h2>
+            <p class="card-meta">
+              Give your project a name, choose a folder, and optionally create a
+              GitHub repository.
+            </p>
+            <div class="form-grid">
+              <label class="field">
+                <span>Project name</span>
+                <input
+                  type="text"
+                  placeholder="MyPlugin"
+                  data-create-name
+                  autocomplete="off"
+                />
+              </label>
+              <label class="field">
+                <span>Location</span>
+                <div class="field-row">
+                  <div class="path-input">
+                    <input
+                      type="text"
+                      placeholder="C:\Projects"
+                      data-create-location
+                      autocomplete="off"
+                    />
+                    <span class="path-suffix" data-path-suffix></span>
+                  </div>
+                  <button class="secondary" type="button" data-create-browse>
+                    Browse
+                  </button>
+                </div>
+              </label>
+              <label class="checkbox-field">
+                <input type="checkbox" data-create-folder checked />
+                <span>Create project folder</span>
+              </label>
+              <label class="checkbox-field">
+                <input type="checkbox" data-create-repo />
+                <span>Create GitHub Repository</span>
+              </label>
+            </div>
+            <div class="create-actions">
+              <button class="cta" type="button">
+                Create workspace
+              </button>
+              <button class="ghost" data-action-back type="button">
+                Cancel
+              </button>
+            </div>
           </section>
         </main>
       </div>
@@ -193,7 +265,7 @@
           aria-label="Maximize"
           type="button"
         >
-          <span class="window-icon">☐</span>
+          <span class="window-icon">&#x2610;</span>
         </button>
         <button
           class="window-control window-control-close"
@@ -209,3 +281,5 @@
     <script src="renderer.js"></script>
   </body>
 </html>
+
+
