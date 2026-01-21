@@ -51,7 +51,8 @@ contextBridge.exposeInMainWorld("ifactory", {
     open: (payload) => ipcRenderer.invoke("project:open", payload)
   },
   templates: {
-    list: (payload) => ipcRenderer.invoke("templates:list", payload)
+    list: (payload) => ipcRenderer.invoke("templates:list", payload),
+    copy: (payload) => ipcRenderer.invoke("templates:copy", payload)
   },
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
   dialog: {

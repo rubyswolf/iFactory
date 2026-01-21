@@ -48,6 +48,11 @@
               Back
             </button>
           </div>
+          <div class="titlebar-group titlebar-group--get-started">
+            <button class="ghost" data-action-home type="button">
+              Back to home
+            </button>
+          </div>
         </div>
       </header>
 
@@ -357,9 +362,10 @@
       <div class="page page-installing" data-page-installing>
         <main class="installing-grid">
           <section class="panel installing-panel reveal">
-            <div class="eyebrow">Installing</div>
+            <div class="eyebrow" data-install-eyebrow>Installing</div>
             <h2>
-              Setting up iPlug2<span class="ellipsis" data-ellipsis>...</span>
+              <span data-install-title-text>Setting up iPlug2</span
+              ><span class="ellipsis" data-ellipsis>...</span>
             </h2>
             <p class="card-meta" data-install-stage>Preparing iPlug2…</p>
             <div class="progress-track">
@@ -450,6 +456,19 @@
                 Continue
               </button>
             </div>
+          </section>
+        </main>
+      </div>
+
+      <div class="page page-get-started" data-page-get-started>
+        <main class="get-started-grid">
+          <section class="panel get-started-panel reveal">
+            <div class="eyebrow">Get started with iPlug2</div>
+            <h2>Your plugin is ready.</h2>
+            <p class="card-meta">
+              Next you can explore the iPlug2 docs, configure your plugin, and
+              start building.
+            </p>
           </section>
         </main>
       </div>

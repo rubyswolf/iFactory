@@ -214,6 +214,201 @@ const getDepsBuildPath = (iplugPath) => {
   return path.join(iplugPath, "Dependencies", "Build", config.folder);
 };
 
+const copyDirectory = (source, target, onProgress, isCanceled) => {
+  const dirs = [];
+  const files = [];
+
+  const walk = (dir) => {
+    if (isCanceled?.()) {
+      throw new Error("cancelled");
+    }
+    dirs.push(dir);
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    entries.forEach((entry) => {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(fullPath);
+      } else {
+        files.push(fullPath);
+      }
+    });
+  };
+
+  walk(source);
+
+  dirs.forEach((dir) => {
+    if (isCanceled?.()) {
+      throw new Error("cancelled");
+    }
+    const relative = path.relative(source, dir);
+    const targetDir = path.join(target, relative);
+    fs.mkdirSync(targetDir, { recursive: true });
+  });
+
+  const total = files.length;
+  files.forEach((file, index) => {
+    if (isCanceled?.()) {
+      throw new Error("cancelled");
+    }
+    const relative = path.relative(source, file);
+    const targetFile = path.join(target, relative);
+    fs.mkdirSync(path.dirname(targetFile), { recursive: true });
+    fs.copyFileSync(file, targetFile);
+    if (onProgress) {
+      const progress = total ? (index + 1) / total : 1;
+      onProgress(progress);
+    }
+  });
+};
+
+const FILTERED_FILE_EXTENSIONS = new Set([
+  ".ico",
+  ".icns",
+  ".pdf",
+  ".png",
+  ".zip",
+  ".exe",
+  ".wav",
+  ".aif"
+]);
+
+const SUBFOLDERS_TO_SEARCH = new Set([
+  "projects",
+  "config",
+  "resources",
+  "installer",
+  "scripts",
+  "manual",
+  "xcschemes",
+  "xcshareddata",
+  "xcuserdata",
+  "en-osx.lproj",
+  "project.xcworkspace",
+  "Images.xcassets",
+  "web-ui",
+  "ui",
+  "UI",
+  "DSP"
+]);
+
+const replaceAll = (value, search, replacement) => {
+  if (!search) {
+    return value;
+  }
+  return value.split(search).join(replacement);
+};
+
+const updateFileContents = (
+  filePath,
+  searchProject,
+  replaceProject,
+  searchMan,
+  replaceMan,
+  oldRoot,
+  newRoot
+) => {
+  const ext = path.extname(filePath).toLowerCase();
+  if (FILTERED_FILE_EXTENSIONS.has(ext)) {
+    return;
+  }
+  const content = fs.readFileSync(filePath, "utf8");
+  let updated = content;
+  updated = replaceAll(updated, searchProject, replaceProject);
+  updated = replaceAll(
+    updated,
+    searchProject.toUpperCase(),
+    replaceProject.toUpperCase()
+  );
+  updated = replaceAll(updated, searchMan, replaceMan);
+  if (oldRoot && newRoot) {
+    updated = replaceAll(updated, oldRoot, newRoot);
+    updated = replaceAll(
+      updated,
+      oldRoot.replace(/\//g, "\\"),
+      newRoot.replace(/\//g, "\\")
+    );
+  }
+  if (updated !== content) {
+    fs.writeFileSync(filePath, updated);
+  }
+};
+
+const renameTemplateContents = (
+  dir,
+  searchProject,
+  replaceProject,
+  searchMan,
+  replaceMan,
+  oldRoot,
+  newRoot
+) => {
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  entries.forEach((entry) => {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory() && !entry.isSymbolicLink()) {
+      let renamedPath = "";
+      if (entry.name === `${searchProject}-macOS.xcodeproj`) {
+        renamedPath = path.join(dir, `${replaceProject}-macOS.xcodeproj`);
+      } else if (entry.name === `${searchProject}-iOS.xcodeproj`) {
+        renamedPath = path.join(dir, `${replaceProject}-iOS.xcodeproj`);
+      } else if (entry.name === `${searchProject}.xcworkspace`) {
+        renamedPath = path.join(dir, `${replaceProject}.xcworkspace`);
+      } else if (entry.name === `${searchProject}iOSAppIcon.appiconset`) {
+        renamedPath = path.join(
+          dir,
+          `${replaceProject}iOSAppIcon.appiconset`
+        );
+      }
+
+      if (renamedPath) {
+        fs.renameSync(fullPath, renamedPath);
+        renameTemplateContents(
+          renamedPath,
+          searchProject,
+          replaceProject,
+          searchMan,
+          replaceMan,
+          oldRoot,
+          newRoot
+        );
+        return;
+      }
+
+      if (SUBFOLDERS_TO_SEARCH.has(entry.name)) {
+        renameTemplateContents(
+          fullPath,
+          searchProject,
+          replaceProject,
+          searchMan,
+          replaceMan,
+          oldRoot,
+          newRoot
+        );
+      }
+      return;
+    }
+
+    if (!entry.isFile()) {
+      return;
+    }
+
+    updateFileContents(
+      fullPath,
+      searchProject,
+      replaceProject,
+      searchMan,
+      replaceMan,
+      oldRoot,
+      newRoot
+    );
+
+    const newFilename = entry.name.replace(searchProject, replaceProject);
+    if (newFilename !== entry.name) {
+      fs.renameSync(fullPath, path.join(dir, newFilename));
+    }
+  });
+};
+
 const formatTemplateName = (folderName) => {
   if (!folderName) {
     return "";
@@ -563,6 +758,102 @@ const registerIpc = () => {
       return { templates };
     } catch (error) {
       return { error: "templates_failed" };
+    }
+  });
+  ipcMain.handle("templates:copy", async (event, payload) => {
+    if (activeInstall) {
+      return { error: "install_in_progress" };
+    }
+    const projectPath = payload?.projectPath?.trim();
+    const templateFolder = payload?.templateFolder?.trim();
+    const name = payload?.name?.trim();
+    const manufacturer = payload?.manufacturer?.trim() || "AcmeInc";
+    if (!projectPath || !templateFolder || !name) {
+      return { error: "missing_fields" };
+    }
+    if (/[^a-zA-Z0-9]/.test(name)) {
+      return { error: "invalid_name" };
+    }
+    const sourcePath = path.join(
+      projectPath,
+      "iPlug2",
+      "Examples",
+      templateFolder
+    );
+    if (!fs.existsSync(sourcePath)) {
+      return { error: "template_missing" };
+    }
+    const targetPath = path.join(projectPath, name);
+    if (fs.existsSync(targetPath)) {
+      return { error: "already_exists" };
+    }
+
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const sendProgress = (progress, stage) => {
+      const normalized = Number.isFinite(progress)
+        ? Math.max(0, Math.min(progress, 1))
+        : null;
+      if (window && !window.isDestroyed()) {
+        window.setProgressBar(normalized === null ? -1 : normalized);
+      }
+      event.sender.send("iplug:progress", {
+        progress: normalized,
+        stage
+      });
+    };
+
+    activeInstall = {
+      canceled: false,
+      child: null,
+      request: null
+    };
+
+    const cleanupTarget = () => {
+      try {
+        fs.rmSync(targetPath, { recursive: true, force: true });
+      } catch (error) {
+        // ignore cleanup errors
+      }
+    };
+
+    try {
+      sendProgress(0.05, "Copying template...");
+      copyDirectory(
+        sourcePath,
+        targetPath,
+        (progress) =>
+          sendProgress(0.05 + progress * 0.6, "Copying template..."),
+        () => activeInstall?.canceled
+      );
+      if (activeInstall?.canceled) {
+        cleanupTarget();
+        return { error: "cancelled" };
+      }
+      if (templateFolder !== name) {
+        sendProgress(0.7, "Renaming project...");
+        renameTemplateContents(
+          targetPath,
+          templateFolder,
+          name,
+          "AcmeInc",
+          manufacturer,
+          "",
+          ""
+        );
+      }
+      sendProgress(1, "Finished");
+      return { path: targetPath };
+    } catch (error) {
+      cleanupTarget();
+      if (activeInstall?.canceled || error?.message === "cancelled") {
+        return { error: "cancelled" };
+      }
+      return { error: "copy_failed" };
+    } finally {
+      if (window && !window.isDestroyed()) {
+        window.setProgressBar(-1);
+      }
+      activeInstall = null;
     }
   });
   ipcMain.handle("window:minimize", (event) => {

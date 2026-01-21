@@ -120,6 +120,79 @@ const setupGithubOAuth = () => {
     templateContinueButton.disabled = !selectedTemplate || !nameValue;
   };
 
+  const getInstallApi = () => {
+    if (window.ifactoryInstall) {
+      return window.ifactoryInstall;
+    }
+    const statusEl = document.querySelector("[data-iplug-status]");
+    const progressEl = document.querySelector("[data-install-progress]");
+    const stageEl = document.querySelector("[data-install-stage]");
+    const eyebrowEl = document.querySelector("[data-install-eyebrow]");
+    const titleEl = document.querySelector("[data-install-title-text]");
+
+    const setStatus = (message, tone) => {
+      if (!statusEl) {
+        return;
+      }
+      if (!message) {
+        statusEl.textContent = "";
+        statusEl.hidden = true;
+        statusEl.removeAttribute("data-tone");
+        return;
+      }
+      statusEl.textContent = message;
+      statusEl.hidden = false;
+      if (tone) {
+        statusEl.setAttribute("data-tone", tone);
+      } else {
+        statusEl.removeAttribute("data-tone");
+      }
+    };
+
+    const updateProgress = (progress, stage) => {
+      if (progressEl && typeof progress === "number") {
+        const clamped = Math.max(0, Math.min(progress, 1));
+        progressEl.style.width = `${Math.round(clamped * 100)}%`;
+      }
+      if (stageEl && stage) {
+        stageEl.textContent = stage;
+      }
+    };
+
+    return {
+      start: () => {
+        document.body.classList.add("is-installing-run");
+        if (progressEl) {
+          progressEl.style.width = "0%";
+        }
+      },
+      stop: () => {
+        document.body.classList.remove("is-installing-run");
+      },
+      setStatus,
+      updateProgress,
+      setHeader: (eyebrow, title) => {
+        if (eyebrowEl && eyebrow) {
+          eyebrowEl.textContent = eyebrow;
+        }
+        if (titleEl && title) {
+          titleEl.textContent = title;
+        }
+      }
+    };
+  };
+
+  const setGetStarted = (active) => {
+    document.body.classList.toggle("is-get-started", active);
+    if (active) {
+      document.body.classList.remove("is-installing-run");
+      document.body.classList.remove("is-installing");
+      document.body.classList.remove("is-templates");
+      document.body.classList.remove("is-ready");
+      document.body.classList.remove("is-creating");
+    }
+  };
+
   const renderRecents = (projects) => {
     if (!recentListEl) {
       return;
@@ -272,7 +345,7 @@ const setupGithubOAuth = () => {
         }
         selectedTemplate = template.folder || "";
         if (templateNameInput) {
-          templateNameInput.value = selectedTemplate;
+          templateNameInput.value = sanitizeTemplateName(selectedTemplate);
         }
         renderTemplates();
       });
@@ -361,6 +434,7 @@ const setupGithubOAuth = () => {
       document.body.classList.remove("is-installing");
       document.body.classList.remove("is-ready");
       document.body.classList.remove("is-templates");
+      document.body.classList.remove("is-get-started");
     }
   };
 
@@ -380,6 +454,7 @@ const setupGithubOAuth = () => {
       document.body.classList.remove("is-installing");
       document.body.classList.remove("is-ready");
       document.body.classList.remove("is-templates");
+      document.body.classList.remove("is-get-started");
     }
   };
 
@@ -389,6 +464,7 @@ const setupGithubOAuth = () => {
       document.body.classList.remove("is-creating");
       document.body.classList.remove("is-ready");
       document.body.classList.remove("is-templates");
+      document.body.classList.remove("is-get-started");
     }
   };
 
@@ -398,6 +474,7 @@ const setupGithubOAuth = () => {
       document.body.classList.remove("is-creating");
       document.body.classList.remove("is-installing");
       document.body.classList.remove("is-ready");
+      document.body.classList.remove("is-get-started");
     }
   };
 
@@ -406,6 +483,7 @@ const setupGithubOAuth = () => {
     document.body.classList.remove("is-installing-run");
     document.body.classList.remove("is-installing");
     document.body.classList.remove("is-templates");
+    document.body.classList.remove("is-get-started");
   };
 
   const updateInstallPath = (pathValue) => {
@@ -506,6 +584,7 @@ const setupGithubOAuth = () => {
     setCreating(false);
     setInstalling(false);
     setTemplates(false);
+    setGetStarted(false);
     setFlowVisible(false);
     updateSetupState();
   };
@@ -692,6 +771,7 @@ const setupGithubOAuth = () => {
       setSetupComplete(true);
       setCreating(false);
       setTemplates(false);
+      setGetStarted(false);
     });
   }
   if (createButton) {
@@ -791,6 +871,7 @@ const setupGithubOAuth = () => {
       setInstalling(false);
       document.body.classList.remove("is-ready");
       setTemplates(false);
+      setGetStarted(false);
       updateSetupState();
     });
   });
@@ -811,11 +892,58 @@ const setupGithubOAuth = () => {
       }
       updateTemplateContinue();
     });
+    templateNameInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && templateContinueButton) {
+        event.preventDefault();
+        if (!templateContinueButton.disabled) {
+          templateContinueButton.click();
+        }
+      }
+    });
   }
   if (templateContinueButton) {
-    templateContinueButton.addEventListener("click", () => {
-      if (!selectedTemplate) {
+    templateContinueButton.addEventListener("click", async () => {
+      const projectPath =
+        currentProjectPath || document.body.dataset.projectPath || "";
+      if (!selectedTemplate || !projectPath) {
         return;
+      }
+      const pluginName = templateNameInput?.value.trim() || "";
+      const installApi = getInstallApi();
+      if (!pluginName || !window.ifactory?.templates?.copy) {
+        return;
+      }
+      setGetStarted(false);
+      document.body.classList.remove("is-ready");
+      setTemplates(false);
+      setInstalling(true);
+      installApi.setHeader?.("Creating plugin", "Creating plugin");
+      installApi.start?.();
+      installApi.setStatus?.("");
+      installApi.updateProgress?.(0.05, "Copying template...");
+      try {
+        const result = await window.ifactory.templates.copy({
+          projectPath,
+          templateFolder: selectedTemplate,
+          name: pluginName
+        });
+        if (result?.error) {
+          const message =
+            result.error === "already_exists"
+              ? "A plugin with that name already exists."
+              : result.error === "template_missing"
+                ? "Template not found."
+                : "Unable to create the plugin.";
+          installApi.setStatus?.(message, "error");
+          return;
+        }
+        installApi.updateProgress?.(1, "Finished");
+        setGetStarted(true);
+      } catch (error) {
+        installApi.setStatus?.("Unable to create the plugin.", "error");
+      } finally {
+        installApi.stop?.();
+        setInstalling(false);
       }
     });
   }
@@ -972,6 +1100,8 @@ const setupInstallScreen = () => {
   const installProgress = document.querySelector("[data-install-progress]");
   const installStage = document.querySelector("[data-install-stage]");
   const installCancel = document.querySelector("[data-install-cancel]");
+  const installEyebrowEl = document.querySelector("[data-install-eyebrow]");
+  const installTitleTextEl = document.querySelector("[data-install-title-text]");
 
   if (
     !officialSection ||
@@ -998,6 +1128,18 @@ const setupInstallScreen = () => {
   let selectedBranch = "master";
   let currentBranches = [];
   const branchesCache = new Map();
+  const defaultInstallEyebrow = installEyebrowEl?.textContent || "Installing";
+  const defaultInstallTitle =
+    installTitleTextEl?.textContent || "Setting up iPlug2";
+
+  const resetInstallHeader = () => {
+    if (installEyebrowEl) {
+      installEyebrowEl.textContent = defaultInstallEyebrow;
+    }
+    if (installTitleTextEl) {
+      installTitleTextEl.textContent = defaultInstallTitle;
+    }
+  };
 
   const setInstallStatus = (message, tone) => {
     if (!message) {
@@ -1031,6 +1173,7 @@ const setupInstallScreen = () => {
       document.body.classList.remove("is-installing-run");
       document.body.classList.remove("is-installing");
       document.body.classList.remove("is-templates");
+      document.body.classList.remove("is-get-started");
     }
   };
 
@@ -1039,6 +1182,7 @@ const setupInstallScreen = () => {
       return;
     }
     setReadyScreen(false);
+    resetInstallHeader();
     setInstallStatus("Installing dependencies...", "");
     installButton.disabled = true;
     setInstallingScreen(true);
@@ -1418,6 +1562,7 @@ const setupInstallScreen = () => {
       return;
     }
 
+    resetInstallHeader();
     setInstallStatus("Installing iPlug2...", "");
     installButton.disabled = true;
     setInstallingScreen(true);
@@ -1475,7 +1620,20 @@ const setupInstallScreen = () => {
   installButton.addEventListener("click", handleInstall);
 
   window.ifactoryInstall = {
-    installDependencies: runDependenciesInstall
+    installDependencies: runDependenciesInstall,
+    start: () => setInstallingScreen(true),
+    stop: () => setInstallingScreen(false),
+    setStatus: setInstallStatus,
+    updateProgress,
+    setHeader: (eyebrow, title) => {
+      if (eyebrow && installEyebrowEl) {
+        installEyebrowEl.textContent = eyebrow;
+      }
+      if (title && installTitleTextEl) {
+        installTitleTextEl.textContent = title;
+      }
+    },
+    resetHeader: resetInstallHeader
   };
 
   setActiveSource("official");
