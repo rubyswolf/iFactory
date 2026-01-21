@@ -214,6 +214,40 @@ const getDepsBuildPath = (iplugPath) => {
   return path.join(iplugPath, "Dependencies", "Build", config.folder);
 };
 
+const formatTemplateName = (folderName) => {
+  if (!folderName) {
+    return "";
+  }
+  let name = folderName;
+  if (name.startsWith("IPlug")) {
+    name = name.slice(5);
+  }
+  if (!name) {
+    return folderName;
+  }
+  let output = "";
+  const lastIndex = name.length - 1;
+  for (let i = 0; i < name.length; i += 1) {
+    const ch = name[i];
+    const next = i < lastIndex ? name[i + 1] : "";
+    const prev = i > 0 ? name[i - 1] : "";
+    const isUpper = ch >= "A" && ch <= "Z";
+    if (i > 0 && isUpper) {
+      const isTrailingUI = ch === "U" && next === "I" && i + 1 === lastIndex;
+      const isTrailingUIEnd = ch === "I" && prev === "U" && i === lastIndex;
+      const isOSCSequence =
+        ch === "O" && next === "S" && name[i + 2] === "C";
+      const isOSCEnd = ch === "S" && prev === "O" && next === "C";
+      const isOSCFinal = ch === "C" && prev === "S";
+      if (!isTrailingUI && !isTrailingUIEnd && !isOSCSequence && !isOSCEnd && !isOSCFinal) {
+        output += " ";
+      }
+    }
+    output += ch;
+  }
+  return output.trim() || folderName;
+};
+
 const sanitizeSettings = (settings) => {
   const sanitized = cloneSettings(settings);
   const github = sanitized.integrations.github;
@@ -465,6 +499,70 @@ const registerIpc = () => {
       return { path: projectPath, needsIPlug, needsDependencies };
     } catch (error) {
       return { error: "open_failed" };
+    }
+  });
+  ipcMain.handle("templates:list", async (event, payload) => {
+    try {
+      const projectPath = payload?.projectPath?.trim();
+      if (!projectPath) {
+        return { error: "missing_path" };
+      }
+      const examplesPath = path.join(projectPath, "iPlug2", "Examples");
+      if (!fs.existsSync(examplesPath)) {
+        return { error: "examples_missing" };
+      }
+      const entries = fs.readdirSync(examplesPath, { withFileTypes: true });
+      const templates = entries
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => {
+          const folder = entry.name;
+          const readmePath = path.join(examplesPath, folder, "README.md");
+          let description = "";
+          try {
+            if (fs.existsSync(readmePath)) {
+              const content = fs.readFileSync(readmePath, "utf8");
+              const lines = content.split(/\r?\n/);
+              if (lines.length > 1) {
+                for (let i = 1; i < lines.length; i += 1) {
+                  const candidate = lines[i].trim();
+                  if (candidate) {
+                    description = candidate.replace(
+                      /\[([^\]]+)\]\([^)]+\)/g,
+                      "$1"
+                    );
+                    break;
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            description = "";
+          }
+          return {
+            folder,
+            name: formatTemplateName(folder),
+            description
+          };
+        })
+        .sort((a, b) => {
+          const priority = (item) => {
+            if (item.folder === "IPlugEffect") {
+              return 0;
+            }
+            if (item.folder === "IPlugInstrument") {
+              return 1;
+            }
+            return 2;
+          };
+          const priorityDiff = priority(a) - priority(b);
+          if (priorityDiff !== 0) {
+            return priorityDiff;
+          }
+          return a.name.localeCompare(b.name);
+        });
+      return { templates };
+    } catch (error) {
+      return { error: "templates_failed" };
     }
   });
   ipcMain.handle("window:minimize", (event) => {

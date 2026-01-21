@@ -43,6 +43,11 @@
               Back to home
             </button>
           </div>
+          <div class="titlebar-group titlebar-group--templates">
+            <button class="ghost" data-action-ready type="button">
+              Back
+            </button>
+          </div>
         </div>
       </header>
 
@@ -389,7 +394,7 @@
                   tools automatically, then refine from there.
                 </p>
               </button>
-              <button class="choice-card" type="button">
+              <button class="choice-card" type="button" data-ready-manual>
                 <div class="choice-header">
                   <span class="choice-title">Create manually</span>
                 </div>
@@ -399,6 +404,27 @@
                 </p>
               </button>
             </div>
+          </section>
+        </main>
+      </div>
+
+      <div class="page page-templates" data-page-templates>
+        <main class="templates-grid">
+          <section class="panel templates-panel reveal">
+            <div class="eyebrow">Choose a template</div>
+            <h2 data-template-title>Loading templates.</h2>
+            <p class="card-meta" data-template-status>
+              Fetching available iPlug2 templates.
+            </p>
+            <div class="template-search">
+              <input
+                type="text"
+                placeholder="Search templates"
+                aria-label="Search templates"
+                data-template-search
+              />
+            </div>
+            <div class="template-list" data-template-list></div>
           </section>
         </main>
       </div>

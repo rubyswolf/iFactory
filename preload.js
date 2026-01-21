@@ -50,6 +50,9 @@ contextBridge.exposeInMainWorld("ifactory", {
     create: (payload) => ipcRenderer.invoke("project:create", payload),
     open: (payload) => ipcRenderer.invoke("project:open", payload)
   },
+  templates: {
+    list: (payload) => ipcRenderer.invoke("templates:list", payload)
+  },
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
   dialog: {
     selectFolder: () => ipcRenderer.invoke("dialog:selectFolder")

@@ -71,6 +71,12 @@ const setupGithubOAuth = () => {
   const createFolderToggle = document.querySelector("[data-create-folder]");
   const installPath = document.querySelector("[data-install-path]");
   const homeButtons = document.querySelectorAll("[data-action-home]");
+  const readyButtons = document.querySelectorAll("[data-action-ready]");
+  const manualChoiceButton = document.querySelector("[data-ready-manual]");
+  const templateTitleEl = document.querySelector("[data-template-title]");
+  const templateStatusEl = document.querySelector("[data-template-status]");
+  const templateSearchInput = document.querySelector("[data-template-search]");
+  const templateListEl = document.querySelector("[data-template-list]");
   const recentListEl = document.querySelector("[data-recent-list]");
 
   if (
@@ -97,6 +103,7 @@ const setupGithubOAuth = () => {
   let gitInstalled = false;
   let gitSkipped = false;
   let gitChecking = false;
+  let templatesData = [];
 
   const renderRecents = (projects) => {
     if (!recentListEl) {
@@ -158,6 +165,122 @@ const setupGithubOAuth = () => {
     });
   };
 
+  const setTemplateStatus = (message) => {
+    if (!templateStatusEl) {
+      return;
+    }
+    if (!message) {
+      templateStatusEl.textContent = "";
+      templateStatusEl.hidden = true;
+      return;
+    }
+    templateStatusEl.textContent = message;
+    templateStatusEl.hidden = false;
+  };
+
+  const showTemplateMessage = (message) => {
+    if (!templateListEl) {
+      return;
+    }
+    templateListEl.innerHTML = "";
+    const empty = document.createElement("div");
+    empty.className = "fork-empty";
+    empty.textContent = message;
+    templateListEl.appendChild(empty);
+  };
+
+  const renderTemplates = () => {
+    if (!templateListEl) {
+      return;
+    }
+    const query = (templateSearchInput?.value || "").trim().toLowerCase();
+    const templates = Array.isArray(templatesData) ? templatesData : [];
+    const filtered = query
+      ? templates.filter((template) => {
+          const parts = [
+            template?.name || "",
+            template?.folder || "",
+            template?.description || ""
+          ];
+          return parts.join(" ").toLowerCase().includes(query);
+        })
+      : templates;
+
+    templateListEl.innerHTML = "";
+    if (!filtered.length) {
+      showTemplateMessage("No templates found.");
+      return;
+    }
+
+    filtered.forEach((template) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "fork-item template-item";
+      button.dataset.templateFolder = template.folder || "";
+
+      const title = document.createElement("div");
+      title.className = "fork-title";
+      title.textContent = template.name || template.folder || "Template";
+
+      button.appendChild(title);
+
+      if (template.description) {
+        const desc = document.createElement("div");
+        desc.className = "fork-meta";
+        desc.textContent = template.description;
+        button.appendChild(desc);
+      }
+
+      templateListEl.appendChild(button);
+    });
+  };
+
+  const loadTemplates = async () => {
+    if (!templateListEl || !templateTitleEl) {
+      return;
+    }
+    if (templateSearchInput) {
+      templateSearchInput.value = "";
+    }
+    templateTitleEl.textContent = "Loading templates.";
+    setTemplateStatus("Fetching available iPlug2 templates.");
+    templateListEl.innerHTML = "";
+    templatesData = [];
+
+    if (!currentProjectPath) {
+      setTemplateStatus("Select a project to load templates.");
+      showTemplateMessage("No templates found.");
+      return;
+    }
+    if (!window.ifactory?.templates?.list) {
+      setTemplateStatus("Templates are unavailable right now.");
+      showTemplateMessage("No templates found.");
+      return;
+    }
+    try {
+      const result = await window.ifactory.templates.list({
+        projectPath: currentProjectPath
+      });
+      if (result?.error === "examples_missing") {
+        setTemplateStatus("Unable to find iPlug2 Examples in this project.");
+        showTemplateMessage("Examples folder not found.");
+        return;
+      }
+      if (result?.error) {
+        setTemplateStatus("Unable to load templates right now.");
+        showTemplateMessage("No templates found.");
+        return;
+      }
+      templatesData = Array.isArray(result?.templates) ? result.templates : [];
+      templateTitleEl.textContent = "Choose a template.";
+      setTemplateStatus("");
+      renderTemplates();
+    } catch (error) {
+      setTemplateStatus("Unable to load templates right now.");
+      showTemplateMessage("No templates found.");
+    }
+  };
+
   const loadRecents = async () => {
     if (!window.ifactory?.recents?.get) {
       return;
@@ -180,6 +303,7 @@ const setupGithubOAuth = () => {
       document.body.classList.remove("is-creating");
       document.body.classList.remove("is-installing");
       document.body.classList.remove("is-ready");
+      document.body.classList.remove("is-templates");
     }
   };
 
@@ -198,6 +322,7 @@ const setupGithubOAuth = () => {
     if (creating) {
       document.body.classList.remove("is-installing");
       document.body.classList.remove("is-ready");
+      document.body.classList.remove("is-templates");
     }
   };
 
@@ -206,7 +331,24 @@ const setupGithubOAuth = () => {
     if (installing) {
       document.body.classList.remove("is-creating");
       document.body.classList.remove("is-ready");
+      document.body.classList.remove("is-templates");
     }
+  };
+
+  const setTemplates = (active) => {
+    document.body.classList.toggle("is-templates", active);
+    if (active) {
+      document.body.classList.remove("is-creating");
+      document.body.classList.remove("is-installing");
+      document.body.classList.remove("is-ready");
+    }
+  };
+
+  const showReadyScreen = () => {
+    document.body.classList.add("is-ready");
+    document.body.classList.remove("is-installing-run");
+    document.body.classList.remove("is-installing");
+    document.body.classList.remove("is-templates");
   };
 
   const updateInstallPath = (pathValue) => {
@@ -306,6 +448,7 @@ const setupGithubOAuth = () => {
     setSetupComplete(false);
     setCreating(false);
     setInstalling(false);
+    setTemplates(false);
     setFlowVisible(false);
     updateSetupState();
   };
@@ -491,11 +634,18 @@ const setupGithubOAuth = () => {
       setSkipped(true);
       setSetupComplete(true);
       setCreating(false);
+      setTemplates(false);
     });
   }
   if (createButton) {
     createButton.addEventListener("click", () => {
       setCreating(true);
+    });
+  }
+  if (manualChoiceButton) {
+    manualChoiceButton.addEventListener("click", () => {
+      setTemplates(true);
+      loadTemplates();
     });
   }
   if (openProjectButton) {
@@ -575,10 +725,27 @@ const setupGithubOAuth = () => {
   });
   homeButtons.forEach((button) => {
     button.addEventListener("click", () => {
+      if (document.body.classList.contains("is-templates")) {
+        setTemplates(false);
+        showReadyScreen();
+        return;
+      }
+      setCreating(false);
       setInstalling(false);
       document.body.classList.remove("is-ready");
+      setTemplates(false);
+      updateSetupState();
     });
   });
+  readyButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      setTemplates(false);
+      showReadyScreen();
+    });
+  });
+  if (templateSearchInput) {
+    templateSearchInput.addEventListener("input", renderTemplates);
+  }
 
   loadGithub();
   loadRecents();
@@ -790,6 +957,7 @@ const setupInstallScreen = () => {
     if (active) {
       document.body.classList.remove("is-installing-run");
       document.body.classList.remove("is-installing");
+      document.body.classList.remove("is-templates");
     }
   };
 
