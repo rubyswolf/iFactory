@@ -488,20 +488,54 @@ const setupInstallScreen = () => {
   }
 
   const sourceButtons = document.querySelectorAll("[data-iplug-source]");
+  const branchButtons = document.querySelectorAll("[data-iplug-branch-mode]");
   const officialSection = document.querySelector("[data-iplug-official]");
   const forkSection = document.querySelector("[data-iplug-forks]");
   const listEl = document.querySelector("[data-iplug-list]");
   const searchInput = document.querySelector("[data-iplug-search]");
   const noteEl = document.querySelector("[data-iplug-note]");
+  const branchListEl = document.querySelector("[data-iplug-branch-list]");
+  const branchSection = document.querySelector("[data-iplug-branch-section]");
+  const branchSearchWrap = document.querySelector("[data-iplug-branch-search]");
+  const branchSearchInput = document.querySelector(
+    "[data-iplug-branch-query]"
+  );
 
-  if (!officialSection || !forkSection || !listEl || !searchInput) {
+  if (
+    !officialSection ||
+    !forkSection ||
+    !listEl ||
+    !searchInput ||
+    !branchListEl ||
+    !branchSection ||
+    !branchSearchWrap ||
+    !branchSearchInput
+  ) {
     return;
   }
 
   let forksData = null;
   let selectedFork = "";
+  let selectedSource = "official";
+  let branchMode = "master";
+  let selectedBranch = "master";
+  let currentBranches = [];
+  const branchesCache = new Map();
+
+  const updateBranchVisibility = () => {
+    const hasRepo =
+      selectedSource === "official" ||
+      (selectedSource === "fork" && Boolean(selectedFork));
+    branchSection.hidden = !hasRepo;
+    if (!hasRepo) {
+      branchSearchWrap.hidden = true;
+      branchListEl.hidden = true;
+    }
+    return hasRepo;
+  };
 
   const setActiveSource = (source) => {
+    selectedSource = source;
     sourceButtons.forEach((button) => {
       button.classList.toggle(
         "is-active",
@@ -514,6 +548,40 @@ const setupInstallScreen = () => {
       forksData = null;
       loadForks();
     }
+    if (branchMode === "branch" && updateBranchVisibility()) {
+      loadBranches();
+    } else {
+      updateBranchVisibility();
+    }
+  };
+
+  const setActiveBranchMode = (mode) => {
+    branchMode = mode;
+    branchButtons.forEach((button) => {
+      button.classList.toggle(
+        "is-active",
+        button.dataset.iplugBranchMode === mode
+      );
+    });
+    branchSearchWrap.hidden = mode !== "branch";
+    branchListEl.hidden = mode !== "branch";
+    if (mode === "master") {
+      selectedBranch = "master";
+      return;
+    }
+    if (updateBranchVisibility()) {
+      loadBranches();
+    }
+  };
+
+  const getSelectedRepoFullName = () => {
+    if (selectedSource === "official") {
+      return "iplug2/iplug2";
+    }
+    if (selectedSource === "fork") {
+      return selectedFork;
+    }
+    return "";
   };
 
   const buildBadge = (label, className) => {
@@ -561,9 +629,113 @@ const setupInstallScreen = () => {
         item.classList.remove("is-selected");
       });
       button.classList.add("is-selected");
+      if (branchMode === "branch" && updateBranchVisibility()) {
+        loadBranches();
+      } else {
+        updateBranchVisibility();
+      }
     });
 
     return button;
+  };
+
+  const clearBranchList = (message) => {
+    branchListEl.innerHTML = "";
+    if (!message) {
+      return;
+    }
+    const empty = document.createElement("div");
+    empty.className = "fork-empty";
+    empty.textContent = message;
+    branchListEl.appendChild(empty);
+  };
+
+  const buildBranchItem = (branch) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "fork-item branch-item";
+    if (branch?.name === selectedBranch) {
+      button.classList.add("is-selected");
+    }
+
+    const title = document.createElement("div");
+    title.className = "fork-title";
+    title.textContent = branch?.name || "Unknown branch";
+
+    const meta = document.createElement("div");
+    meta.className = "fork-meta";
+    const sha = branch?.commit?.sha ? branch.commit.sha.slice(0, 7) : "";
+    meta.textContent = sha ? `Commit ${sha}` : "Branch";
+
+    button.appendChild(title);
+    button.appendChild(meta);
+
+    button.addEventListener("click", () => {
+      selectedBranch = branch?.name || "";
+      branchListEl.querySelectorAll(".branch-item").forEach((item) => {
+        item.classList.remove("is-selected");
+      });
+      button.classList.add("is-selected");
+    });
+
+    return button;
+  };
+
+  const renderBranches = (branches) => {
+    currentBranches = Array.isArray(branches) ? branches : [];
+    const query = branchSearchInput.value.trim().toLowerCase();
+    const filtered = currentBranches.filter((branch) =>
+      (branch?.name || "").toLowerCase().includes(query)
+    );
+    const list = query ? filtered : currentBranches;
+
+    if (query && list.length === 0) {
+      clearBranchList("No branches match your search.");
+      return;
+    }
+
+    if (list.length === 0) {
+      clearBranchList("No branches found.");
+      return;
+    }
+
+    if (!list.some((branch) => branch?.name === selectedBranch)) {
+      selectedBranch = list[0]?.name || "";
+    }
+
+    branchListEl.innerHTML = "";
+    list.forEach((branch) => {
+      branchListEl.appendChild(buildBranchItem(branch));
+    });
+  };
+
+  const loadBranches = async () => {
+    if (branchMode !== "branch" || !updateBranchVisibility()) {
+      return;
+    }
+    const fullName = getSelectedRepoFullName();
+    if (!fullName) {
+      clearBranchList("Select a fork to see branches.");
+      return;
+    }
+    if (branchesCache.has(fullName)) {
+      renderBranches(branchesCache.get(fullName));
+      return;
+    }
+
+    clearBranchList("Loading branches...");
+    try {
+      const result = await window.ifactory.github.listRepoBranches(fullName);
+      if (result?.error) {
+        clearBranchList("Unable to load branches.");
+        return;
+      }
+      const branches = Array.isArray(result.branches) ? result.branches : [];
+      branchesCache.set(fullName, branches);
+      renderBranches(branches);
+    } catch (error) {
+      clearBranchList("Unable to load branches.");
+    }
   };
 
   const renderForks = () => {
@@ -660,9 +832,23 @@ const setupInstallScreen = () => {
     });
   });
 
+  branchButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const mode = button.dataset.iplugBranchMode;
+      if (mode) {
+        setActiveBranchMode(mode);
+      }
+    });
+  });
+
   searchInput.addEventListener("input", renderForks);
+  branchSearchInput.addEventListener("input", () => {
+    renderBranches(currentBranches);
+  });
 
   setActiveSource("official");
+  setActiveBranchMode("master");
+  updateBranchVisibility();
 };
 
 document.addEventListener("DOMContentLoaded", () => {

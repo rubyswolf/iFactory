@@ -415,6 +415,40 @@ const registerIpc = () => {
     }
   });
 
+  ipcMain.handle("github:listRepoBranches", async (event, payload) => {
+    const fullName = payload?.fullName?.trim();
+    if (!fullName) {
+      return { error: "missing_repo" };
+    }
+    const token = settings?.integrations?.github?.token;
+    const headers = {
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "iFactory"
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    try {
+      const branches = await requestJson(
+        `https://api.github.com/repos/${fullName}/branches?per_page=100`,
+        { headers }
+      );
+      return {
+        branches: Array.isArray(branches) ? branches : []
+      };
+    } catch (error) {
+      return {
+        error: "branches_failed",
+        details: {
+          status: error?.status || null,
+          message: error?.message || null
+        }
+      };
+    }
+  });
+
   ipcMain.handle("github:disconnect", () => {
     settings.integrations.github = {
       ...settings.integrations.github,

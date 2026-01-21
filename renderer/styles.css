@@ -321,19 +321,22 @@ body.is-setup-complete.is-installing .page-install {
   width: min(620px, 100%);
 }
 
-.source-toggle {
+.source-toggle,
+.branch-toggle {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
   margin: 18px 0 12px;
 }
 
-.source-toggle .ghost {
+.source-toggle .ghost,
+.branch-toggle .ghost {
   border-color: rgba(255, 255, 255, 0.12);
   color: var(--muted);
 }
 
-.source-toggle .is-active {
+.source-toggle .is-active,
+.branch-toggle .is-active {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--accent-soft);
@@ -341,6 +344,14 @@ body.is-setup-complete.is-installing .page-install {
 
 .iplug-source {
   margin-bottom: 18px;
+}
+
+.branch-section {
+  margin-top: 8px;
+}
+
+.branch-section[hidden] {
+  display: none;
 }
 
 .repo-card {
@@ -364,7 +375,8 @@ body.is-setup-complete.is-installing .page-install {
   color: var(--ink);
 }
 
-.fork-search input {
+.fork-search input,
+.branch-search input {
   width: 100%;
   height: 40px;
   border-radius: 10px;
@@ -375,19 +387,29 @@ body.is-setup-complete.is-installing .page-install {
   font-family: var(--font-body);
 }
 
-.fork-search input:focus {
+.branch-search[hidden] {
+  display: none;
+}
+
+.fork-search input:focus,
+.branch-search input:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-focus);
 }
 
-.fork-list {
+.fork-list,
+.branch-list {
   margin-top: 12px;
   display: grid;
   gap: 10px;
   max-height: 260px;
   overflow-y: auto;
   padding-right: 6px;
+}
+
+.branch-list[hidden] {
+  display: none;
 }
 
 .fork-group-label {

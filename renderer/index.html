@@ -308,6 +308,32 @@
                 Connect GitHub to see your private forks.
               </div>
             </div>
+            <div class="branch-section" data-iplug-branch-section hidden>
+              <div class="branch-toggle" role="tablist">
+                <button
+                  class="ghost is-active"
+                  data-iplug-branch-mode="master"
+                  type="button"
+                >
+                  Master
+                </button>
+                <button
+                  class="ghost"
+                  data-iplug-branch-mode="branch"
+                  type="button"
+                >
+                  Branch
+                </button>
+              </div>
+              <div class="branch-search" data-iplug-branch-search hidden>
+                <input
+                  type="text"
+                  placeholder="Search branches"
+                  data-iplug-branch-query
+                />
+              </div>
+              <div class="branch-list" data-iplug-branch-list hidden></div>
+            </div>
             <div class="install-path">
               Project folder:
               <span data-install-path>Not set</span>
