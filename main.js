@@ -344,6 +344,139 @@ const getOutOfSourceRoot = (projectPath, targetPath) => {
   return relativePath.split(path.sep).join("/");
 };
 
+const patchPostbuildScript = (projectPath) => {
+  const scriptPath = path.join(projectPath, "scripts", "postbuild-win.bat");
+  if (!fs.existsSync(scriptPath)) {
+    return;
+  }
+  const content = fs.readFileSync(scriptPath, "utf8");
+  const lines = content.split(/\r?\n/);
+  const pathVars = new Set([
+    "BUILT_BINARY",
+    "VST2_ARM64EC_PATH",
+    "VST2_X64_PATH",
+    "VST3_ARM64EC_PATH",
+    "VST3_X64_PATH",
+    "AAX_ARM64EC_PATH",
+    "AAX_X64_PATH",
+    "CLAP_ARM64EC_PATH",
+    "CLAP_X64_PATH",
+    "BUILD_DIR",
+    "VST_ICON",
+    "AAX_ICON",
+    "CREATE_BUNDLE_SCRIPT",
+    "ICUDAT_PATH"
+  ]);
+  let changed = false;
+  const patched = lines.map((line) => {
+    let updated = line.replace(/""(%[A-Z0-9_]+%[^"]*)""/g, "\"$1\"");
+    updated = updated.replace(
+      /^(\s*set\s+)([A-Z0-9_]+)(\s*=\s*)%(\d+)\s*$/i,
+      (match, prefix, name, equals, index) => {
+        if (!pathVars.has(name.toUpperCase())) {
+          return match;
+        }
+        changed = true;
+        return `${prefix}"${name}=%~${index}"`;
+      }
+    );
+    const trimmed = updated.trimLeft();
+    if (/^for\s+%%[A-Z]\s+in\s*\(/i.test(trimmed)) {
+      updated = updated.replace(
+        /for\s+(%%[A-Z])\s+in\s*\(([^)]+)\)\s+do/i,
+        (match, iterator, inner) => {
+          const innerTrim = inner.trim();
+          if (innerTrim.startsWith("\"")) {
+            return match;
+          }
+          return `for ${iterator} in ("${innerTrim}") do`;
+        }
+      );
+    }
+    if (!/^(copy|xcopy|call|if\s+exist)\b/i.test(trimmed)) {
+      if (updated !== line) {
+        changed = true;
+      }
+      return updated;
+    }
+    const replaced = updated.replace(
+      /%[A-Z0-9_]+%(?:[^\s"]*)/g,
+      (token, offset) => {
+        const before = updated[offset - 1];
+        const after = updated[offset + token.length];
+        if (before === "\"" || after === "\"") {
+          return token;
+        }
+        return `"${token}"`;
+      }
+    );
+    if (/^\s*if\s+%[A-Z0-9_]+%\s+==/i.test(updated)) {
+      const normalized = updated.replace(
+        /^\s*if\s+%([A-Z0-9_]+)%\s+==/i,
+        'if "%$1%" =='
+      );
+      if (normalized !== updated) {
+        updated = normalized;
+        changed = true;
+      }
+    }
+    if (replaced !== line) {
+      changed = true;
+    }
+    return replaced;
+  });
+  if (changed) {
+    fs.writeFileSync(scriptPath, patched.join(os.EOL));
+  }
+};
+
+const patchCreateBundleScript = (projectPath) => {
+  const scriptPath = path.join(projectPath, "iPlug2", "Scripts", "create_bundle.bat");
+  if (!fs.existsSync(scriptPath)) {
+    return;
+  }
+  const content = fs.readFileSync(scriptPath, "utf8");
+  let updated = content;
+
+  updated = updated.replace(/SET\s+BundleDir="([^"]*)"/i, "SET \"BundleDir=$1\"");
+  updated = updated.replace(/SET\s+IconSource="([^"]*)"/i, "SET \"IconSource=$1\"");
+  updated = updated.replace(/SET\s+Format=([^\r\n]+)/i, "SET \"Format=$1\"");
+
+  const replacements = [
+    [/IF\s+EXIST\s+%BundleDir%/gi, "IF EXIST \"%BundleDir%\""],
+    [/mkdir\s+%BundleDir%/gi, "mkdir \"%BundleDir%\""],
+    [/IF\s+EXIST\s+%BundleDir%\\Contents\\%X86%/gi, "IF EXIST \"%BundleDir%\\Contents\\%X86%\""],
+    [/mkdir\s+%BundleDir%\\Contents\\%X86%/gi, "mkdir \"%BundleDir%\\Contents\\%X86%\""],
+    [/IF\s+EXIST\s+%BundleDir%\\Contents\\%X86_64%/gi, "IF EXIST \"%BundleDir%\\Contents\\%X86_64%\""],
+    [/mkdir\s+%BundleDir%\\Contents\\%X86_64%/gi, "mkdir \"%BundleDir%\\Contents\\%X86_64%\""],
+    [/IF\s+EXIST\s+%BundleDir%\\Contents\\Resources/gi, "IF EXIST \"%BundleDir%\\Contents\\Resources\""],
+    [/mkdir\s+%BundleDir%\\Contents\\Resources/gi, "mkdir \"%BundleDir%\\Contents\\Resources\""],
+    [/IF\s+EXIST\s+%BundleDir%\\PlugIn\.ico/gi, "IF EXIST \"%BundleDir%\\PlugIn.ico\""],
+    [/copy\s+\/Y\s+%IconSource%\s+%BundleDir%\\PlugIn\.ico/gi, "copy /Y \"%IconSource%\" \"%BundleDir%\\PlugIn.ico\""],
+    [/IF\s+EXIST\s+%BundleDir%\\desktop\.ini/gi, "IF EXIST \"%BundleDir%\\desktop.ini\""],
+    [/attrib\s+-h\s+-r\s+-s\s+%BundleDir%\\desktop\.ini/gi, "attrib -h -r -s \"%BundleDir%\\desktop.ini\""],
+    [/attrib\s+-r\s+%BundleDir%/gi, "attrib -r \"%BundleDir%\""],
+    [/echo\s+\[\.ShellClassInfo\]\s+>\s+%BundleDir%\\desktop\.ini/gi, "echo [.ShellClassInfo] > \"%BundleDir%\\desktop.ini\""],
+    [/echo\s+IconResource=PlugIn\.ico,0\s+>>\s+%BundleDir%\\desktop\.ini/gi, "echo IconResource=PlugIn.ico,0 >> \"%BundleDir%\\desktop.ini\""],
+    [/echo\s+;For compatibility with Windows XP\s+>>\s+%BundleDir%\\desktop\.ini/gi, "echo ;For compatibility with Windows XP >> \"%BundleDir%\\desktop.ini\""],
+    [/echo\s+IconFile=PlugIn\.ico\s+>>\s+%BundleDir%\\desktop\.ini/gi, "echo IconFile=PlugIn.ico >> \"%BundleDir%\\desktop.ini\""],
+    [/echo\s+IconIndex=0\s+>>\s+%BundleDir%\\desktop\.ini/gi, "echo IconIndex=0 >> \"%BundleDir%\\desktop.ini\""],
+    [/attrib\s+\+h\s+\+r\s+\+s\s+%BundleDir%\\PlugIn\.ico/gi, "attrib +h +r +s \"%BundleDir%\\PlugIn.ico\""],
+    [/attrib\s+\+h\s+\+r\s+\+s\s+%BundleDir%\\desktop\.ini/gi, "attrib +h +r +s \"%BundleDir%\\desktop.ini\""],
+    [/attrib\s+\+r\s+%BundleDir%/gi, "attrib +r \"%BundleDir%\""]
+  ];
+
+  replacements.forEach(([pattern, replacement]) => {
+    updated = updated.replace(pattern, replacement);
+  });
+
+  updated = updated.replace(/if\s+%Format%\s+==/gi, "if \"%Format%\" ==");
+
+  if (updated !== content) {
+    fs.writeFileSync(scriptPath, updated);
+  }
+};
+
 const updateFileContents = (
   filePath,
   searchProject,
@@ -896,6 +1029,9 @@ const registerIpc = () => {
           newRoot
         );
       }
+      sendProgress(0.9, "Updating build scripts...");
+      patchPostbuildScript(targetPath);
+      patchCreateBundleScript(projectPath);
       sendProgress(1, "Finished");
       return { path: targetPath };
     } catch (error) {
