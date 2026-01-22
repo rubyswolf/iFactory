@@ -53,6 +53,11 @@
               Back to home
             </button>
           </div>
+          <div class="titlebar-group titlebar-group--ai">
+            <button class="ghost" data-action-home type="button">
+              Back to home
+            </button>
+          </div>
         </div>
       </header>
 
@@ -390,7 +395,11 @@
               plugin template.
             </p>
             <div class="ready-choices">
-              <button class="choice-card choice-primary" type="button">
+              <button
+                class="choice-card choice-primary"
+                type="button"
+                data-ready-ai
+              >
                 <div class="choice-header">
                   <span class="choice-title">Create with AI</span>
                   <span class="choice-badge">Recommended</span>
@@ -469,6 +478,48 @@
               Next you can explore the iPlug2 docs, configure your plugin, and
               start building.
             </p>
+          </section>
+        </main>
+      </div>
+
+      <div class="page page-agent" data-page-agent>
+        <main class="agent-grid">
+          <section class="panel agent-panel reveal">
+            <div class="eyebrow">Connect your agent</div>
+            <h2>Connect an agent.</h2>
+            <p class="card-meta" data-agent-status>Checking for agents.</p>
+            <div class="agent-instructions">
+              <div class="instruction-title">Install Codex CLI</div>
+              <ol class="instruction-list">
+                <li>Download Codex CLI from openai.com or your team portal.</li>
+                <li>Run the installer and complete setup.</li>
+                <li>Return here to connect your agent.</li>
+              </ol>
+            </div>
+          </section>
+        </main>
+      </div>
+
+      <div class="page page-ai" data-page-ai>
+        <main class="ai-grid">
+          <section class="panel ai-panel reveal">
+            <div class="eyebrow">AI prompt</div>
+            <h2>Describe what you want to build.</h2>
+            <p class="card-meta">
+              Share the idea for your plugin or tool and we will shape the plan.
+            </p>
+            <div class="prompt-bar">
+              <button class="prompt-addon" type="button" aria-label="Add context">
+                +
+              </button>
+              <input
+                class="prompt-input"
+                type="text"
+                placeholder="Describe your plugin or tool"
+                data-ai-prompt
+              />
+              <button class="prompt-send" type="button">Send</button>
+            </div>
           </section>
         </main>
       </div>

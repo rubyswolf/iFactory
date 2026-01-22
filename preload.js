@@ -15,6 +15,9 @@ contextBridge.exposeInMainWorld("ifactory", {
     check: () => ipcRenderer.invoke("git:check"),
     skip: () => ipcRenderer.invoke("git:skip")
   },
+  codex: {
+    check: () => ipcRenderer.invoke("codex:check")
+  },
   iplug: {
     install: (payload) => ipcRenderer.invoke("iplug:install", payload),
     installDependencies: (payload) =>

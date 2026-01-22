@@ -73,6 +73,8 @@ const setupGithubOAuth = () => {
   const homeButtons = document.querySelectorAll("[data-action-home]");
   const readyButtons = document.querySelectorAll("[data-action-ready]");
   const manualChoiceButton = document.querySelector("[data-ready-manual]");
+  const aiChoiceButton = document.querySelector("[data-ready-ai]");
+  const agentStatusEl = document.querySelector("[data-agent-status]");
   const templateTitleEl = document.querySelector("[data-template-title]");
   const templateStatusEl = document.querySelector("[data-template-status]");
   const templateSearchInput = document.querySelector("[data-template-search]");
@@ -109,6 +111,7 @@ const setupGithubOAuth = () => {
   let gitChecking = false;
   let templatesData = [];
   let selectedTemplate = "";
+  let codexInstalled = false;
 
   const sanitizeTemplateName = (value) => value.replace(/[^a-zA-Z0-9]/g, "");
 
@@ -190,6 +193,59 @@ const setupGithubOAuth = () => {
       document.body.classList.remove("is-templates");
       document.body.classList.remove("is-ready");
       document.body.classList.remove("is-creating");
+    }
+  };
+
+  const setAgent = (active) => {
+    document.body.classList.toggle("is-agent", active);
+    if (active) {
+      document.body.classList.remove("is-installing-run");
+      document.body.classList.remove("is-installing");
+      document.body.classList.remove("is-templates");
+      document.body.classList.remove("is-ready");
+      document.body.classList.remove("is-creating");
+      document.body.classList.remove("is-get-started");
+      document.body.classList.remove("is-ai");
+    }
+  };
+
+  const setAi = (active) => {
+    document.body.classList.toggle("is-ai", active);
+    if (active) {
+      document.body.classList.remove("is-installing-run");
+      document.body.classList.remove("is-installing");
+      document.body.classList.remove("is-templates");
+      document.body.classList.remove("is-ready");
+      document.body.classList.remove("is-creating");
+      document.body.classList.remove("is-get-started");
+      document.body.classList.remove("is-agent");
+    }
+  };
+
+  const updateAgentStatus = (message) => {
+    if (!agentStatusEl) {
+      return;
+    }
+    agentStatusEl.textContent = message;
+  };
+
+  const checkCodex = async () => {
+    if (!window.ifactory?.codex?.check) {
+      updateAgentStatus("No agents found.");
+      return;
+    }
+    updateAgentStatus("Checking for agents.");
+    try {
+      const result = await window.ifactory.codex.check();
+      codexInstalled = Boolean(result?.installed);
+      if (codexInstalled) {
+        setAgent(false);
+        setAi(true);
+      } else {
+        updateAgentStatus("No agents found.");
+      }
+    } catch (error) {
+      updateAgentStatus("No agents found.");
     }
   };
 
@@ -435,6 +491,8 @@ const setupGithubOAuth = () => {
       document.body.classList.remove("is-ready");
       document.body.classList.remove("is-templates");
       document.body.classList.remove("is-get-started");
+      document.body.classList.remove("is-agent");
+      document.body.classList.remove("is-ai");
     }
   };
 
@@ -455,6 +513,8 @@ const setupGithubOAuth = () => {
       document.body.classList.remove("is-ready");
       document.body.classList.remove("is-templates");
       document.body.classList.remove("is-get-started");
+      document.body.classList.remove("is-agent");
+      document.body.classList.remove("is-ai");
     }
   };
 
@@ -465,6 +525,8 @@ const setupGithubOAuth = () => {
       document.body.classList.remove("is-ready");
       document.body.classList.remove("is-templates");
       document.body.classList.remove("is-get-started");
+      document.body.classList.remove("is-agent");
+      document.body.classList.remove("is-ai");
     }
   };
 
@@ -475,6 +537,8 @@ const setupGithubOAuth = () => {
       document.body.classList.remove("is-installing");
       document.body.classList.remove("is-ready");
       document.body.classList.remove("is-get-started");
+      document.body.classList.remove("is-agent");
+      document.body.classList.remove("is-ai");
     }
   };
 
@@ -484,6 +548,8 @@ const setupGithubOAuth = () => {
     document.body.classList.remove("is-installing");
     document.body.classList.remove("is-templates");
     document.body.classList.remove("is-get-started");
+    document.body.classList.remove("is-agent");
+    document.body.classList.remove("is-ai");
   };
 
   const updateInstallPath = (pathValue) => {
@@ -585,6 +651,8 @@ const setupGithubOAuth = () => {
     setInstalling(false);
     setTemplates(false);
     setGetStarted(false);
+    setAgent(false);
+    setAi(false);
     setFlowVisible(false);
     updateSetupState();
   };
@@ -616,6 +684,7 @@ const setupGithubOAuth = () => {
     try {
       const settings = await window.ifactory.settings.get();
       const gitState = settings?.dependencies?.git;
+      const codexState = settings?.dependencies?.codex;
       const needsCheck = !gitState?.installed && !gitState?.skipped;
       if (needsCheck) {
         setGitChecking(true);
@@ -627,6 +696,7 @@ const setupGithubOAuth = () => {
         applyGitState(gitState);
       }
       applyGithubState(settings);
+      codexInstalled = Boolean(codexState?.installed);
       if (needsCheck) {
         await checkGitInstallation();
       }
@@ -772,6 +842,8 @@ const setupGithubOAuth = () => {
       setCreating(false);
       setTemplates(false);
       setGetStarted(false);
+      setAgent(false);
+      setAi(false);
     });
   }
   if (createButton) {
@@ -783,6 +855,16 @@ const setupGithubOAuth = () => {
     manualChoiceButton.addEventListener("click", () => {
       setTemplates(true);
       loadTemplates();
+    });
+  }
+  if (aiChoiceButton) {
+    aiChoiceButton.addEventListener("click", () => {
+      if (codexInstalled) {
+        setAi(true);
+        return;
+      }
+      setAgent(true);
+      checkCodex();
     });
   }
   if (openProjectButton) {
@@ -872,6 +954,8 @@ const setupGithubOAuth = () => {
       document.body.classList.remove("is-ready");
       setTemplates(false);
       setGetStarted(false);
+      setAgent(false);
+      setAi(false);
       updateSetupState();
     });
   });

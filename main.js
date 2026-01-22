@@ -22,6 +22,11 @@ const defaultSettings = {
       skipped: false,
       version: "",
       checkedAt: null
+    },
+    codex: {
+      installed: false,
+      version: "",
+      checkedAt: null
     }
   },
   recentProjects: []
@@ -39,6 +44,9 @@ const mergeSettings = (settings) => {
   }
   if (settings?.dependencies?.git) {
     Object.assign(merged.dependencies.git, settings.dependencies.git);
+  }
+  if (settings?.dependencies?.codex) {
+    Object.assign(merged.dependencies.codex, settings.dependencies.codex);
   }
   if (Array.isArray(settings?.recentProjects)) {
     merged.recentProjects = settings.recentProjects;
@@ -712,6 +720,47 @@ const checkGitInstalled = () => {
   };
 };
 
+const checkCodexInstalled = () => {
+  const tryResult = (result) => {
+    if (result.error || result.status !== 0) {
+      return null;
+    }
+    const output = String(result.stdout || result.stderr || "").trim();
+    return {
+      installed: true,
+      version: output
+    };
+  };
+
+  const direct = spawnSync("codex", ["--version"], {
+    encoding: "utf8",
+    windowsHide: true
+  });
+  const directResult = tryResult(direct);
+  if (directResult) {
+    return directResult;
+  }
+
+  const cmdResult = spawnSync("cmd", ["/c", "codex", "--version"], {
+    encoding: "utf8",
+    windowsHide: true
+  });
+  const cmdParsed = tryResult(cmdResult);
+  if (cmdParsed) {
+    return cmdParsed;
+  }
+
+  const whereResult = spawnSync("cmd", ["/c", "where", "codex"], {
+    encoding: "utf8",
+    windowsHide: true
+  });
+  if (!whereResult.error && whereResult.status === 0) {
+    return { installed: true, version: "" };
+  }
+
+  return { installed: false, version: "" };
+};
+
 const pushRecentProject = ({ name, projectPath }) => {
   if (!projectPath) {
     return;
@@ -763,6 +812,17 @@ const registerIpc = () => {
     };
     saveSettings();
     return settings.dependencies.git;
+  });
+  ipcMain.handle("codex:check", () => {
+    const result = checkCodexInstalled();
+    settings.dependencies.codex = {
+      ...settings.dependencies.codex,
+      installed: result.installed,
+      version: result.version || "",
+      checkedAt: new Date().toISOString()
+    };
+    saveSettings();
+    return settings.dependencies.codex;
   });
   ipcMain.handle("recents:remove", (event, payload) => {
     const removePath = payload?.path?.trim();
