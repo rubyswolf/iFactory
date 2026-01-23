@@ -648,6 +648,7 @@ const sanitizeSettings = (settings) => {
 
 let settings = null;
 let activeInstall = null;
+let activeBuild = null;
 
 const saveSettings = () => {
   const settingsPath = getSettingsPath();
@@ -666,6 +667,36 @@ const runGit = (args, cwd) => {
   }
   if (result.status !== 0) {
     throw new Error(result.stderr || "Git command failed");
+  }
+};
+
+const killProcessTree = (pid) => {
+  if (!pid) {
+    return;
+  }
+  spawnSync("taskkill", ["/pid", String(pid), "/t", "/f"], {
+    windowsHide: true
+  });
+};
+
+const findSolutionPath = (folderPath, projectName) => {
+  if (!folderPath) {
+    return "";
+  }
+  const direct = projectName
+    ? path.join(folderPath, `${projectName}.sln`)
+    : "";
+  if (direct && fs.existsSync(direct)) {
+    return direct;
+  }
+  try {
+    const entries = fs.readdirSync(folderPath, { withFileTypes: true });
+    const sln = entries.find(
+      (entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".sln")
+    );
+    return sln ? path.join(folderPath, sln.name) : "";
+  } catch (error) {
+    return "";
   }
 };
 
@@ -899,6 +930,144 @@ const registerIpc = () => {
     };
     saveSettings();
     return settings.dependencies.buildTools;
+  });
+  ipcMain.handle("build:run", async (event, payload) => {
+    if (activeBuild) {
+      return { error: "build_in_progress" };
+    }
+    try {
+      const projectPath = payload?.projectPath?.trim();
+      const pluginName = payload?.pluginName?.trim();
+      const configuration = payload?.configuration || "Debug";
+      const platform = payload?.platform || "x64";
+      if (!projectPath || !pluginName) {
+        return { error: "missing_fields" };
+      }
+      if (pluginName !== path.basename(pluginName)) {
+        return { error: "invalid_plugin" };
+      }
+      const pluginPath = path.join(projectPath, pluginName);
+      if (!fs.existsSync(pluginPath)) {
+        return { error: "plugin_not_found" };
+      }
+
+      const buildTools = checkBuildToolsInstalled();
+      if (!buildTools.installed) {
+        return { error: "build_tools_missing" };
+      }
+
+      const slnPath = findSolutionPath(pluginPath, pluginName);
+      if (!slnPath) {
+        return { error: "solution_not_found" };
+      }
+
+      const targetName = `${pluginName}-app`;
+      const args = [
+        slnPath,
+        `/t:${targetName}`,
+        `/p:Configuration=${configuration};Platform=${platform}`
+      ];
+
+      const sendState = (state, message) => {
+        event.sender.send("build:state", { state, message });
+      };
+      const sendOutput = (text, stream = "stdout") => {
+        event.sender.send("build:output", { text, stream });
+      };
+
+      sendState("building", `Building ${targetName}...`);
+
+      const child = spawn(buildTools.path || "msbuild", args, {
+        cwd: pluginPath,
+        windowsHide: true
+      });
+      activeBuild = {
+        buildProcess: child,
+        exeProcess: null,
+        sender: event.sender
+      };
+
+      child.stdout.on("data", (chunk) => {
+        sendOutput(chunk.toString(), "stdout");
+      });
+      child.stderr.on("data", (chunk) => {
+        sendOutput(chunk.toString(), "stderr");
+      });
+      child.on("error", (error) => {
+        sendState("error", error.message || "Build failed.");
+        activeBuild = null;
+      });
+      child.on("close", (code) => {
+        if (code !== 0) {
+          sendState("error", `Build failed with code ${code}.`);
+          activeBuild = null;
+          return;
+        }
+
+        const exePath = path.join(
+          pluginPath,
+          "build-win",
+          "app",
+          platform,
+          configuration,
+          `${pluginName}.exe`
+        );
+        if (!fs.existsSync(exePath)) {
+          sendState("error", "Built app executable not found.");
+          activeBuild = null;
+          return;
+        }
+
+        try {
+          const exeProcess = spawn(exePath, [], {
+            cwd: path.dirname(exePath),
+            windowsHide: false
+          });
+          activeBuild.exeProcess = exeProcess;
+          sendState("running", `Running ${pluginName}...`);
+          exeProcess.on("close", () => {
+            sendState("complete", "Run finished.");
+            activeBuild = null;
+          });
+        } catch (error) {
+          sendState("error", error.message || "Failed to run app.");
+          activeBuild = null;
+        }
+      });
+
+      return { started: true };
+    } catch (error) {
+      activeBuild = null;
+      return { error: "build_failed" };
+    }
+  });
+  ipcMain.handle("build:stop", () => {
+    if (!activeBuild) {
+      return { stopped: false };
+    }
+    try {
+      if (activeBuild.buildProcess?.pid) {
+        killProcessTree(activeBuild.buildProcess.pid);
+      }
+      if (activeBuild.exeProcess?.pid) {
+        killProcessTree(activeBuild.exeProcess.pid);
+      }
+    } catch (error) {
+      // ignore stop errors
+    } finally {
+      if (activeBuild.sender) {
+        try {
+          activeBuild.sender.send("build:state", {
+            state: "stopped",
+            message: "Build stopped."
+          });
+        } catch (error) {
+          // ignore send errors
+        }
+      }
+      activeBuild = null;
+    }
+    return { stopped: true };
   });
   ipcMain.handle("recents:remove", (event, payload) => {
     const removePath = payload?.path?.trim();

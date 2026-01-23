@@ -547,10 +547,13 @@
                   <p class="card-meta">
                     Preview the app target build directly from iFactory.
                   </p>
-                  <button class="cta run-button" type="button">
-                    <img src="../icons/run.svg" alt="" />
-                    <span>Run</span>
+                  <button class="cta run-button" type="button" data-build-run>
+                    <img src="../icons/run.svg" alt="" data-run-icon />
+                    <span data-run-label>Run</span>
                   </button>
+                  <div class="build-console" data-build-console hidden>
+                    <pre data-build-output></pre>
+                  </div>
                 </section>
               </div>
             </div>

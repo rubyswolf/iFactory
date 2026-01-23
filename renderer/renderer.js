@@ -81,7 +81,11 @@ const setupGithubOAuth = () => {
   const buildPanelCheck = document.querySelector(
     "[data-build-panel=\"check\"]"
   );
-  const buildPanelRun = document.querySelector("[data-build-panel=\"run\"]");
+  const buildRunButton = document.querySelector("[data-build-run]");
+  const buildRunIcon = document.querySelector("[data-run-icon]");
+  const buildRunLabel = document.querySelector("[data-run-label]");
+  const buildConsole = document.querySelector("[data-build-console]");
+  const buildOutputEl = document.querySelector("[data-build-output]");
   const templateTitleEl = document.querySelector("[data-template-title]");
   const templateStatusEl = document.querySelector("[data-template-status]");
   const templateSearchInput = document.querySelector("[data-template-search]");
@@ -121,6 +125,7 @@ const setupGithubOAuth = () => {
   let codexInstalled = false;
   let buildToolsInstalled = false;
   let buildToolsChecked = false;
+  let buildRunning = false;
   let aiView = "agent";
   let activeProjectItem = "";
   let projectItems = [];
@@ -291,11 +296,10 @@ const setupGithubOAuth = () => {
   };
 
   const setBuildPanels = () => {
-    if (!buildPanelCheck || !buildPanelRun) {
+    if (!buildPanelCheck) {
       return;
     }
     buildPanelCheck.hidden = false;
-    buildPanelRun.hidden = true;
   };
 
   const goToRunScreen = () => {
@@ -307,6 +311,36 @@ const setupGithubOAuth = () => {
       return;
     }
     buildStatusEl.textContent = message;
+  };
+
+  const setBuildRunning = (running) => {
+    buildRunning = running;
+    if (buildRunButton) {
+      buildRunButton.classList.toggle("is-running", running);
+    }
+    if (buildRunIcon) {
+      buildRunIcon.src = running ? "../icons/stop.svg" : "../icons/run.svg";
+    }
+    if (buildRunLabel) {
+      buildRunLabel.textContent = running ? "Stop" : "Run";
+    }
+  };
+
+  const appendBuildOutput = (text) => {
+    if (!buildOutputEl || !buildConsole) {
+      return;
+    }
+    buildConsole.hidden = false;
+    buildOutputEl.textContent += text;
+    buildConsole.scrollTop = buildConsole.scrollHeight;
+  };
+
+  const resetBuildOutput = () => {
+    if (!buildOutputEl || !buildConsole) {
+      return;
+    }
+    buildOutputEl.textContent = "";
+    buildConsole.hidden = true;
   };
 
   const checkBuildTools = async () => {
@@ -349,6 +383,37 @@ const setupGithubOAuth = () => {
       return;
     }
     await checkBuildTools();
+  };
+
+  const startBuildRun = async () => {
+    if (!window.ifactory?.build?.run) {
+      return;
+    }
+    const projectPath = currentProjectPath || document.body.dataset.projectPath || "";
+    if (!projectPath || !activeProjectItem) {
+      appendBuildOutput("Select a plugin to run.\n");
+      return;
+    }
+    resetBuildOutput();
+    setBuildRunning(true);
+    buildConsole.hidden = false;
+    const result = await window.ifactory.build.run({
+      projectPath,
+      pluginName: activeProjectItem,
+      configuration: "Debug",
+      platform: "x64"
+    });
+    if (result?.error) {
+      appendBuildOutput(`Error: ${result.error}\n`);
+      setBuildRunning(false);
+    }
+  };
+
+  const stopBuildRun = async () => {
+    if (!window.ifactory?.build?.stop) {
+      return;
+    }
+    await window.ifactory.build.stop();
   };
 
   const showProjectEditor = async (view = "agent") => {
@@ -1024,6 +1089,15 @@ const setupGithubOAuth = () => {
       await showProjectEditor("agent");
     });
   }
+  if (buildRunButton) {
+    buildRunButton.addEventListener("click", async () => {
+      if (buildRunning) {
+        await stopBuildRun();
+      } else {
+        await startBuildRun();
+      }
+    });
+  }
   if (buildCheckButton) {
     buildCheckButton.addEventListener("click", () => {
       checkBuildTools();
@@ -1197,6 +1271,41 @@ const setupGithubOAuth = () => {
     refreshProjectItems: () => loadProjectItems(currentProjectPath),
     setActiveProjectItem
   };
+
+  if (window.ifactory?.build?.onOutput) {
+    window.ifactory.build.onOutput((payload) => {
+      if (!payload) {
+        return;
+      }
+      if (payload.text) {
+        appendBuildOutput(payload.text);
+      }
+      if (payload.error) {
+        appendBuildOutput(`Error: ${payload.error}\n`);
+      }
+    });
+  }
+  if (window.ifactory?.build?.onState) {
+    window.ifactory.build.onState((payload) => {
+      const state = payload?.state;
+      if (!state) {
+        return;
+      }
+      if (state === "building" || state === "running") {
+        setBuildRunning(true);
+        if (payload?.message) {
+          appendBuildOutput(`${payload.message}\n`);
+        }
+        return;
+      }
+      if (payload?.message) {
+        appendBuildOutput(`${payload.message}\n`);
+      }
+      if (state === "stopped" || state === "error" || state === "complete") {
+        setBuildRunning(false);
+      }
+    });
+  }
 
   loadGithub();
   loadRecents();

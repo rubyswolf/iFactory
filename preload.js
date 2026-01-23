@@ -19,7 +19,25 @@ contextBridge.exposeInMainWorld("ifactory", {
     check: () => ipcRenderer.invoke("codex:check")
   },
   build: {
-    check: () => ipcRenderer.invoke("build:check")
+    check: () => ipcRenderer.invoke("build:check"),
+    run: (payload) => ipcRenderer.invoke("build:run", payload),
+    stop: () => ipcRenderer.invoke("build:stop"),
+    onOutput: (callback) => {
+      if (typeof callback !== "function") {
+        return () => {};
+      }
+      const listener = (event, payload) => callback(payload);
+      ipcRenderer.on("build:output", listener);
+      return () => ipcRenderer.removeListener("build:output", listener);
+    },
+    onState: (callback) => {
+      if (typeof callback !== "function") {
+        return () => {};
+      }
+      const listener = (event, payload) => callback(payload);
+      ipcRenderer.on("build:state", listener);
+      return () => ipcRenderer.removeListener("build:state", listener);
+    }
   },
   iplug: {
     install: (payload) => ipcRenderer.invoke("iplug:install", payload),

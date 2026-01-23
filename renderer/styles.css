@@ -389,6 +389,7 @@ body.is-ai .app {
 
 .get-started-panel {
   width: min(520px, 100%);
+  max-width: min(520px, 100%);
 }
 
 .ai-grid {
@@ -542,6 +543,7 @@ body.is-ai .ai-shell {
   align-items: center;
   justify-content: center;
   padding: 48px 28px 22px;
+  min-width: 0;
 }
 
 .ai-view {
@@ -550,6 +552,7 @@ body.is-ai .ai-shell {
   align-items: center;
   justify-content: center;
   flex-direction: column;
+  min-width: 0;
 }
 
 body.is-ai[data-ai-view="agent"] .ai-view[data-ai-view="agent"],
@@ -609,6 +612,33 @@ body.is-ai:not(.ai-needs-agent) [data-ai-panel="prompt"] {
 .run-button img {
   width: 18px;
   height: 18px;
+}
+
+.run-button.is-running {
+  background: linear-gradient(120deg, #ff7357, #ff4d2d);
+  color: #140b08;
+  box-shadow: 0 10px 24px rgba(255, 77, 45, 0.3);
+}
+
+.build-console {
+  margin-top: 16px;
+  width: 100%;
+  max-height: 220px;
+  overflow: auto;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(6, 10, 16, 0.75);
+  font-family: "Fira Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.build-console pre {
+  margin: 0;
 }
 
 .prompt-bar {
