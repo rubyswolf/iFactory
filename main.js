@@ -27,6 +27,11 @@ const defaultSettings = {
       installed: false,
       version: "",
       checkedAt: null
+    },
+    buildTools: {
+      installed: false,
+      path: "",
+      checkedAt: null
     }
   },
   recentProjects: []
@@ -47,6 +52,9 @@ const mergeSettings = (settings) => {
   }
   if (settings?.dependencies?.codex) {
     Object.assign(merged.dependencies.codex, settings.dependencies.codex);
+  }
+  if (settings?.dependencies?.buildTools) {
+    Object.assign(merged.dependencies.buildTools, settings.dependencies.buildTools);
   }
   if (Array.isArray(settings?.recentProjects)) {
     merged.recentProjects = settings.recentProjects;
@@ -761,6 +769,63 @@ const checkCodexInstalled = () => {
   return { installed: false, version: "" };
 };
 
+const checkBuildToolsInstalled = () => {
+  const programFilesX86 =
+    process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
+  const vswherePath = path.join(
+    programFilesX86,
+    "Microsoft Visual Studio",
+    "Installer",
+    "vswhere.exe"
+  );
+
+  const normalizePath = (value) => {
+    if (!value) {
+      return "";
+    }
+    return String(value).trim();
+  };
+
+  if (fs.existsSync(vswherePath)) {
+    const result = spawnSync(
+      vswherePath,
+      [
+        "-latest",
+        "-requires",
+        "Microsoft.Component.MSBuild",
+        "-find",
+        "MSBuild\\**\\Bin\\MSBuild.exe"
+      ],
+      {
+        encoding: "utf8",
+        windowsHide: true
+      }
+    );
+    if (!result.error && result.status === 0) {
+      const output = normalizePath(result.stdout);
+      const candidate = output.split(/\r?\n/).find(Boolean);
+      if (candidate && fs.existsSync(candidate)) {
+        return { installed: true, path: candidate };
+      }
+    }
+  }
+
+  const whereResult = spawnSync("cmd", ["/c", "where", "msbuild"], {
+    encoding: "utf8",
+    windowsHide: true
+  });
+  if (!whereResult.error && whereResult.status === 0) {
+    const output = normalizePath(whereResult.stdout);
+    const candidate = output.split(/\r?\n/).find(Boolean);
+    if (candidate) {
+      return { installed: true, path: candidate };
+    }
+    return { installed: true, path: "" };
+  }
+
+  return { installed: false, path: "" };
+};
+
 const pushRecentProject = ({ name, projectPath }) => {
   if (!projectPath) {
     return;
@@ -823,6 +888,17 @@ const registerIpc = () => {
     };
     saveSettings();
     return settings.dependencies.codex;
+  });
+  ipcMain.handle("build:check", () => {
+    const result = checkBuildToolsInstalled();
+    settings.dependencies.buildTools = {
+      ...settings.dependencies.buildTools,
+      installed: result.installed,
+      path: result.path || "",
+      checkedAt: new Date().toISOString()
+    };
+    saveSettings();
+    return settings.dependencies.buildTools;
   });
   ipcMain.handle("recents:remove", (event, payload) => {
     const removePath = payload?.path?.trim();

@@ -554,7 +554,8 @@ body.is-ai .ai-shell {
 
 body.is-ai[data-ai-view="agent"] .ai-view[data-ai-view="agent"],
 body.is-ai[data-ai-view="templates"] .ai-view[data-ai-view="templates"],
-body.is-ai[data-ai-view="get-started"] .ai-view[data-ai-view="get-started"] {
+body.is-ai[data-ai-view="get-started"] .ai-view[data-ai-view="get-started"],
+body.is-ai[data-ai-view="run"] .ai-view[data-ai-view="run"] {
   display: flex;
 }
 
@@ -580,6 +581,25 @@ body.is-ai:not(.ai-needs-agent) [data-ai-panel="prompt"] {
 
 .ai-panel {
   width: min(720px, 100%);
+}
+
+.build-tools-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.run-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  font-size: 12px;
+}
+
+.run-button img {
+  width: 18px;
+  height: 18px;
 }
 
 .prompt-bar {

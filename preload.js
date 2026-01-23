@@ -18,6 +18,9 @@ contextBridge.exposeInMainWorld("ifactory", {
   codex: {
     check: () => ipcRenderer.invoke("codex:check")
   },
+  build: {
+    check: () => ipcRenderer.invoke("build:check")
+  },
   iplug: {
     install: (payload) => ipcRenderer.invoke("iplug:install", payload),
     installDependencies: (payload) =>

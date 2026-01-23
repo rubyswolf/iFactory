@@ -513,12 +513,44 @@
               </div>
               <div class="ai-view" data-ai-view="get-started">
                 <section class="panel get-started-panel reveal">
-                  <div class="eyebrow">Get started with iPlug2</div>
-                  <h2>Your plugin is ready.</h2>
+                  <div class="eyebrow">Build tools</div>
+                  <div class="build-tools-panel" data-build-panel="check">
+                    <h2>Check your build tools.</h2>
+                    <p class="card-meta" data-build-status>
+                      Checking build tools.
+                    </p>
+                    <div class="agent-instructions">
+                      <div class="instruction-title">
+                        Install Visual Studio Build Tools
+                      </div>
+                      <ol class="instruction-list">
+                        <li>Download Visual Studio Build Tools.</li>
+                        <li>Install the C++ build tools workload.</li>
+                        <li>Return here and check again.</li>
+                      </ol>
+                    </div>
+                    <div class="connect-actions">
+                      <button class="cta" type="button" data-build-check>
+                        Check again
+                      </button>
+                      <button class="ghost" type="button" data-build-open>
+                        Get build tools
+                      </button>
+                    </div>
+                  </div>
+                </section>
+              </div>
+              <div class="ai-view" data-ai-view="run">
+                <section class="panel get-started-panel reveal">
+                  <div class="eyebrow">Build &amp; run</div>
+                  <h2>Build &amp; run.</h2>
                   <p class="card-meta">
-                    Next you can explore the iPlug2 docs, configure your plugin,
-                    and start building.
+                    Preview the app target build directly from iFactory.
                   </p>
+                  <button class="cta run-button" type="button">
+                    <img src="../icons/run.svg" alt="" />
+                    <span>Run</span>
+                  </button>
                 </section>
               </div>
             </div>

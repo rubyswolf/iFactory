@@ -75,6 +75,13 @@ const setupGithubOAuth = () => {
   const createNavButton = document.querySelector("[data-ai-create]");
   const projectItemsEl = document.querySelector("[data-project-items]");
   const agentStatusEl = document.querySelector("[data-agent-status]");
+  const buildStatusEl = document.querySelector("[data-build-status]");
+  const buildCheckButton = document.querySelector("[data-build-check]");
+  const buildOpenButton = document.querySelector("[data-build-open]");
+  const buildPanelCheck = document.querySelector(
+    "[data-build-panel=\"check\"]"
+  );
+  const buildPanelRun = document.querySelector("[data-build-panel=\"run\"]");
   const templateTitleEl = document.querySelector("[data-template-title]");
   const templateStatusEl = document.querySelector("[data-template-status]");
   const templateSearchInput = document.querySelector("[data-template-search]");
@@ -112,6 +119,8 @@ const setupGithubOAuth = () => {
   let templatesData = [];
   let selectedTemplate = "";
   let codexInstalled = false;
+  let buildToolsInstalled = false;
+  let buildToolsChecked = false;
   let aiView = "agent";
   let activeProjectItem = "";
   let projectItems = [];
@@ -225,6 +234,16 @@ const setupGithubOAuth = () => {
     document.body.dataset.aiView = view;
     setAi(true);
     updateSidebarActive();
+    if (view === "get-started") {
+      if (buildToolsInstalled) {
+        setBuildPanels();
+      } else if (buildToolsChecked) {
+        setBuildPanels();
+        updateBuildStatus("Build tools not found.");
+      } else {
+        checkBuildTools();
+      }
+    }
   };
 
   const setActiveProjectItem = (name) => {
@@ -271,6 +290,67 @@ const setupGithubOAuth = () => {
       updateAiPanels();
       updateAgentStatus("No agents found.");
     }
+  };
+
+  const setBuildPanels = () => {
+    if (!buildPanelCheck || !buildPanelRun) {
+      return;
+    }
+    buildPanelCheck.hidden = false;
+    buildPanelRun.hidden = true;
+  };
+
+  const goToRunScreen = () => {
+    setAiView("run");
+  };
+
+  const updateBuildStatus = (message) => {
+    if (!buildStatusEl) {
+      return;
+    }
+    buildStatusEl.textContent = message;
+  };
+
+  const checkBuildTools = async () => {
+    if (!window.ifactory?.build?.check) {
+      buildToolsInstalled = false;
+      buildToolsChecked = true;
+      setBuildPanels();
+      updateBuildStatus("Build tools not found.");
+      return;
+    }
+    updateBuildStatus("Checking build tools.");
+    if (buildCheckButton) {
+      buildCheckButton.disabled = true;
+    }
+    try {
+      const result = await window.ifactory.build.check();
+      buildToolsInstalled = Boolean(result?.installed);
+      buildToolsChecked = true;
+      if (buildToolsInstalled) {
+        goToRunScreen();
+      } else {
+        setBuildPanels();
+        updateBuildStatus("Build tools not found.");
+      }
+    } catch (error) {
+      buildToolsInstalled = false;
+      buildToolsChecked = true;
+      setBuildPanels();
+      updateBuildStatus("Build tools not found.");
+    } finally {
+      if (buildCheckButton) {
+        buildCheckButton.disabled = false;
+      }
+    }
+  };
+
+  const ensureBuildTools = async () => {
+    if (buildToolsInstalled) {
+      setBuildPanels();
+      return;
+    }
+    await checkBuildTools();
   };
 
   const showProjectEditor = async (view = "agent") => {
@@ -341,6 +421,12 @@ const setupGithubOAuth = () => {
     });
   };
 
+  const openPluginScreen = async (name) => {
+    setActiveProjectItem(name);
+    setAiView("get-started");
+    await ensureBuildTools();
+  };
+
   const buildProjectItemButton = (item) => {
     const button = document.createElement("button");
     button.type = "button";
@@ -361,9 +447,8 @@ const setupGithubOAuth = () => {
     button.appendChild(icon);
     button.appendChild(label);
 
-    button.addEventListener("click", () => {
-      setActiveProjectItem(item.name);
-      setAiView("get-started");
+    button.addEventListener("click", async () => {
+      await openPluginScreen(item.name);
     });
 
     return button;
@@ -757,6 +842,7 @@ const setupGithubOAuth = () => {
       const settings = await window.ifactory.settings.get();
       const gitState = settings?.dependencies?.git;
       const codexState = settings?.dependencies?.codex;
+      const buildState = settings?.dependencies?.buildTools;
       const needsCheck = !gitState?.installed && !gitState?.skipped;
       if (needsCheck) {
         setGitChecking(true);
@@ -769,6 +855,13 @@ const setupGithubOAuth = () => {
       }
       applyGithubState(settings);
       codexInstalled = Boolean(codexState?.installed);
+      buildToolsInstalled = Boolean(buildState?.installed);
+      buildToolsChecked = Boolean(buildState?.checkedAt);
+      if (buildToolsInstalled) {
+        goToRunScreen();
+      } else {
+        setBuildPanels();
+      }
       updateAiPanels();
       if (needsCheck) {
         await checkGitInstallation();
@@ -937,6 +1030,21 @@ const setupGithubOAuth = () => {
       await showProjectEditor("agent");
     });
   }
+  if (buildCheckButton) {
+    buildCheckButton.addEventListener("click", () => {
+      checkBuildTools();
+    });
+  }
+  if (buildOpenButton) {
+    buildOpenButton.addEventListener("click", () => {
+      if (!window.ifactory?.openExternal) {
+        return;
+      }
+      window.ifactory.openExternal(
+        "https://visualstudio.microsoft.com/visual-cpp-build-tools/"
+      );
+    });
+  }
   if (openProjectButton) {
     openProjectButton.addEventListener("click", async () => {
       try {
@@ -1077,11 +1185,10 @@ const setupGithubOAuth = () => {
                 : "Unable to create the plugin.";
           installApi.setStatus?.(message, "error");
           return;
-        }
-        installApi.updateProgress?.(1, "Finished");
-        await loadProjectItems(projectPath);
-        setActiveProjectItem(pluginName);
-        setGetStarted(true);
+      }
+      installApi.updateProgress?.(1, "Finished");
+      await loadProjectItems(projectPath);
+      await openPluginScreen(pluginName);
       } catch (error) {
         installApi.setStatus?.("Unable to create the plugin.", "error");
       } finally {
