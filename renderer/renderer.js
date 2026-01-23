@@ -236,11 +236,9 @@ const setupGithubOAuth = () => {
     updateSidebarActive();
     if (view === "get-started") {
       if (buildToolsInstalled) {
-        setBuildPanels();
-      } else if (buildToolsChecked) {
-        setBuildPanels();
-        updateBuildStatus("Build tools not found.");
+        goToRunScreen();
       } else {
+        setBuildPanels();
         checkBuildTools();
       }
     }
@@ -857,11 +855,7 @@ const setupGithubOAuth = () => {
       codexInstalled = Boolean(codexState?.installed);
       buildToolsInstalled = Boolean(buildState?.installed);
       buildToolsChecked = Boolean(buildState?.checkedAt);
-      if (buildToolsInstalled) {
-        goToRunScreen();
-      } else {
-        setBuildPanels();
-      }
+      setBuildPanels();
       updateAiPanels();
       if (needsCheck) {
         await checkGitInstallation();

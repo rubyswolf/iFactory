@@ -586,7 +586,16 @@ body.is-ai:not(.ai-needs-agent) [data-ai-panel="prompt"] {
 .build-tools-panel {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+}
+
+.build-tools-panel h2 {
+  margin-bottom: 4px;
+}
+
+.build-tools-panel .card-meta {
+  margin-top: 4px;
+  margin-bottom: 8px;
 }
 
 .run-button {
