@@ -51,7 +51,8 @@ contextBridge.exposeInMainWorld("ifactory", {
   },
   project: {
     create: (payload) => ipcRenderer.invoke("project:create", payload),
-    open: (payload) => ipcRenderer.invoke("project:open", payload)
+    open: (payload) => ipcRenderer.invoke("project:open", payload),
+    listItems: (payload) => ipcRenderer.invoke("project:listItems", payload)
   },
   templates: {
     list: (payload) => ipcRenderer.invoke("templates:list", payload),

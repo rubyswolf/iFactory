@@ -956,6 +956,99 @@ const registerIpc = () => {
       return { error: "open_failed" };
     }
   });
+  ipcMain.handle("project:listItems", async (event, payload) => {
+    try {
+      const projectPath = payload?.path?.trim();
+      if (!projectPath) {
+        return { error: "missing_path" };
+      }
+      if (!fs.existsSync(projectPath)) {
+        return { error: "path_not_found" };
+      }
+
+      const skipNames = new Set(["iPlug2", "node_modules", ".git"]);
+      const shouldSkip = (name) => {
+        if (!name) {
+          return true;
+        }
+        if (name.startsWith(".")) {
+          return true;
+        }
+        if (skipNames.has(name)) {
+          return true;
+        }
+        if (name === "build" || name.startsWith("build-")) {
+          return true;
+        }
+        return false;
+      };
+
+      const hasFileRecursive = (root, matcher, maxDepth = 4) => {
+        const stack = [{ dir: root, depth: 0 }];
+        while (stack.length > 0) {
+          const current = stack.pop();
+          if (!current || current.depth > maxDepth) {
+            continue;
+          }
+          let entries = [];
+          try {
+            entries = fs.readdirSync(current.dir, { withFileTypes: true });
+          } catch (error) {
+            continue;
+          }
+          for (const entry of entries) {
+            if (entry.isFile() && matcher(entry.name)) {
+              return true;
+            }
+            if (entry.isDirectory() && !shouldSkip(entry.name)) {
+              stack.push({
+                dir: path.join(current.dir, entry.name),
+                depth: current.depth + 1
+              });
+            }
+          }
+        }
+        return false;
+      };
+
+      const hasConfigAtRoot = (root) => {
+        try {
+          const entries = fs.readdirSync(root, { withFileTypes: true });
+          return entries.some(
+            (entry) =>
+              entry.isFile() && entry.name.toLowerCase() === "config.h"
+          );
+        } catch (error) {
+          return false;
+        }
+      };
+
+      const entries = fs.readdirSync(projectPath, { withFileTypes: true });
+      const items = entries
+        .filter((entry) => entry.isDirectory() && !shouldSkip(entry.name))
+        .map((entry) => {
+          const folderPath = path.join(projectPath, entry.name);
+          const hasSolution = hasFileRecursive(
+            folderPath,
+            (name) => name.toLowerCase().endsWith(".sln"),
+            5
+          );
+          if (!hasSolution) {
+            return null;
+          }
+          const hasConfig = hasConfigAtRoot(folderPath);
+          return {
+            name: entry.name,
+            type: hasConfig ? "plugin" : "tool"
+          };
+        })
+        .filter(Boolean);
+
+      return { items };
+    } catch (error) {
+      return { error: "list_failed" };
+    }
+  });
   ipcMain.handle("templates:list", async (event, payload) => {
     try {
       const projectPath = payload?.projectPath?.trim();

@@ -385,164 +385,142 @@
         </main>
       </div>
 
-      <div class="page page-ready" data-page-ready>
-        <main class="ready-grid">
-          <section class="panel ready-panel reveal">
-            <div class="eyebrow">Ready</div>
-            <h2>Choose how you want to build.</h2>
-            <p class="card-meta">
-              You can jump into an AI-assisted flow or start with a curated
-              plugin template.
-            </p>
-            <div class="ready-choices">
-              <button
-                class="choice-card choice-primary"
-                type="button"
-                data-ready-ai
-              >
-                <div class="choice-header">
-                  <span class="choice-title">Create with AI</span>
-                  <span class="choice-badge">Recommended</span>
-                </div>
-                <p class="choice-desc">
-                  Describe your idea and let iFactory generate plugins and
-                  tools automatically, then refine from there.
-                </p>
-              </button>
-              <button class="choice-card" type="button" data-ready-manual>
-                <div class="choice-header">
-                  <span class="choice-title">Create manually</span>
-                </div>
-                <p class="choice-desc">
-                  Pick a plugin template and get a starter workspace with
-                  resources to build your own project.
-                </p>
-              </button>
-            </div>
-          </section>
-        </main>
-      </div>
-
-      <div class="page page-templates" data-page-templates>
-        <main class="templates-grid">
-          <section class="panel templates-panel reveal">
-            <div class="eyebrow">Create a plugin</div>
-            <h2 data-template-title>Loading templates.</h2>
-            <p class="card-meta" data-template-status>
-              Fetching available iPlug2 templates.
-            </p>
-            <div class="template-search">
-              <input
-                type="text"
-                placeholder="Search templates"
-                aria-label="Search templates"
-                data-template-search
-              />
-            </div>
-            <div class="template-list" data-template-list></div>
-            <div class="template-name" data-template-name-section>
-              <label class="field">
-                <span>Name your plugin</span>
-                <input
-                  type="text"
-                  placeholder="MyPlugin"
-                  data-template-name
-                  autocomplete="off"
-                />
-              </label>
-              <p class="field-note">
-                This is the internal code name. You can change the release name
-                later.
-              </p>
-            </div>
-            <div class="templates-actions">
-              <button
-                class="cta"
-                type="button"
-                data-template-continue
-                disabled
-              >
-                Continue
-              </button>
-            </div>
-          </section>
-        </main>
-      </div>
-
-      <div class="page page-get-started" data-page-get-started>
-        <main class="get-started-grid">
-          <section class="panel get-started-panel reveal">
-            <div class="eyebrow">Get started with iPlug2</div>
-            <h2>Your plugin is ready.</h2>
-            <p class="card-meta">
-              Next you can explore the iPlug2 docs, configure your plugin, and
-              start building.
-            </p>
-          </section>
-        </main>
-      </div>
-
-      <div class="page page-agent" data-page-agent>
-        <main class="agent-grid">
-          <section class="panel agent-panel reveal">
-            <div class="eyebrow">Connect your agent</div>
-            <h2>Connect an agent.</h2>
-            <p class="card-meta" data-agent-status>Checking for agents.</p>
-            <div class="agent-instructions">
-              <div class="instruction-title">Install Codex CLI</div>
-              <ol class="instruction-list">
-                <li>Download Codex CLI from openai.com or your team portal.</li>
-                <li>Run the installer and complete setup.</li>
-                <li>Return here to connect your agent.</li>
-              </ol>
-            </div>
-          </section>
-        </main>
-      </div>
-
       <div class="page page-ai" data-page-ai>
         <main class="ai-grid">
           <div class="ai-shell">
             <div class="ai-title">iFactory</div>
             <aside class="ai-sidebar" aria-label="Sidebar">
-              <button class="ai-nav-item" type="button">
-                <img src="../icons/agent.svg" alt="Agent" />
-                <span class="ai-nav-label">Agent</span>
-              </button>
-              <button class="ai-nav-item" type="button">
-                <img src="../icons/git.svg" alt="Git" />
-                <span class="ai-nav-label">Git</span>
-              </button>
-              <button class="ai-nav-item ai-nav-item--home" type="button" data-action-home>
-                <img src="../icons/home.svg" alt="Home" />
-                <span class="ai-nav-label">Home</span>
-              </button>
+              <div class="ai-sidebar-top">
+                <button class="ai-nav-item" type="button" data-ai-nav="agent">
+                  <img src="../icons/agent.svg" alt="Agent" />
+                  <span class="ai-nav-label">Agent</span>
+                </button>
+                <button class="ai-nav-item" type="button" data-ai-nav="git">
+                  <img src="../icons/git.svg" alt="Git" />
+                  <span class="ai-nav-label">Git</span>
+                </button>
+              </div>
+              <div class="ai-sidebar-center">
+                <button
+                  class="ai-nav-item ai-nav-item--create"
+                  type="button"
+                  data-ai-create
+                  data-ai-nav="create"
+                >
+                  <img src="../icons/plus.svg" alt="Create" />
+                  <span class="ai-nav-label">Create</span>
+                </button>
+                <div class="ai-sidebar-list" data-project-items></div>
+              </div>
+              <div class="ai-sidebar-bottom">
+                <button
+                  class="ai-nav-item ai-nav-item--home"
+                  type="button"
+                  data-action-home
+                  data-ai-nav="home"
+                >
+                  <img src="../icons/home.svg" alt="Home" />
+                  <span class="ai-nav-label">Home</span>
+                </button>
+              </div>
             </aside>
             <div class="ai-main">
-              <section class="panel ai-panel reveal">
-                <div class="eyebrow">AI prompt</div>
-                <h2>Describe what you want to build.</h2>
-                <p class="card-meta">
-                  Share the idea for your plugin or tool and we will shape the
-                  plan.
-                </p>
-                <div class="prompt-bar">
-                  <button
-                    class="prompt-addon"
-                    type="button"
-                    aria-label="Add context"
-                  >
-                    +
-                  </button>
-                  <input
-                    class="prompt-input"
-                    type="text"
-                    placeholder="Describe your plugin or tool"
-                    data-ai-prompt
-                  />
-                  <button class="prompt-send" type="button">Send</button>
-                </div>
-              </section>
+              <div class="ai-view" data-ai-view="agent">
+                <section class="panel agent-panel reveal" data-ai-panel="agent">
+                  <div class="eyebrow">Connect your agent</div>
+                  <h2>Connect an agent.</h2>
+                  <p class="card-meta" data-agent-status>
+                    Checking for agents.
+                  </p>
+                  <div class="agent-instructions">
+                    <div class="instruction-title">Install Codex CLI</div>
+                    <ol class="instruction-list">
+                      <li>
+                        Download Codex CLI from openai.com or your team portal.
+                      </li>
+                      <li>Run the installer and complete setup.</li>
+                      <li>Return here to connect your agent.</li>
+                    </ol>
+                  </div>
+                </section>
+                <section class="panel ai-panel reveal" data-ai-panel="prompt">
+                  <div class="eyebrow">AI prompt</div>
+                  <h2>Describe what you want to build.</h2>
+                  <p class="card-meta">
+                    Share the idea for your plugin or tool and we will shape
+                    the plan.
+                  </p>
+                  <div class="prompt-bar">
+                    <button
+                      class="prompt-addon"
+                      type="button"
+                      aria-label="Add context"
+                    >
+                      +
+                    </button>
+                    <input
+                      class="prompt-input"
+                      type="text"
+                      placeholder="Describe your plugin or tool"
+                      data-ai-prompt
+                    />
+                    <button class="prompt-send" type="button">Send</button>
+                  </div>
+                </section>
+              </div>
+              <div class="ai-view" data-ai-view="templates">
+                <section class="panel templates-panel reveal">
+                  <div class="eyebrow">Create a plugin</div>
+                  <h2 data-template-title>Loading templates.</h2>
+                  <p class="card-meta" data-template-status>
+                    Fetching available iPlug2 templates.
+                  </p>
+                  <div class="template-search">
+                    <input
+                      type="text"
+                      placeholder="Search templates"
+                      aria-label="Search templates"
+                      data-template-search
+                    />
+                  </div>
+                  <div class="template-list" data-template-list></div>
+                  <div class="template-name" data-template-name-section>
+                    <label class="field">
+                      <span>Name your plugin</span>
+                      <input
+                        type="text"
+                        placeholder="MyPlugin"
+                        data-template-name
+                        autocomplete="off"
+                      />
+                    </label>
+                    <p class="field-note">
+                      This is the internal code name. You can change the
+                      release name later.
+                    </p>
+                  </div>
+                  <div class="templates-actions">
+                    <button
+                      class="cta"
+                      type="button"
+                      data-template-continue
+                      disabled
+                    >
+                      Continue
+                    </button>
+                  </div>
+                </section>
+              </div>
+              <div class="ai-view" data-ai-view="get-started">
+                <section class="panel get-started-panel reveal">
+                  <div class="eyebrow">Get started with iPlug2</div>
+                  <h2>Your plugin is ready.</h2>
+                  <p class="card-meta">
+                    Next you can explore the iPlug2 docs, configure your plugin,
+                    and start building.
+                  </p>
+                </section>
+              </div>
             </div>
           </div>
         </main>

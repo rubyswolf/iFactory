@@ -71,9 +71,9 @@ const setupGithubOAuth = () => {
   const createFolderToggle = document.querySelector("[data-create-folder]");
   const installPath = document.querySelector("[data-install-path]");
   const homeButtons = document.querySelectorAll("[data-action-home]");
-  const readyButtons = document.querySelectorAll("[data-action-ready]");
-  const manualChoiceButton = document.querySelector("[data-ready-manual]");
-  const aiChoiceButton = document.querySelector("[data-ready-ai]");
+  const agentNavButton = document.querySelector("[data-ai-nav=\"agent\"]");
+  const createNavButton = document.querySelector("[data-ai-create]");
+  const projectItemsEl = document.querySelector("[data-project-items]");
   const agentStatusEl = document.querySelector("[data-agent-status]");
   const templateTitleEl = document.querySelector("[data-template-title]");
   const templateStatusEl = document.querySelector("[data-template-status]");
@@ -112,6 +112,9 @@ const setupGithubOAuth = () => {
   let templatesData = [];
   let selectedTemplate = "";
   let codexInstalled = false;
+  let aiView = "agent";
+  let activeProjectItem = "";
+  let projectItems = [];
 
   const sanitizeTemplateName = (value) => value.replace(/[^a-zA-Z0-9]/g, "");
 
@@ -185,40 +188,59 @@ const setupGithubOAuth = () => {
     };
   };
 
-  const setGetStarted = (active) => {
-    document.body.classList.toggle("is-get-started", active);
-    if (active) {
-      document.body.classList.remove("is-installing-run");
-      document.body.classList.remove("is-installing");
-      document.body.classList.remove("is-templates");
-      document.body.classList.remove("is-ready");
-      document.body.classList.remove("is-creating");
-    }
-  };
-
-  const setAgent = (active) => {
-    document.body.classList.toggle("is-agent", active);
-    if (active) {
-      document.body.classList.remove("is-installing-run");
-      document.body.classList.remove("is-installing");
-      document.body.classList.remove("is-templates");
-      document.body.classList.remove("is-ready");
-      document.body.classList.remove("is-creating");
-      document.body.classList.remove("is-get-started");
-      document.body.classList.remove("is-ai");
-    }
-  };
-
   const setAi = (active) => {
     document.body.classList.toggle("is-ai", active);
     if (active) {
       document.body.classList.remove("is-installing-run");
       document.body.classList.remove("is-installing");
-      document.body.classList.remove("is-templates");
-      document.body.classList.remove("is-ready");
       document.body.classList.remove("is-creating");
-      document.body.classList.remove("is-get-started");
-      document.body.classList.remove("is-agent");
+    }
+  };
+
+  const setAiNeedsAgent = (needsAgent) => {
+    document.body.classList.toggle("ai-needs-agent", needsAgent);
+  };
+
+  const updateSidebarActive = () => {
+    if (agentNavButton) {
+      agentNavButton.classList.toggle("is-active", aiView === "agent");
+    }
+    if (createNavButton) {
+      createNavButton.classList.toggle("is-active", aiView === "templates");
+    }
+    if (projectItemsEl) {
+      const items = projectItemsEl.querySelectorAll("[data-project-item]");
+      items.forEach((button) => {
+        const match = button.dataset.projectItem === activeProjectItem;
+        button.classList.toggle(
+          "is-active",
+          aiView === "get-started" && match
+        );
+      });
+    }
+  };
+
+  const setAiView = (view) => {
+    aiView = view;
+    document.body.dataset.aiView = view;
+    setAi(true);
+    updateSidebarActive();
+  };
+
+  const setActiveProjectItem = (name) => {
+    activeProjectItem = name || "";
+    updateSidebarActive();
+  };
+
+  const updateAiPanels = () => {
+    setAiNeedsAgent(!codexInstalled);
+  };
+
+  const setGetStarted = (active) => {
+    if (active) {
+      setAiView("get-started");
+    } else if (aiView === "get-started" && document.body.classList.contains("is-ai")) {
+      setAiView("agent");
     }
   };
 
@@ -231,6 +253,8 @@ const setupGithubOAuth = () => {
 
   const checkCodex = async () => {
     if (!window.ifactory?.codex?.check) {
+      codexInstalled = false;
+      updateAiPanels();
       updateAgentStatus("No agents found.");
       return;
     }
@@ -238,14 +262,22 @@ const setupGithubOAuth = () => {
     try {
       const result = await window.ifactory.codex.check();
       codexInstalled = Boolean(result?.installed);
-      if (codexInstalled) {
-        setAgent(false);
-        setAi(true);
-      } else {
+      updateAiPanels();
+      if (!codexInstalled) {
         updateAgentStatus("No agents found.");
       }
     } catch (error) {
+      codexInstalled = false;
+      updateAiPanels();
       updateAgentStatus("No agents found.");
+    }
+  };
+
+  const showProjectEditor = async (view = "agent") => {
+    setAiView(view);
+    updateAiPanels();
+    if (view === "agent" && !codexInstalled) {
+      await checkCodex();
     }
   };
 
@@ -307,6 +339,68 @@ const setupGithubOAuth = () => {
 
       recentListEl.appendChild(button);
     });
+  };
+
+  const buildProjectItemButton = (item) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "ai-nav-item ai-nav-item--entry";
+    button.dataset.projectItem = item.name;
+    button.dataset.itemType = item.type;
+    button.title = item.name;
+
+    const icon = document.createElement("img");
+    icon.src =
+      item.type === "tool" ? "../icons/tool.svg" : "../icons/plugin.svg";
+    icon.alt = item.type === "tool" ? "Tool" : "Plugin";
+
+    const label = document.createElement("span");
+    label.className = "ai-nav-label";
+    label.textContent = item.name;
+
+    button.appendChild(icon);
+    button.appendChild(label);
+
+    button.addEventListener("click", () => {
+      setActiveProjectItem(item.name);
+      setAiView("get-started");
+    });
+
+    return button;
+  };
+
+  const renderProjectItems = (items) => {
+    if (!projectItemsEl) {
+      return;
+    }
+    projectItemsEl.innerHTML = "";
+    projectItems = Array.isArray(items) ? items : [];
+    projectItems.forEach((item) => {
+      projectItemsEl.appendChild(buildProjectItemButton(item));
+    });
+    updateSidebarActive();
+  };
+
+  const loadProjectItems = async (projectPath) => {
+    if (!projectItemsEl) {
+      return;
+    }
+    if (!projectPath || !window.ifactory?.project?.listItems) {
+      renderProjectItems([]);
+      return;
+    }
+    try {
+      const result = await window.ifactory.project.listItems({
+        path: projectPath
+      });
+      if (result?.error) {
+        renderProjectItems([]);
+        return;
+      }
+      renderProjectItems(result.items);
+    } catch (error) {
+      renderProjectItems([]);
+    }
   };
 
   const setTemplateStatus = (message) => {
@@ -488,11 +582,8 @@ const setupGithubOAuth = () => {
     if (!complete) {
       document.body.classList.remove("is-creating");
       document.body.classList.remove("is-installing");
-      document.body.classList.remove("is-ready");
-      document.body.classList.remove("is-templates");
-      document.body.classList.remove("is-get-started");
-      document.body.classList.remove("is-agent");
       document.body.classList.remove("is-ai");
+      document.body.removeAttribute("data-ai-view");
     }
   };
 
@@ -510,11 +601,8 @@ const setupGithubOAuth = () => {
     document.body.classList.toggle("is-creating", creating);
     if (creating) {
       document.body.classList.remove("is-installing");
-      document.body.classList.remove("is-ready");
-      document.body.classList.remove("is-templates");
-      document.body.classList.remove("is-get-started");
-      document.body.classList.remove("is-agent");
       document.body.classList.remove("is-ai");
+      document.body.removeAttribute("data-ai-view");
     }
   };
 
@@ -522,34 +610,16 @@ const setupGithubOAuth = () => {
     document.body.classList.toggle("is-installing", installing);
     if (installing) {
       document.body.classList.remove("is-creating");
-      document.body.classList.remove("is-ready");
-      document.body.classList.remove("is-templates");
-      document.body.classList.remove("is-get-started");
-      document.body.classList.remove("is-agent");
       document.body.classList.remove("is-ai");
     }
   };
 
   const setTemplates = (active) => {
-    document.body.classList.toggle("is-templates", active);
     if (active) {
-      document.body.classList.remove("is-creating");
-      document.body.classList.remove("is-installing");
-      document.body.classList.remove("is-ready");
-      document.body.classList.remove("is-get-started");
-      document.body.classList.remove("is-agent");
-      document.body.classList.remove("is-ai");
+      setAiView("templates");
+    } else if (aiView === "templates" && document.body.classList.contains("is-ai")) {
+      setAiView("agent");
     }
-  };
-
-  const showReadyScreen = () => {
-    document.body.classList.add("is-ready");
-    document.body.classList.remove("is-installing-run");
-    document.body.classList.remove("is-installing");
-    document.body.classList.remove("is-templates");
-    document.body.classList.remove("is-get-started");
-    document.body.classList.remove("is-agent");
-    document.body.classList.remove("is-ai");
   };
 
   const updateInstallPath = (pathValue) => {
@@ -624,17 +694,17 @@ const setupGithubOAuth = () => {
         return result;
       }
       updateInstallPath(result.path);
+      await loadProjectItems(result.path);
+      setActiveProjectItem("");
       if (result.needsIPlug) {
         setInstalling(true);
-        document.body.classList.remove("is-ready");
       } else if (result.needsDependencies) {
         setInstalling(true);
-        document.body.classList.remove("is-ready");
         if (window.ifactoryInstall?.installDependencies) {
           await window.ifactoryInstall.installDependencies(result.path);
         }
       } else {
-        document.body.classList.add("is-ready");
+        await showProjectEditor("agent");
       }
       await loadRecents();
       return result;
@@ -651,8 +721,10 @@ const setupGithubOAuth = () => {
     setInstalling(false);
     setTemplates(false);
     setGetStarted(false);
-    setAgent(false);
     setAi(false);
+    setAiNeedsAgent(false);
+    document.body.removeAttribute("data-ai-view");
+    activeProjectItem = "";
     setFlowVisible(false);
     updateSetupState();
   };
@@ -697,6 +769,7 @@ const setupGithubOAuth = () => {
       }
       applyGithubState(settings);
       codexInstalled = Boolean(codexState?.installed);
+      updateAiPanels();
       if (needsCheck) {
         await checkGitInstallation();
       }
@@ -842,8 +915,9 @@ const setupGithubOAuth = () => {
       setCreating(false);
       setTemplates(false);
       setGetStarted(false);
-      setAgent(false);
       setAi(false);
+      setAiNeedsAgent(false);
+      document.body.removeAttribute("data-ai-view");
     });
   }
   if (createButton) {
@@ -851,20 +925,16 @@ const setupGithubOAuth = () => {
       setCreating(true);
     });
   }
-  if (manualChoiceButton) {
-    manualChoiceButton.addEventListener("click", () => {
+  if (createNavButton) {
+    createNavButton.addEventListener("click", () => {
+      setActiveProjectItem("");
       setTemplates(true);
       loadTemplates();
     });
   }
-  if (aiChoiceButton) {
-    aiChoiceButton.addEventListener("click", () => {
-      if (codexInstalled) {
-        setAi(true);
-        return;
-      }
-      setAgent(true);
-      checkCodex();
+  if (agentNavButton) {
+    agentNavButton.addEventListener("click", async () => {
+      await showProjectEditor("agent");
     });
   }
   if (openProjectButton) {
@@ -944,25 +1014,13 @@ const setupGithubOAuth = () => {
   });
   homeButtons.forEach((button) => {
     button.addEventListener("click", () => {
-      if (document.body.classList.contains("is-templates")) {
-        setTemplates(false);
-        showReadyScreen();
-        return;
-      }
       setCreating(false);
       setInstalling(false);
-      document.body.classList.remove("is-ready");
-      setTemplates(false);
-      setGetStarted(false);
-      setAgent(false);
       setAi(false);
+      setAiNeedsAgent(false);
+      document.body.removeAttribute("data-ai-view");
+      activeProjectItem = "";
       updateSetupState();
-    });
-  });
-  readyButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      setTemplates(false);
-      showReadyScreen();
     });
   });
   if (templateSearchInput) {
@@ -998,7 +1056,6 @@ const setupGithubOAuth = () => {
         return;
       }
       setGetStarted(false);
-      document.body.classList.remove("is-ready");
       setTemplates(false);
       setInstalling(true);
       installApi.setHeader?.("Creating plugin", "Creating plugin");
@@ -1022,6 +1079,8 @@ const setupGithubOAuth = () => {
           return;
         }
         installApi.updateProgress?.(1, "Finished");
+        await loadProjectItems(projectPath);
+        setActiveProjectItem(pluginName);
         setGetStarted(true);
       } catch (error) {
         installApi.setStatus?.("Unable to create the plugin.", "error");
@@ -1031,6 +1090,12 @@ const setupGithubOAuth = () => {
       }
     });
   }
+
+  window.ifactoryUI = {
+    showProjectEditor,
+    refreshProjectItems: () => loadProjectItems(currentProjectPath),
+    setActiveProjectItem
+  };
 
   loadGithub();
   loadRecents();
@@ -1244,28 +1309,30 @@ const setupInstallScreen = () => {
   const setInstallingScreen = (active) => {
     document.body.classList.toggle("is-installing-run", active);
     if (active) {
-      document.body.classList.remove("is-ready");
       installProgress.style.width = "0%";
       installStage.textContent = "Preparing iPlug2...";
       installCancel.disabled = false;
     }
   };
-
-  const setReadyScreen = (active) => {
-    document.body.classList.toggle("is-ready", active);
-    if (active) {
-      document.body.classList.remove("is-installing-run");
-      document.body.classList.remove("is-installing");
-      document.body.classList.remove("is-templates");
-      document.body.classList.remove("is-get-started");
+  const openProjectEditor = async () => {
+    if (window.ifactoryUI?.showProjectEditor) {
+      await window.ifactoryUI.showProjectEditor("agent");
+      if (window.ifactoryUI.refreshProjectItems) {
+        await window.ifactoryUI.refreshProjectItems();
+      }
+    } else {
+      document.body.classList.add("is-ai");
+      document.body.dataset.aiView = "agent";
     }
+    document.body.classList.remove("is-installing-run");
+    document.body.classList.remove("is-installing");
   };
 
   const runDependenciesInstall = async (projectPath) => {
     if (!window.ifactory?.iplug?.installDependencies) {
       return;
     }
-    setReadyScreen(false);
+    document.body.classList.remove("is-installing");
     resetInstallHeader();
     setInstallStatus("Installing dependencies...", "");
     installButton.disabled = true;
@@ -1284,7 +1351,7 @@ const setupInstallScreen = () => {
         return;
       }
       setInstallStatus("Dependencies installed.", "success");
-      setReadyScreen(true);
+      await openProjectEditor();
     } catch (error) {
       setInstallStatus("Installation failed. Check your settings and try again.", "error");
     } finally {
@@ -1635,8 +1702,6 @@ const setupInstallScreen = () => {
     const repoFullName = getSelectedRepoFullName();
     const branch = branchMode === "master" ? "master" : selectedBranch;
 
-    setReadyScreen(false);
-
     if (!projectPath) {
       setInstallStatus("Select a project folder first.", "warning");
       return;
@@ -1673,7 +1738,7 @@ const setupInstallScreen = () => {
         return;
       }
       setInstallStatus("iPlug2 installed.", "success");
-      setReadyScreen(true);
+      await openProjectEditor();
     } catch (error) {
       setInstallStatus("Installation failed. Check your settings and try again.", "error");
     } finally {

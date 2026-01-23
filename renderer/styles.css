@@ -144,38 +144,6 @@ body.is-installing-run .page-installing {
   display: block !important;
 }
 
-body.is-ready .page {
-  display: none !important;
-}
-
-body.is-ready .page-ready {
-  display: block !important;
-}
-
-body.is-templates .page {
-  display: none !important;
-}
-
-body.is-templates .page-templates {
-  display: block !important;
-}
-
-body.is-get-started .page {
-  display: none !important;
-}
-
-body.is-get-started .page-get-started {
-  display: block !important;
-}
-
-body.is-agent .page {
-  display: none !important;
-}
-
-body.is-agent .page-agent {
-  display: block !important;
-}
-
 body.is-ai .page {
   display: none !important;
 }
@@ -423,21 +391,6 @@ body.is-ai .app {
   width: min(520px, 100%);
 }
 
-.agent-grid {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: calc(100vh - 220px);
-}
-
-.agent-panel {
-  width: min(560px, 100%);
-}
-
-.agent-instructions {
-  margin-top: 18px;
-}
-
 .ai-grid {
   display: flex;
   justify-content: stretch;
@@ -482,6 +435,7 @@ body.is-ai .ai-shell {
   display: flex;
   flex-direction: column;
   padding-top: 8px;
+  padding-bottom: 8px;
   gap: 0;
   box-sizing: border-box;
   transition: width 0.18s ease;
@@ -508,6 +462,24 @@ body.is-ai .ai-shell {
   width: 132px;
 }
 
+.ai-sidebar-top,
+.ai-sidebar-center,
+.ai-sidebar-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-sidebar-center {
+  margin: auto 0;
+}
+
+.ai-sidebar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .ai-nav-item {
   display: flex;
   align-items: center;
@@ -529,8 +501,17 @@ body.is-ai .ai-shell {
   color: #e8f4ff;
 }
 
-.ai-nav-item--home {
-  margin-top: auto;
+.ai-nav-item.is-active {
+  background: rgba(179, 255, 0, 0.16);
+  color: #f7ffd9;
+}
+
+.ai-nav-item--create {
+  margin-bottom: 4px;
+}
+
+.ai-nav-item--entry {
+  font-size: 13px;
 }
 
 .ai-nav-item img {
@@ -561,6 +542,40 @@ body.is-ai .ai-shell {
   align-items: center;
   justify-content: center;
   padding: 48px 28px 22px;
+}
+
+.ai-view {
+  width: 100%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+body.is-ai[data-ai-view="agent"] .ai-view[data-ai-view="agent"],
+body.is-ai[data-ai-view="templates"] .ai-view[data-ai-view="templates"],
+body.is-ai[data-ai-view="get-started"] .ai-view[data-ai-view="get-started"] {
+  display: flex;
+}
+
+[data-ai-panel] {
+  display: none;
+}
+
+body.is-ai.ai-needs-agent [data-ai-panel="agent"] {
+  display: block;
+}
+
+body.is-ai:not(.ai-needs-agent) [data-ai-panel="prompt"] {
+  display: block;
+}
+
+.agent-panel {
+  width: min(560px, 100%);
+}
+
+.agent-instructions {
+  margin-top: 18px;
 }
 
 .ai-panel {
