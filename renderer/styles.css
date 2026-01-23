@@ -183,6 +183,14 @@ body.is-ai .page {
 body.is-ai .page-ai {
   display: block !important;
 }
+
+body.is-ai .titlebar-global {
+  display: none;
+}
+
+body.is-ai .app {
+  padding: 0;
+}
 .home-actions {
   display: flex;
   align-items: center;
@@ -448,6 +456,25 @@ body.is-ai .page-ai {
   overflow: hidden;
 }
 
+body.is-ai .ai-shell {
+  border-radius: 0;
+  min-height: 100vh;
+}
+
+.ai-title {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+  pointer-events: none;
+  z-index: 2;
+}
+
 .ai-sidebar {
   position: relative;
   width: 56px;
@@ -502,6 +529,10 @@ body.is-ai .page-ai {
   color: #e8f4ff;
 }
 
+.ai-nav-item--home {
+  margin-top: auto;
+}
+
 .ai-nav-item img {
   width: 30px;
   height: 30px;
@@ -529,7 +560,7 @@ body.is-ai .page-ai {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 22px 28px;
+  padding: 48px 28px 22px;
 }
 
 .ai-panel {
