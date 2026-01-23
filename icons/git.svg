@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->
+
+<svg
+   fill="#000000"
+   width="30"
+   height="30"
+   viewBox="0 0 1.2 1.2"
+   version="1.1"
+   id="svg1"
+   sodipodi:docname="git.svg"
+   inkscape:version="1.4 (86a8ad7, 2024-10-11)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <defs
+     id="defs1" />
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#000000"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="8.6974134"
+     inkscape:cx="6.783626"
+     inkscape:cy="28.456736"
+     inkscape:window-width="1440"
+     inkscape:window-height="837"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg1" />
+  <title
+     id="title1">git</title>
+  <path
+     d="M 1.1410029,0.5498625 0.64994915,0.0588375 C 0.63682435,0.04575 0.61871225,0.03765 0.59868755,0.03765 c -0.020025,0 -0.038137,0.0081 -0.051262,0.021187 v 0 L 0.44569025,0.1607625 0.57502545,0.2901 c 0.00825,-0.00289 0.017737,-0.00454 0.027637,-0.00454 0.047586,0 0.086135,0.03855 0.086135,0.086137 0,0.010088 -0.00172,0.019725 -0.00491,0.028725 l 1.86e-4,-6e-4 0.1245728,0.12465 c 0.00832,-0.00296 0.017962,-0.00469 0.027975,-0.00469 0.047549,0 0.086099,0.03855 0.086099,0.0861 0,0.04755 -0.038549,0.0861 -0.086099,0.0861 -0.047549,0 -0.086099,-0.03855 -0.086099,-0.0861 0,-0.011737 0.00236,-0.022912 0.0066,-0.033112 l -2.25e-4,5.625e-4 -0.1166229,-0.116025 v 0.305775 c 0.028649,0.014438 0.047961,0.043613 0.047961,0.077287 0,0.047625 -0.038624,0.08625 -0.086248,0.08625 -0.047624,0 -0.086248,-0.038625 -0.086248,-0.08625 0,-0.023775 0.0096,-0.045262 0.025163,-0.060862 v 0 c 0.00791,-0.00791 0.017325,-0.014325 0.027786,-0.018825 l 5.63e-4,-2.25e-4 v -0.308775 c -0.031575,-0.013275 -0.053324,-0.043988 -0.053324,-0.079725 0,-0.012 0.00244,-0.0234 0.00686,-0.033788 l -2.234e-4,5.68e-4 -0.1270853,-0.1276875 -0.336744,0.336525 c -0.0130497,0.013162 -0.0210746,0.031275 -0.0210746,0.0513 0,0.020025 0.00806,0.038137 0.021113,0.0513 l 0.4910909,0.49095 c 0.013087,0.013125 0.031199,0.021225 0.051224,0.021225 0.020025,0 0.038099,-0.0081 0.051224,-0.021225 L 1.141078,0.65235 C 1.154203,0.639263 1.16234,0.621112 1.16234,0.601125 1.16234,0.581137 1.1542,0.562988 1.141077,0.5499 v 0 z"
+     id="path1"
+     style="stroke-width:1;fill:#ffffff;fill-opacity:1" />
+  <metadata
+     id="metadata1">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:title>git</dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+</svg>

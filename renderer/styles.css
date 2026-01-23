@@ -432,9 +432,104 @@ body.is-ai .page-ai {
 
 .ai-grid {
   display: flex;
-  justify-content: center;
-  align-items: center;
+  justify-content: stretch;
+  align-items: stretch;
   min-height: calc(100vh - 220px);
+  width: 100%;
+}
+
+.ai-shell {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: calc(100vh - 220px);
+  width: 100%;
+  border-radius: 22px;
+  overflow: hidden;
+}
+
+.ai-sidebar {
+  position: relative;
+  width: 56px;
+  background: #0a1220;
+  display: flex;
+  flex-direction: column;
+  padding-top: 8px;
+  gap: 0;
+  box-sizing: border-box;
+  transition: width 0.18s ease;
+  -webkit-app-region: no-drag;
+}
+
+.ai-sidebar::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: -1px;
+  width: 2px;
+  height: 100%;
+  background: linear-gradient(
+    180deg,
+    rgba(179, 255, 0, 0.35) 0%,
+    rgba(8, 15, 26, 0.1) 60%,
+    rgba(8, 15, 26, 0) 100%
+  );
+  pointer-events: none;
+}
+
+.ai-sidebar:hover {
+  width: 132px;
+}
+
+.ai-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: 100%;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, gap 0.18s ease;
+  font-size: 14px;
+  font-family: var(--font-body);
+}
+
+.ai-nav-item:hover {
+  background: rgba(179, 255, 0, 0.08);
+  color: #e8f4ff;
+}
+
+.ai-nav-item img {
+  width: 30px;
+  height: 30px;
+}
+
+.ai-nav-label {
+  opacity: 0;
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: opacity 0.14s ease, max-width 0.14s ease;
+}
+
+.ai-sidebar:hover .ai-nav-item {
+  gap: 12px;
+}
+
+.ai-sidebar:hover .ai-nav-label {
+  opacity: 1;
+  max-width: 200px;
+}
+
+.ai-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px 28px;
 }
 
 .ai-panel {

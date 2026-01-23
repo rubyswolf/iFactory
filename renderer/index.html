@@ -502,25 +502,44 @@
 
       <div class="page page-ai" data-page-ai>
         <main class="ai-grid">
-          <section class="panel ai-panel reveal">
-            <div class="eyebrow">AI prompt</div>
-            <h2>Describe what you want to build.</h2>
-            <p class="card-meta">
-              Share the idea for your plugin or tool and we will shape the plan.
-            </p>
-            <div class="prompt-bar">
-              <button class="prompt-addon" type="button" aria-label="Add context">
-                +
+          <div class="ai-shell">
+            <aside class="ai-sidebar" aria-label="Sidebar">
+              <button class="ai-nav-item" type="button">
+                <img src="../icons/agent.svg" alt="Agent" />
+                <span class="ai-nav-label">Agent</span>
               </button>
-              <input
-                class="prompt-input"
-                type="text"
-                placeholder="Describe your plugin or tool"
-                data-ai-prompt
-              />
-              <button class="prompt-send" type="button">Send</button>
+              <button class="ai-nav-item" type="button">
+                <img src="../icons/git.svg" alt="Git" />
+                <span class="ai-nav-label">Git</span>
+              </button>
+            </aside>
+            <div class="ai-main">
+              <section class="panel ai-panel reveal">
+                <div class="eyebrow">AI prompt</div>
+                <h2>Describe what you want to build.</h2>
+                <p class="card-meta">
+                  Share the idea for your plugin or tool and we will shape the
+                  plan.
+                </p>
+                <div class="prompt-bar">
+                  <button
+                    class="prompt-addon"
+                    type="button"
+                    aria-label="Add context"
+                  >
+                    +
+                  </button>
+                  <input
+                    class="prompt-input"
+                    type="text"
+                    placeholder="Describe your plugin or tool"
+                    data-ai-prompt
+                  />
+                  <button class="prompt-send" type="button">Send</button>
+                </div>
+              </section>
             </div>
-          </section>
+          </div>
         </main>
       </div>
 
