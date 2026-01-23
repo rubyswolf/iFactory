@@ -876,6 +876,27 @@ const registerIpc = () => {
 
       fs.mkdirSync(projectPath, { recursive: true });
 
+      if (createRepo) {
+        const gitignorePath = path.join(projectPath, ".gitignore");
+        if (!fs.existsSync(gitignorePath)) {
+          const gitignoreLines = [
+            ".DS_Store",
+            "xcuserdata",
+            "*.RPP-bak",
+            "*/build-*/",
+            "*.ipch",
+            "*.db",
+            "*.suo",
+            "*/.vs",
+            "*.pem",
+            "mkcert*",
+            ".claude/settings.local.json",
+            "__pycache__"
+          ];
+          fs.writeFileSync(gitignorePath, gitignoreLines.join(os.EOL));
+        }
+      }
+
       let repoUrl = null;
       if (createRepo) {
         const token = settings?.integrations?.github?.token;
