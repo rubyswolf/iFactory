@@ -11,6 +11,10 @@ const usage = () => {
   console.log("Commands:");
   console.log("  ping       Play attention sound in iFactory");
   console.log("  templates  List iPlug2 templates for the current project");
+  console.log("  create     Create a plugin from a template");
+  console.log("");
+  console.log("Usage:");
+  console.log("  ifact create <template> [name]");
 };
 
 const command = (process.argv[2] || "").toLowerCase();
@@ -21,6 +25,22 @@ if (!command || command === "help" || command === "--help" || command === "-h") 
 }
 
 const socket = net.createConnection(pipeName, () => {
+  if (command === "create") {
+    const template = args[0];
+    const name = args[1];
+    if (!template) {
+      usage();
+      process.exit(1);
+    }
+    if (name && /\s/.test(name)) {
+      console.error("Name must not include spaces.");
+      process.exit(1);
+    }
+    socket.write(
+      name ? `${command} ${template} ${name}\n` : `${command} ${template}\n`,
+    );
+    return;
+  }
   socket.write(`${command}\n`);
 });
 

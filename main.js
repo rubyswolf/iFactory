@@ -129,6 +129,94 @@ const startAgentServer = () => {
             });
             socket.write(`${lines.join("\n")}\n`);
           }
+        } else if (cmd === "create") {
+          if (activeInstall) {
+            socket.write("error:install_in_progress\n");
+            socket.end();
+            return;
+          }
+          const parts = arg.split(/\s+/).filter(Boolean);
+          const templateInput = parts[0];
+          const name = parts[1] || templateInput;
+          const resolved = resolveTemplateFolder(
+            currentProjectPath,
+            templateInput,
+          );
+          if (resolved.error) {
+            socket.write(`error:${resolved.error}\n`);
+            socket.end();
+            return;
+          }
+          if (!currentProjectPath || !resolved.folder || !name) {
+            socket.write("error:missing_fields\n");
+            socket.end();
+            return;
+          }
+          if (/[^a-zA-Z0-9]/.test(name)) {
+            socket.write("error:invalid_name\n");
+            socket.end();
+            return;
+          }
+          const sourcePath = path.join(
+            currentProjectPath,
+            "iPlug2",
+            "Examples",
+            resolved.folder,
+          );
+          if (!fs.existsSync(sourcePath)) {
+            socket.write("error:template_missing\n");
+            socket.end();
+            return;
+          }
+          const targetPath = path.join(currentProjectPath, name);
+          if (fs.existsSync(targetPath)) {
+            socket.write("error:already_exists\n");
+            socket.end();
+            return;
+          }
+          const configDir = path.join(sourcePath, "config");
+          const oldRoot = getTemplateIPlugRoot(configDir, resolved.folder);
+          const newRoot = getOutOfSourceRoot(currentProjectPath, targetPath);
+          activeInstall = {
+            canceled: false,
+            child: null,
+            request: null,
+          };
+          const cleanupTarget = () => {
+            try {
+              fs.rmSync(targetPath, { recursive: true, force: true });
+            } catch (error) {
+              // ignore cleanup errors
+            }
+          };
+          try {
+            copyDirectory(sourcePath, targetPath, null, () => false);
+            const needsRename = resolved.folder !== name;
+            const needsRootUpdate = Boolean(
+              oldRoot && newRoot && oldRoot !== newRoot,
+            );
+            if (needsRename || needsRootUpdate) {
+              renameTemplateContents(
+                targetPath,
+                resolved.folder,
+                name,
+                "AcmeInc",
+                "AcmeInc",
+                oldRoot,
+                newRoot,
+              );
+            }
+            patchPostbuildScript(targetPath);
+            patchCreateBundleScript(currentProjectPath);
+            socket.write(`ok:${targetPath}\n`);
+          } catch (error) {
+            cleanupTarget();
+            socket.write("error:copy_failed\n");
+          } finally {
+            activeInstall = null;
+            socket.end();
+          }
+          return;
         } else {
           socket.write("error:unknown_command\n");
         }
@@ -823,6 +911,32 @@ const listTemplatesForProject = (projectPath) => {
       return a.folder.localeCompare(b.folder);
     });
   return { templates };
+};
+
+const resolveTemplateFolder = (projectPath, input) => {
+  const trimmed = input?.trim();
+  if (!trimmed) {
+    return { error: "missing_template" };
+  }
+  const result = listTemplatesForProject(projectPath);
+  if (result.error) {
+    return { error: result.error };
+  }
+  const normalized = trimmed.toLowerCase();
+  const direct = result.templates.find(
+    (template) => template.folder.toLowerCase() === normalized,
+  );
+  if (direct) {
+    return { folder: direct.folder };
+  }
+  const formatted = result.templates.find(
+    (template) =>
+      formatTemplateName(template.folder).toLowerCase() === normalized,
+  );
+  if (formatted) {
+    return { folder: formatted.folder };
+  }
+  return { error: "template_missing" };
 };
 
 const sanitizeSettings = (settings) => {
