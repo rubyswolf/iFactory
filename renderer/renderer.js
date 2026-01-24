@@ -239,7 +239,7 @@ const setupGithubOAuth = () => {
         const match = button.dataset.projectItem === activeProjectItem;
         button.classList.toggle(
           "is-active",
-          aiView === "get-started" && match
+          (aiView === "get-started" || aiView === "run") && match
         );
       });
     }
@@ -263,6 +263,11 @@ const setupGithubOAuth = () => {
   const setActiveProjectItem = (name) => {
     activeProjectItem = name || "";
     updateSidebarActive();
+  };
+
+  const getActiveProjectItemType = () => {
+    const match = projectItems.find((item) => item.name === activeProjectItem);
+    return match?.type || "plugin";
   };
 
   const updateAiPanels = () => {
@@ -354,6 +359,9 @@ const setupGithubOAuth = () => {
     buildConsole.hidden = true;
   };
 
+  const waitFrame = () =>
+    new Promise((resolve) => window.requestAnimationFrame(resolve));
+
   const checkBuildTools = async () => {
     if (!window.ifactory?.build?.check) {
       buildToolsInstalled = false;
@@ -405,12 +413,15 @@ const setupGithubOAuth = () => {
       appendBuildOutput("Select a plugin to run.\n");
       return;
     }
+    const itemType = getActiveProjectItemType();
     resetBuildOutput();
     setBuildRunning(true);
+    await waitFrame();
     buildConsole.hidden = false;
     const result = await window.ifactory.build.run({
       projectPath,
       pluginName: activeProjectItem,
+      itemType,
       configuration: "Debug",
       platform: "x64"
     });

@@ -700,6 +700,60 @@ const findSolutionPath = (folderPath, projectName) => {
   }
 };
 
+const findBuiltExe = ({
+  projectRoot,
+  name,
+  configuration = "Debug",
+  platform = "x64",
+  itemType = "plugin"
+}) => {
+  const preferred = itemType === "tool"
+    ? [
+        path.join(projectRoot, platform, configuration, `${name}.exe`),
+        path.join(projectRoot, configuration, `${name}.exe`),
+        path.join(projectRoot, "bin", platform, configuration, `${name}.exe`),
+        path.join(projectRoot, "bin", configuration, `${name}.exe`),
+        path.join(projectRoot, `${name}.exe`),
+        path.join(projectRoot, "build-win", "app", platform, configuration, `${name}.exe`),
+        path.join(projectRoot, "build-win", platform, configuration, `${name}.exe`)
+      ]
+    : [
+        path.join(projectRoot, "build-win", "app", platform, configuration, `${name}.exe`)
+      ];
+  for (const candidate of preferred) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  const searchRoots = itemType === "tool"
+    ? [projectRoot, path.join(projectRoot, "build-win")]
+    : [path.join(projectRoot, "build-win")];
+  const stack = searchRoots.filter((root) => fs.existsSync(root));
+  while (stack.length > 0) {
+    const current = stack.pop();
+    let entries = [];
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch (error) {
+      continue;
+    }
+    for (const entry of entries) {
+      const entryPath = path.join(current, entry.name);
+      if (entry.isFile() && entry.name.toLowerCase() === `${name.toLowerCase()}.exe`) {
+        return entryPath;
+      }
+      if (entry.isDirectory()) {
+        stack.push(entryPath);
+      }
+    }
+  }
+  return "";
+};
+
+const escapePowerShellString = (value) =>
+  String(value || "").replace(/'/g, "''");
+
 const runGitWithProgress = (args, cwd, onProgress, onChild) =>
   new Promise((resolve, reject) => {
     let stderr = "";
@@ -963,6 +1017,7 @@ const registerIpc = () => {
     try {
       const projectPath = payload?.projectPath?.trim();
       const pluginName = payload?.pluginName?.trim();
+      const itemType = payload?.itemType === "tool" ? "tool" : "plugin";
       const configuration = payload?.configuration || "Debug";
       const platform = payload?.platform || "x64";
       if (!projectPath || !pluginName) {
@@ -986,7 +1041,8 @@ const registerIpc = () => {
         return { error: "solution_not_found" };
       }
 
-      const targetName = `${pluginName}-app`;
+      const targetName =
+        itemType === "tool" ? pluginName : `${pluginName}-app`;
       const args = [
         slnPath,
         `/t:${targetName}`,
@@ -1029,31 +1085,56 @@ const registerIpc = () => {
           return;
         }
 
-        const exePath = path.join(
-          pluginPath,
-          "build-win",
-          "app",
-          platform,
+        const exePath = findBuiltExe({
+          projectRoot: pluginPath,
+          name: pluginName,
           configuration,
-          `${pluginName}.exe`
-        );
-        if (!fs.existsSync(exePath)) {
+          platform,
+          itemType
+        });
+        if (!exePath) {
           sendState("error", "Built app executable not found.");
           activeBuild = null;
           return;
         }
 
         try {
-          const exeProcess = spawn(exePath, [], {
-            cwd: path.dirname(exePath),
-            windowsHide: false
-          });
-          activeBuild.exeProcess = exeProcess;
-          sendState("running", `Running ${pluginName}...`);
-          exeProcess.on("close", () => {
-            sendState("complete", "Run finished.");
-            activeBuild = null;
-          });
+          if (itemType === "tool") {
+            const escapedExe = escapePowerShellString(exePath);
+            const escapedCwd = escapePowerShellString(pluginPath);
+            const script = `Start-Process -FilePath '${escapedExe}' -WorkingDirectory '${escapedCwd}' -PassThru | Select-Object -ExpandProperty Id`;
+            const ps = spawn("powershell.exe", ["-NoProfile", "-Command", script], {
+              windowsHide: true
+            });
+            let pidOutput = "";
+            ps.stdout.on("data", (chunk) => {
+              pidOutput += chunk.toString();
+            });
+            ps.stderr.on("data", (chunk) => {
+              sendOutput(chunk.toString(), "stderr");
+            });
+            ps.on("close", () => {
+              const pid = Number.parseInt(pidOutput.trim(), 10);
+              if (!Number.isFinite(pid)) {
+                sendState("error", "Failed to launch tool.");
+                activeBuild = null;
+                return;
+              }
+              activeBuild.exeProcess = { pid };
+              sendState("running", `Running ${pluginName}...`);
+            });
+          } else {
+            const exeProcess = spawn(exePath, [], {
+              cwd: pluginPath,
+              windowsHide: false
+            });
+            activeBuild.exeProcess = exeProcess;
+            sendState("running", `Running ${pluginName}...`);
+            exeProcess.on("close", () => {
+              sendState("complete", "Run finished.");
+              activeBuild = null;
+            });
+          }
         } catch (error) {
           sendState("error", error.message || "Failed to run app.");
           activeBuild = null;
