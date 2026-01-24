@@ -988,6 +988,50 @@ const registerIpc = () => {
     saveSettings();
     return settings.dependencies.git;
   });
+  ipcMain.handle("git:status", (event, payload) => {
+    try {
+      const projectPath = payload?.path?.trim();
+      if (!projectPath) {
+        return { error: "missing_path" };
+      }
+      const result = spawnSync(
+        "git",
+        ["status", "--porcelain=v1", "-z"],
+        {
+          cwd: projectPath,
+          encoding: "utf8",
+          windowsHide: true
+        }
+      );
+      if (result.status !== 0) {
+        return { error: "status_failed" };
+      }
+      const output = String(result.stdout || "");
+      const entries = output.split("\0").filter(Boolean);
+      const changes = entries.map((entry) => {
+        let statusPart = entry.slice(0, 2);
+        let pathPart = entry.slice(2).trimStart();
+        if (/\d/.test(statusPart[1])) {
+          const firstSpace = entry.indexOf(" ");
+          if (firstSpace !== -1) {
+            statusPart = `${entry[0]} `;
+            pathPart = entry.slice(firstSpace + 1).trim();
+          }
+        }
+        if (pathPart.includes("->")) {
+          pathPart = pathPart.split("->").pop().trim();
+        }
+        const status = statusPart[0] !== " " ? statusPart[0] : statusPart[1];
+        return {
+          path: pathPart,
+          status: status || "M"
+        };
+      });
+      return { changes };
+    } catch (error) {
+      return { error: "status_failed" };
+    }
+  });
   ipcMain.handle("codex:check", () => {
     const result = checkCodexInstalled();
     settings.dependencies.codex = {

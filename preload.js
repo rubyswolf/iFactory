@@ -13,7 +13,8 @@ contextBridge.exposeInMainWorld("ifactory", {
   },
   git: {
     check: () => ipcRenderer.invoke("git:check"),
-    skip: () => ipcRenderer.invoke("git:skip")
+    skip: () => ipcRenderer.invoke("git:skip"),
+    status: (payload) => ipcRenderer.invoke("git:status", payload)
   },
   codex: {
     check: () => ipcRenderer.invoke("codex:check")

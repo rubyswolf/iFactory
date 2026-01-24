@@ -552,39 +552,19 @@
                     <div class="git-column git-changes">
                       <div class="git-column-header">
                         <span>Changes</span>
-                        <span class="git-pill">3</span>
+                        <span class="git-pill" data-git-count>0</span>
                       </div>
-                      <div class="git-section-title">Working tree</div>
-                      <div class="git-file-list">
-                        <div class="git-file-item">
-                          <span>Template.cpp</span>
-                          <span class="git-file-status git-file-status--mod"
-                            >M</span
-                          >
-                        </div>
-                        <div class="git-file-item">
-                          <span>config.h</span>
-                          <span class="git-file-status git-file-status--mod"
-                            >M</span
-                          >
-                        </div>
-                        <div class="git-file-item">
-                          <span>resources/skin.svg</span>
-                          <span class="git-file-status git-file-status--new"
-                            >A</span
-                          >
-                        </div>
+                      <div class="git-filter">
+                        <input
+                          class="git-filter-input"
+                          type="text"
+                          placeholder="Filter"
+                          data-git-filter
+                        />
                       </div>
-                      <div class="git-section-title">History</div>
-                      <div class="git-history">
-                        <div class="git-history-item">
-                          <span>Refine filter response</span>
-                          <span class="git-history-meta">5 minutes ago</span>
-                        </div>
-                        <div class="git-history-item">
-                          <span>Update UI layout</span>
-                          <span class="git-history-meta">Yesterday</span>
-                        </div>
+                      <div class="git-file-scroll" data-git-changes></div>
+                      <div class="git-file-empty" data-git-changes-empty hidden>
+                        No local changes yet.
                       </div>
                     </div>
                     <div class="git-column git-commit">
