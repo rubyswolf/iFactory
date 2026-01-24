@@ -960,12 +960,16 @@ body.is-ai:not(.ai-needs-agent) .prompt-dock {
   align-items: center;
   gap: 12px;
   padding: 10px 14px;
-  border-radius: 999px;
+  border-radius: 28px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(12, 16, 24, 0.7);
   box-shadow: 0 20px 40px rgba(5, 8, 14, 0.45);
   transition: box-shadow 280ms ease;
   width: 100%;
+}
+
+.prompt-bar.is-multiline {
+  align-items: flex-end;
 }
 
 .prompt-dock {
@@ -1038,6 +1042,12 @@ body.is-ai:not(.ai-needs-agent) .prompt-dock {
   color: var(--text);
   font-size: 15px;
   font-family: var(--font-body);
+  resize: none;
+  line-height: 24px;
+  height: 24px;
+  padding: 0;
+  overflow: hidden;
+  max-height: calc(24px * 8);
 }
 
 .prompt-input:focus {

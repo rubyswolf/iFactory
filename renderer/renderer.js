@@ -79,6 +79,7 @@ const setupGithubOAuth = () => {
   const agentStatusEl = document.querySelector("[data-agent-status]");
   const promptPanel = document.querySelector("[data-ai-panel=\"prompt\"]");
   const promptDock = document.querySelector("[data-prompt-dock]");
+  const promptBar = promptDock?.querySelector(".prompt-bar");
   const promptInput = document.querySelector("[data-ai-prompt]");
   const promptSendButton = document.querySelector(".prompt-send");
   const gitRepoNameEl = document.querySelector("[data-git-repo-name]");
@@ -150,6 +151,7 @@ const setupGithubOAuth = () => {
   let activeProjectItem = "";
   let projectItems = [];
   let gitChanges = [];
+  let refreshPromptInput = null;
   let gitSelected = new Set();
 
   const sanitizeTemplateName = (value) => value.replace(/[^a-zA-Z0-9]/g, "");
@@ -273,6 +275,9 @@ const setupGithubOAuth = () => {
     document.body.dataset.aiView = view;
     setAi(true);
     updateSidebarActive();
+    if (view === "agent" && typeof refreshPromptInput === "function") {
+      refreshPromptInput();
+    }
     if (view === "get-started") {
       if (buildToolsInstalled) {
         goToRunScreen();
@@ -1373,8 +1378,38 @@ const setupGithubOAuth = () => {
     const updatePromptSendState = () => {
       promptSendButton.disabled = !promptInput.value.trim();
     };
+    const updatePromptHeight = () => {
+      const style = window.getComputedStyle(promptInput);
+      const lineHeight = Number.parseFloat(style.lineHeight) || 24;
+      const maxHeight = lineHeight * 8;
+      promptInput.style.height = "auto";
+      const nextHeight = Math.min(promptInput.scrollHeight, maxHeight);
+      promptInput.style.height = `${Math.max(nextHeight, lineHeight)}px`;
+      promptInput.style.overflowY =
+        promptInput.scrollHeight > maxHeight ? "auto" : "hidden";
+      if (promptBar) {
+        promptBar.classList.toggle(
+          "is-multiline",
+          promptInput.scrollHeight > lineHeight * 1.2
+        );
+      }
+    };
     promptInput.addEventListener("input", updatePromptSendState);
+    promptInput.addEventListener("input", updatePromptHeight);
+    promptInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        if (!promptSendButton.disabled) {
+          runPromptSendTransition();
+        }
+      }
+    });
     updatePromptSendState();
+    updatePromptHeight();
+    refreshPromptInput = () => {
+      updatePromptSendState();
+      updatePromptHeight();
+    };
   }
   if (buildRunButton) {
     buildRunButton.addEventListener("click", async () => {
