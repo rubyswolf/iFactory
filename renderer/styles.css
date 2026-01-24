@@ -540,10 +540,11 @@ body.is-ai .ai-shell {
 .ai-main {
   flex: 1;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
   padding: 48px 28px 22px;
   min-width: 0;
+  position: relative;
 }
 
 .ai-view {
@@ -556,12 +557,56 @@ body.is-ai .ai-shell {
   position: relative;
 }
 
+.ai-chat {
+  width: min(920px, calc(100% - 112px));
+  max-height: calc(100vh - 220px);
+  overflow: auto;
+  padding: 12px 8px 24px;
+  margin-bottom: 16px;
+  display: none;
+  position: absolute;
+  top: 24px;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+}
+
+.ai-chat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ai-chat-bubble {
+  align-self: flex-end;
+  max-width: min(680px, 90%);
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(179, 255, 0, 0.18);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  border: 1px solid rgba(179, 255, 0, 0.4);
+  box-shadow: 0 12px 28px rgba(5, 8, 14, 0.35);
+  white-space: pre-wrap;
+}
+
+body.is-ai[data-ai-view="agent"] .ai-chat {
+  display: block;
+}
+
 body.is-ai[data-ai-view="agent"] .ai-view[data-ai-view="agent"],
 body.is-ai[data-ai-view="templates"] .ai-view[data-ai-view="templates"],
 body.is-ai[data-ai-view="git"] .ai-view[data-ai-view="git"],
 body.is-ai[data-ai-view="get-started"] .ai-view[data-ai-view="get-started"],
 body.is-ai[data-ai-view="run"] .ai-view[data-ai-view="run"] {
   display: flex;
+}
+
+body.is-ai[data-ai-view="agent"] .ai-view[data-ai-view="agent"] {
+  justify-content: flex-start;
+  align-items: center;
+  padding-top: 24px;
 }
 
 [data-ai-panel] {

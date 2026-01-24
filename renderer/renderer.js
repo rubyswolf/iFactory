@@ -82,6 +82,7 @@ const setupGithubOAuth = () => {
   const promptBar = promptDock?.querySelector(".prompt-bar");
   const promptInput = document.querySelector("[data-ai-prompt]");
   const promptSendButton = document.querySelector(".prompt-send");
+  const chatListEl = document.querySelector("[data-ai-chat-list]");
   const gitRepoNameEl = document.querySelector("[data-git-repo-name]");
   const gitRepoPathEl = document.querySelector("[data-git-repo-path]");
   const gitBodyEl = document.querySelector("[data-git-body]");
@@ -277,6 +278,11 @@ const setupGithubOAuth = () => {
     updateSidebarActive();
     if (view === "agent" && typeof refreshPromptInput === "function") {
       refreshPromptInput();
+      if (promptInput) {
+        window.setTimeout(() => {
+          promptInput.focus();
+        }, 0);
+      }
     }
     if (view === "get-started") {
       if (buildToolsInstalled) {
@@ -561,6 +567,17 @@ const setupGithubOAuth = () => {
     }
     promptPanel.classList.add("is-sent");
     promptDock.classList.add("is-sent");
+  };
+
+  const appendChatMessage = (text) => {
+    if (!chatListEl || !text) {
+      return;
+    }
+    const bubble = document.createElement("div");
+    bubble.className = "ai-chat-bubble";
+    bubble.textContent = text;
+    chatListEl.appendChild(bubble);
+    chatListEl.scrollTop = chatListEl.scrollHeight;
   };
 
   const getGitStatusInfo = (status) => {
@@ -1371,6 +1388,10 @@ const setupGithubOAuth = () => {
       if (promptInput && !promptInput.value.trim()) {
         return;
       }
+      if (promptInput) {
+        appendChatMessage(promptInput.value.trim());
+        promptInput.value = "";
+      }
       runPromptSendTransition();
     });
   }
@@ -1400,6 +1421,9 @@ const setupGithubOAuth = () => {
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
         if (!promptSendButton.disabled) {
+          appendChatMessage(promptInput.value.trim());
+          promptInput.value = "";
+          updatePromptSendState();
           runPromptSendTransition();
         }
       }
