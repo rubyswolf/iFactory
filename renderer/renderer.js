@@ -70,6 +70,7 @@ const setupGithubOAuth = () => {
   const createLocationInput = document.querySelector("[data-create-location]");
   const createFolderToggle = document.querySelector("[data-create-folder]");
   const installPath = document.querySelector("[data-install-path]");
+  const createErrorEl = document.querySelector("[data-create-error]");
   const homeButtons = document.querySelectorAll("[data-action-home]");
   const agentNavButton = document.querySelector("[data-ai-nav=\"agent\"]");
   const gitNavButton = document.querySelector("[data-ai-nav=\"git\"]");
@@ -84,6 +85,9 @@ const setupGithubOAuth = () => {
   const gitChangesEmptyEl = document.querySelector("[data-git-changes-empty]");
   const gitChangesCountEl = document.querySelector("[data-git-count]");
   const gitFilterInput = document.querySelector("[data-git-filter]");
+  const gitSummaryInput = document.querySelector("[data-git-summary]");
+  const gitDescriptionInput = document.querySelector("[data-git-description]");
+  const gitCommitButton = document.querySelector(".git-commit-button");
   const openDesktopButton = document.querySelector(
     "[data-open-github-desktop]"
   );
@@ -142,6 +146,7 @@ const setupGithubOAuth = () => {
   let activeProjectItem = "";
   let projectItems = [];
   let gitChanges = [];
+  let gitSelected = new Set();
 
   const sanitizeTemplateName = (value) => value.replace(/[^a-zA-Z0-9]/g, "");
 
@@ -549,6 +554,15 @@ const setupGithubOAuth = () => {
     }
   };
 
+  const updateCommitButton = () => {
+    if (!gitCommitButton) {
+      return;
+    }
+    const summary = gitSummaryInput?.value.trim() || "";
+    const hasSelection = gitSelected.size > 0;
+    gitCommitButton.disabled = !summary || !hasSelection;
+  };
+
   const renderGitChanges = () => {
     if (!gitChangesListEl || !gitChangesEmptyEl) {
       return;
@@ -577,7 +591,15 @@ const setupGithubOAuth = () => {
       checkWrap.className = "git-file-check";
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
-      checkbox.checked = true;
+      checkbox.checked = gitSelected.has(change.path);
+      checkbox.addEventListener("change", () => {
+        if (checkbox.checked) {
+          gitSelected.add(change.path);
+        } else {
+          gitSelected.delete(change.path);
+        }
+        updateCommitButton();
+      });
       checkWrap.appendChild(checkbox);
 
       const name = document.createElement("span");
@@ -617,11 +639,14 @@ const setupGithubOAuth = () => {
         return;
       }
       gitChanges = Array.isArray(result?.changes) ? result.changes : [];
+      gitSelected = new Set(gitChanges.map((change) => change.path));
       renderGitChanges();
     } catch (error) {
       gitChanges = [];
+      gitSelected = new Set();
       renderGitChanges();
     }
+    updateCommitButton();
   };
 
   const setGitRepoState = (isRepo) => {
@@ -634,7 +659,9 @@ const setupGithubOAuth = () => {
       loadGitStatus();
     } else {
       gitChanges = [];
+      gitSelected = new Set();
       renderGitChanges();
+      updateCommitButton();
     }
   };
 
@@ -912,6 +939,7 @@ const setupGithubOAuth = () => {
   const setInstalling = (installing) => {
     document.body.classList.toggle("is-installing", installing);
     if (installing) {
+      document.body.classList.remove("is-installing-run");
       document.body.classList.remove("is-creating");
       document.body.classList.remove("is-ai");
     }
@@ -1256,6 +1284,45 @@ const setupGithubOAuth = () => {
       renderGitChanges();
     });
   }
+  if (gitSummaryInput) {
+    gitSummaryInput.addEventListener("input", () => {
+      updateCommitButton();
+    });
+  }
+  if (gitCommitButton) {
+    gitCommitButton.addEventListener("click", async () => {
+      if (!window.ifactory?.git?.commit) {
+        return;
+      }
+      const summary = gitSummaryInput?.value.trim() || "";
+      if (!summary || gitSelected.size === 0) {
+        updateCommitButton();
+        return;
+      }
+      const projectPath =
+        currentProjectPath || document.body.dataset.projectPath || "";
+      if (!projectPath) {
+        return;
+      }
+      const description = gitDescriptionInput?.value.trim() || "";
+      const result = await window.ifactory.git.commit({
+        path: projectPath,
+        summary,
+        description,
+        files: Array.from(gitSelected)
+      });
+      if (!result?.error) {
+        if (gitSummaryInput) {
+          gitSummaryInput.value = "";
+        }
+        if (gitDescriptionInput) {
+          gitDescriptionInput.value = "";
+        }
+        await loadGitStatus();
+      }
+      updateCommitButton();
+    });
+  }
   if (openDesktopButton) {
     openDesktopButton.addEventListener("click", async () => {
       const projectPath =
@@ -1322,6 +1389,10 @@ const setupGithubOAuth = () => {
       if (!window.ifactory?.project) {
         return;
       }
+      if (createErrorEl) {
+        createErrorEl.hidden = true;
+        createErrorEl.textContent = "";
+      }
       const name = createNameInput?.value.trim() || "";
       const basePath = createLocationInput?.value.trim() || "";
       const createFolder = createFolderToggle?.checked !== false;
@@ -1342,8 +1413,30 @@ const setupGithubOAuth = () => {
           privateRepo
         });
         if (result?.error) {
+          const message =
+            result.error === "folder_exists"
+              ? "That folder already exists. Choose a new name or location."
+              : result.error === "github_not_connected"
+                ? "Connect GitHub before creating a repository."
+                : result.error === "git_required"
+                  ? "Install Git before creating a repository."
+                  : result.error === "missing_fields"
+                    ? "Enter a project name and location first."
+                    : "Unable to create the project. Check your settings and try again.";
+          if (createErrorEl) {
+            createErrorEl.textContent = message;
+            createErrorEl.hidden = false;
+          }
           console.error("Failed to create project", result.error);
           return;
+        }
+        if (result?.repoWarning && createErrorEl) {
+          const warning =
+            result.repoWarning === "repo_exists"
+              ? "A GitHub repo with that name already exists. The workspace was created locally."
+              : "GitHub repo could not be created. The workspace was created locally.";
+          createErrorEl.textContent = warning;
+          createErrorEl.hidden = false;
         }
         updateInstallPath(result.path);
         setInstalling(true);
@@ -1366,11 +1459,19 @@ const setupGithubOAuth = () => {
   }
   backButtons.forEach((button) => {
     button.addEventListener("click", () => {
+      if (createErrorEl) {
+        createErrorEl.hidden = true;
+        createErrorEl.textContent = "";
+      }
       setCreating(false);
     });
   });
   homeButtons.forEach((button) => {
     button.addEventListener("click", () => {
+      if (createErrorEl) {
+        createErrorEl.hidden = true;
+        createErrorEl.textContent = "";
+      }
       setCreating(false);
       setInstalling(false);
       setAi(false);

@@ -1032,6 +1032,46 @@ const registerIpc = () => {
       return { error: "status_failed" };
     }
   });
+  ipcMain.handle("git:commit", (event, payload) => {
+    try {
+      const projectPath = payload?.path?.trim();
+      const summary = payload?.summary?.trim();
+      const description = payload?.description?.trim();
+      const files = Array.isArray(payload?.files) ? payload.files : [];
+      if (!projectPath) {
+        return { error: "missing_path" };
+      }
+      if (!summary) {
+        return { error: "missing_summary" };
+      }
+      if (files.length === 0) {
+        return { error: "missing_files" };
+      }
+      const addResult = spawnSync(
+        "git",
+        ["add", "--", ...files],
+        { cwd: projectPath, encoding: "utf8", windowsHide: true }
+      );
+      if (addResult.status !== 0) {
+        return { error: "add_failed" };
+      }
+      const commitArgs = ["commit", "-m", summary];
+      if (description) {
+        commitArgs.push("-m", description);
+      }
+      const commitResult = spawnSync("git", commitArgs, {
+        cwd: projectPath,
+        encoding: "utf8",
+        windowsHide: true
+      });
+      if (commitResult.status !== 0) {
+        return { error: "commit_failed" };
+      }
+      return { success: true };
+    } catch (error) {
+      return { error: "commit_failed" };
+    }
+  });
   ipcMain.handle("codex:check", () => {
     const result = checkCodexInstalled();
     settings.dependencies.codex = {
@@ -1310,11 +1350,17 @@ const registerIpc = () => {
       }
 
       let repoUrl = null;
+      let repoWarning = "";
       if (createRepo) {
         const token = settings?.integrations?.github?.token;
         if (!token) {
           return { error: "github_not_connected" };
         }
+        const gitState = checkGitInstalled();
+        if (!gitState.installed) {
+          return { error: "git_required" };
+        }
+        runGit(["init"], projectPath);
         const repo = await requestJson("https://api.github.com/user/repos", {
           method: "POST",
           headers: {
@@ -1327,10 +1373,22 @@ const registerIpc = () => {
             name,
             private: privateRepo
           })
+        }).catch((error) => {
+          if (error?.status === 422) {
+            const username = settings?.integrations?.github?.username || "";
+            if (username) {
+              repoUrl = `https://github.com/${username}/${name}`;
+            }
+            repoWarning = "repo_exists";
+          } else {
+            repoWarning = "github_failed";
+          }
+          return null;
         });
-        repoUrl = repo?.html_url || null;
+        if (repo?.html_url) {
+          repoUrl = repo.html_url;
+        }
         if (repoUrl) {
-          runGit(["init"], projectPath);
           runGit(["remote", "add", "origin", repoUrl], projectPath);
         }
       }
@@ -1340,6 +1398,7 @@ const registerIpc = () => {
       return {
         path: projectPath,
         repoUrl,
+        repoWarning,
         needsIPlug: true
       };
     } catch (error) {

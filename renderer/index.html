@@ -278,6 +278,7 @@
                 Cancel
               </button>
             </div>
+            <div class="form-error" data-create-error hidden></div>
           </section>
         </main>
       </div>
@@ -572,18 +573,18 @@
                         <span>Commit</span>
                         <span class="git-branch-pill">main</span>
                       </div>
-                      <label class="git-field-label">Summary</label>
                       <input
                         class="git-input"
                         type="text"
-                        placeholder="Update filter curve"
+                        placeholder="Summary"
+                        data-git-summary
                       />
-                      <label class="git-field-label">Description</label>
                       <textarea
                         class="git-textarea"
-                        placeholder="Optional extended description"
+                        placeholder="Description"
+                        data-git-description
                       ></textarea>
-                      <button class="cta git-commit-button" type="button">
+                      <button class="cta git-commit-button" type="button" disabled>
                         Commit to main
                       </button>
                       <p class="git-hint">
