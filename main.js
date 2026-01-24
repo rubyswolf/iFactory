@@ -1,6 +1,7 @@
 const fs = require("fs");
 const { spawn, spawnSync } = require("child_process");
 const https = require("https");
+const net = require("net");
 const os = require("os");
 const path = require("path");
 const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
@@ -68,6 +69,60 @@ const loadSettings = () => {
     return mergeSettings(JSON.parse(raw));
   } catch (error) {
     return cloneSettings(defaultSettings);
+  }
+};
+
+const loadPrompts = () => {
+  const raw = fs.readFileSync(path.join(__dirname, "prompts.json"), "utf8");
+  const parsed = JSON.parse(raw);
+  if (!parsed?.codex?.system || !Array.isArray(parsed.codex.system)) {
+    throw new Error("prompts.json is missing codex.system");
+  }
+  return parsed;
+};
+
+const getAgentPipePath = () => "\\\\.\\pipe\\ifactory-agent";
+
+const broadcastAgentPing = () => {
+  const windows = BrowserWindow.getAllWindows();
+  windows.forEach((win) => {
+    if (win && !win.isDestroyed()) {
+      win.webContents.send("agent:ping");
+    }
+  });
+};
+
+const startAgentServer = () => {
+  if (agentServer) {
+    return;
+  }
+  try {
+    agentServer = net.createServer((socket) => {
+      socket.setEncoding("utf8");
+      let buffer = "";
+      socket.on("data", (chunk) => {
+        buffer += chunk;
+        if (!buffer.includes("\n")) {
+          return;
+        }
+        const [line] = buffer.split(/\r?\n/);
+        buffer = "";
+        const command = line.trim().toLowerCase();
+        if (command === "ping") {
+          broadcastAgentPing();
+          socket.write("ok\n");
+        } else {
+          socket.write("error:unknown_command\n");
+        }
+        socket.end();
+      });
+    });
+    agentServer.on("error", (error) => {
+      console.error("Agent pipe server error", error);
+    });
+    agentServer.listen(getAgentPipePath());
+  } catch (error) {
+    console.error("Failed to start agent pipe server", error);
   }
 };
 
@@ -650,6 +705,8 @@ const sanitizeSettings = (settings) => {
 let settings = null;
 let activeInstall = null;
 let activeBuild = null;
+let agentServer = null;
+let prompts = null;
 
 const saveSettings = () => {
   const settingsPath = getSettingsPath();
@@ -960,18 +1017,18 @@ const saveSession = (projectPath, session) => {
 };
 
 const buildChatPrompt = (messages) => {
-  const system = [
-    "System: You are the iFactory chat assistant.",
-    "System: Do not run commands or modify files.",
-    "System: Respond conversationally and concisely."
-  ].join("\n");
+  const systemLines = Array.isArray(prompts?.codex?.system)
+    ? prompts.codex.system
+    : [];
+  const system = systemLines.map((line) => `System: ${line}`).join("\n");
   const transcript = messages
     .map((message) => {
       const role = message.role === "assistant" ? "Assistant" : "User";
       return `${role}: ${message.content || ""}`.trim();
     })
     .join("\n\n");
-  return `${system}\n\n${transcript}\n\nAssistant:`;
+  const assistantPrefix = prompts?.codex?.assistant_prefix || "Assistant:";
+  return `${system}\n\n${transcript}\n\n${assistantPrefix}`;
 };
 
 const isCmdScript = (value) => {
@@ -1099,7 +1156,7 @@ const runCodexChat = ({ projectPath, prompt }) =>
       "--cd",
       projectPath,
       "--sandbox",
-      "read-only",
+      "workspace-write",
       "--skip-git-repo-check",
       "--color",
       "never",
@@ -2787,6 +2844,14 @@ const createWindow = () => {
 
 app.whenReady().then(() => {
   settings = loadSettings();
+  try {
+    prompts = loadPrompts();
+  } catch (error) {
+    console.error("Failed to load prompts.json", error);
+    app.exit(1);
+    return;
+  }
+  startAgentServer();
   registerIpc();
   createWindow();
 

@@ -9,6 +9,9 @@
   "scripts": {
     "start": "electron ."
   },
+  "bin": {
+    "ifact": "ifact.js"
+  },
   "devDependencies": {
     "electron": "^29.1.0"
   }

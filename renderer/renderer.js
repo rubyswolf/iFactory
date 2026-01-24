@@ -83,6 +83,13 @@ const setupGithubOAuth = () => {
   const promptInput = document.querySelector("[data-ai-prompt]");
   const promptSendButton = document.querySelector(".prompt-send");
   const chatListEl = document.querySelector("[data-ai-chat-list]");
+  if (window.ifactory?.agent?.onPing) {
+    window.ifactory.agent.onPing(() => {
+      if (window.ifactory?.agent?.ping) {
+        window.ifactory.agent.ping();
+      }
+    });
+  }
   const gitRepoNameEl = document.querySelector("[data-git-repo-name]");
   const gitRepoPathEl = document.querySelector("[data-git-repo-path]");
   const gitBodyEl = document.querySelector("[data-git-body]");
@@ -580,9 +587,34 @@ const setupGithubOAuth = () => {
     }, 260);
   };
 
-  const appendChatMessage = async (text, role = "user", { save = true, tone } = {}) => {
-    if (!chatListEl || !text) {
+  const extractToolCalls = (text) => {
+    if (!text) {
+      return { clean: "", tools: [] };
+    }
+    const tools = [];
+    const cleaned = text.replace(/\[\[tool:([a-z0-9_-]+)\]\]/gi, (match, name) => {
+      tools.push(String(name).toLowerCase());
+      return "";
+    }).replace(/\n{3,}/g, "\n\n").trim();
+    return { clean: cleaned, tools };
+  };
+
+  const handleToolCalls = (tools) => {
+    if (!Array.isArray(tools) || tools.length === 0) {
       return;
+    }
+    if (tools.includes("ping") && window.ifactory?.agent?.ping) {
+      try {
+        window.ifactory.agent.ping();
+      } catch (error) {
+        // ignore ping errors
+      }
+    }
+  };
+
+  const createChatBubble = (role, tone) => {
+    if (!chatListEl) {
+      return null;
     }
     const bubble = document.createElement("div");
     bubble.className = "ai-chat-bubble";
@@ -592,17 +624,12 @@ const setupGithubOAuth = () => {
     if (tone) {
       bubble.classList.add(`ai-chat-bubble--${tone}`);
     }
-    bubble.textContent = text;
     chatListEl.appendChild(bubble);
     chatListEl.scrollTop = chatListEl.scrollHeight;
-    const message = {
-      role,
-      content: text,
-      createdAt: new Date().toISOString()
-    };
-    if (tone === "error") {
-      message.error = true;
-    }
+    return bubble;
+  };
+
+  const persistChatMessage = async (message, save = true) => {
     chatMessages.push(message);
     if (save && window.ifactory?.session?.append && chatProjectPath) {
       try {
@@ -615,6 +642,61 @@ const setupGithubOAuth = () => {
       }
     }
   };
+
+  const appendChatMessage = async (text, role = "user", { save = true, tone } = {}) => {
+    if (!chatListEl || !text) {
+      return;
+    }
+    const bubble = createChatBubble(role, tone);
+    if (!bubble) {
+      return;
+    }
+    bubble.textContent = text;
+    const message = {
+      role,
+      content: text,
+      createdAt: new Date().toISOString()
+    };
+    if (tone === "error") {
+      message.error = true;
+    }
+    await persistChatMessage(message, save);
+  };
+
+  const streamAssistantMessage = (text) =>
+    new Promise((resolve) => {
+      if (!text) {
+        resolve();
+        return;
+      }
+      const bubble = createChatBubble("assistant");
+      if (!bubble) {
+        resolve();
+        return;
+      }
+      bubble.classList.add("is-streaming");
+      let index = 0;
+      const step = 2;
+      const tick = () => {
+        index = Math.min(text.length, index + step);
+        bubble.textContent = text.slice(0, index);
+        chatListEl.scrollTop = chatListEl.scrollHeight;
+        if (index < text.length) {
+          window.requestAnimationFrame(tick);
+        } else {
+          bubble.classList.remove("is-streaming");
+          persistChatMessage(
+            {
+              role: "assistant",
+              content: text,
+              createdAt: new Date().toISOString()
+            },
+            true
+          ).finally(resolve);
+        }
+      };
+      tick();
+    });
 
   const renderChatHistory = (messages) => {
     if (!chatListEl) {
@@ -1520,7 +1602,11 @@ const setupGithubOAuth = () => {
             history
           });
           if (result?.reply) {
-            await appendChatMessage(result.reply, "assistant");
+            const parsed = extractToolCalls(result.reply);
+            handleToolCalls(parsed.tools);
+            if (parsed.clean) {
+              await streamAssistantMessage(parsed.clean);
+            }
           } else {
             await appendChatMessage(
               result?.error === "codex_missing"
@@ -1584,18 +1670,22 @@ const setupGithubOAuth = () => {
               setCodexBusy(false);
               return;
             }
-            const result = await window.ifactory.codex.chat({
-              path: projectPath,
-              message: text,
-              history
-            });
-            if (result?.reply) {
-              await appendChatMessage(result.reply, "assistant");
-            } else {
-              await appendChatMessage(
-                result?.error === "codex_missing"
-                  ? "Codex CLI was not found. Install it to continue."
-                  : result?.details
+          const result = await window.ifactory.codex.chat({
+            path: projectPath,
+            message: text,
+            history
+          });
+          if (result?.reply) {
+            const parsed = extractToolCalls(result.reply);
+            handleToolCalls(parsed.tools);
+            if (parsed.clean) {
+              await streamAssistantMessage(parsed.clean);
+            }
+          } else {
+            await appendChatMessage(
+              result?.error === "codex_missing"
+                ? "Codex CLI was not found. Install it to continue."
+                : result?.details
                     ? result.details
                     : "Unable to reach Codex right now.",
                 "assistant",

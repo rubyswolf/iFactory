@@ -21,6 +21,28 @@ contextBridge.exposeInMainWorld("ifactory", {
     check: () => ipcRenderer.invoke("codex:check"),
     chat: (payload) => ipcRenderer.invoke("codex:chat", payload)
   },
+  agent: {
+    ping: () => {
+      try {
+        const windir = (process?.env?.WINDIR) || "C:\\Windows";
+        const soundPath = `${windir}\\Media\\Windows Hardware Fail.wav`;
+        const fileUrl = `file:///${soundPath.replace(/\\/g, "/")}`;
+        const audio = new Audio(fileUrl);
+        audio.volume = 1;
+        return audio.play();
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    },
+    onPing: (callback) => {
+      if (typeof callback !== "function") {
+        return () => {};
+      }
+      const listener = () => callback();
+      ipcRenderer.on("agent:ping", listener);
+      return () => ipcRenderer.removeListener("agent:ping", listener);
+    }
+  },
   build: {
     check: () => ipcRenderer.invoke("build:check"),
     run: (payload) => ipcRenderer.invoke("build:run", payload),
