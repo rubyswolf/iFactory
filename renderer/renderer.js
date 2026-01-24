@@ -77,6 +77,10 @@ const setupGithubOAuth = () => {
   const createNavButton = document.querySelector("[data-ai-create]");
   const projectItemsEl = document.querySelector("[data-project-items]");
   const agentStatusEl = document.querySelector("[data-agent-status]");
+  const promptPanel = document.querySelector("[data-ai-panel=\"prompt\"]");
+  const promptDock = document.querySelector("[data-prompt-dock]");
+  const promptInput = document.querySelector("[data-ai-prompt]");
+  const promptSendButton = document.querySelector(".prompt-send");
   const gitRepoNameEl = document.querySelector("[data-git-repo-name]");
   const gitRepoPathEl = document.querySelector("[data-git-repo-path]");
   const gitBodyEl = document.querySelector("[data-git-body]");
@@ -156,6 +160,15 @@ const setupGithubOAuth = () => {
     }
     const nameValue = templateNameInput?.value.trim() || "";
     templateContinueButton.disabled = !selectedTemplate || !nameValue;
+  };
+
+  const updateCreateSubmit = () => {
+    if (!createSubmitButton) {
+      return;
+    }
+    const nameValue = createNameInput?.value.trim() || "";
+    const baseValue = createLocationInput?.value.trim() || "";
+    createSubmitButton.disabled = !nameValue || !baseValue;
   };
 
   const getInstallApi = () => {
@@ -532,6 +545,17 @@ const setupGithubOAuth = () => {
     const name = parts[parts.length - 1] || currentProjectPath;
     gitRepoNameEl.textContent = name;
     gitRepoPathEl.textContent = currentProjectPath;
+  };
+
+  const runPromptSendTransition = () => {
+    if (!promptPanel || !promptSendButton || !promptDock) {
+      return;
+    }
+    if (promptPanel.classList.contains("is-sent")) {
+      return;
+    }
+    promptPanel.classList.add("is-sent");
+    promptDock.classList.add("is-sent");
   };
 
   const getGitStatusInfo = (status) => {
@@ -1337,6 +1361,21 @@ const setupGithubOAuth = () => {
       }
     });
   }
+  if (promptSendButton) {
+    promptSendButton.addEventListener("click", () => {
+      if (promptInput && !promptInput.value.trim()) {
+        return;
+      }
+      runPromptSendTransition();
+    });
+  }
+  if (promptInput && promptSendButton) {
+    const updatePromptSendState = () => {
+      promptSendButton.disabled = !promptInput.value.trim();
+    };
+    promptInput.addEventListener("input", updatePromptSendState);
+    updatePromptSendState();
+  }
   if (buildRunButton) {
     buildRunButton.addEventListener("click", async () => {
       if (buildRunning) {
@@ -1446,6 +1485,13 @@ const setupGithubOAuth = () => {
       }
     });
   }
+  if (createNameInput) {
+    createNameInput.addEventListener("input", updateCreateSubmit);
+  }
+  if (createLocationInput) {
+    createLocationInput.addEventListener("input", updateCreateSubmit);
+  }
+  updateCreateSubmit();
   if (createRepoToggle) {
     createRepoToggle.addEventListener("change", () => {
       if (createRepoToggle.checked && !githubConnected) {
@@ -1708,6 +1754,7 @@ const setupCreateForm = () => {
       const folder = await window.ifactory.dialog.selectFolder();
       if (folder) {
         locationInput.value = folder;
+        locationInput.dispatchEvent(new Event("input", { bubbles: true }));
         updateSuffix();
       }
     } catch (error) {

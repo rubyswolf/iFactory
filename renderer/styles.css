@@ -553,6 +553,7 @@ body.is-ai .ai-shell {
   justify-content: center;
   flex-direction: column;
   min-width: 0;
+  position: relative;
 }
 
 body.is-ai[data-ai-view="agent"] .ai-view[data-ai-view="agent"],
@@ -573,6 +574,10 @@ body.is-ai.ai-needs-agent [data-ai-panel="agent"] {
 
 body.is-ai:not(.ai-needs-agent) [data-ai-panel="prompt"] {
   display: block;
+}
+
+body.is-ai:not(.ai-needs-agent) .prompt-dock {
+  display: flex;
 }
 
 .agent-panel {
@@ -959,6 +964,59 @@ body.is-ai:not(.ai-needs-agent) [data-ai-panel="prompt"] {
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(12, 16, 24, 0.7);
   box-shadow: 0 20px 40px rgba(5, 8, 14, 0.45);
+  transition: box-shadow 280ms ease;
+  width: 100%;
+}
+
+.prompt-dock {
+  width: min(720px, calc(100% - 112px));
+  position: fixed;
+  left: 84px;
+  right: 28px;
+  bottom: 24px;
+  margin: 0 auto;
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 5;
+}
+
+[data-ai-panel="prompt"] .eyebrow,
+[data-ai-panel="prompt"] h2,
+[data-ai-panel="prompt"] .card-meta {
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease,
+    max-height 160ms ease,
+    margin 160ms ease;
+  max-height: 120px;
+  overflow: hidden;
+}
+
+[data-ai-panel="prompt"].is-sent .eyebrow,
+[data-ai-panel="prompt"].is-sent h2,
+[data-ai-panel="prompt"].is-sent .card-meta {
+  opacity: 0;
+  transform: translateY(-6px);
+  max-height: 0;
+  margin: 0;
+}
+
+[data-ai-panel="prompt"].is-sent {
+  opacity: 0 !important;
+}
+
+[data-ai-panel="prompt"] {
+  transition:
+    opacity 240ms ease;
+}
+
+.prompt-dock.is-sent .prompt-bar {
+  transform: none;
+}
+
+body.is-ai:not(.ai-needs-agent) .prompt-dock {
+  align-items: center;
 }
 
 .prompt-addon {
@@ -999,6 +1057,14 @@ body.is-ai:not(.ai-needs-agent) [data-ai-panel="prompt"] {
   text-transform: uppercase;
   cursor: pointer;
   box-shadow: 0 10px 24px var(--accent-soft);
+}
+
+.prompt-send:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  background: linear-gradient(120deg, rgba(129, 160, 120, 0.6), rgba(139, 175, 120, 0.6));
 }
 
 .templates-actions {

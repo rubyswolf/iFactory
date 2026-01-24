@@ -441,8 +441,9 @@ const patchPostbuildScript = (projectPath) => {
     }
     return replaced;
   });
-  if (changed) {
-    fs.writeFileSync(scriptPath, patched.join(os.EOL));
+  const patchedContent = patched.join(os.EOL);
+  if (patchedContent !== content) {
+    fs.writeFileSync(scriptPath, patchedContent);
   }
 };
 
