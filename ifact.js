@@ -9,10 +9,12 @@ const usage = () => {
   console.log("ifact <command>");
   console.log("");
   console.log("Commands:");
-  console.log("  ping   Play attention sound in iFactory");
+  console.log("  ping       Play attention sound in iFactory");
+  console.log("  templates  List iPlug2 templates for the current project");
 };
 
 const command = (process.argv[2] || "").toLowerCase();
+const args = process.argv.slice(3);
 if (!command || command === "help" || command === "--help" || command === "-h") {
   usage();
   process.exit(0);
@@ -27,8 +29,12 @@ socket.setEncoding("utf8");
 socket.on("data", (data) => {
   const message = data.toString().trim();
   if (message && message !== "ok") {
-    console.error(message);
-    process.exitCode = 1;
+    if (message.startsWith("error:")) {
+      console.error(message);
+      process.exitCode = 1;
+    } else {
+      console.log(message);
+    }
   }
 });
 

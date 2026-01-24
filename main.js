@@ -110,10 +110,25 @@ const startAgentServer = () => {
         }
         const [line] = buffer.split(/\r?\n/);
         buffer = "";
-        const command = line.trim().toLowerCase();
-        if (command === "ping") {
+        const trimmed = line.trim();
+        const cmd = trimmed.split(" ")[0]?.toLowerCase() || "";
+        const arg = trimmed.slice(cmd.length).trim();
+        if (cmd === "ping") {
           broadcastAgentPing();
           socket.write("ok\n");
+        } else if (cmd === "templates") {
+          const result = listTemplatesForProject(currentProjectPath);
+          if (result.error) {
+            socket.write(`error:${result.error}\n`);
+          } else {
+            const lines = result.templates.map((template) => {
+              const description = template.description || "";
+              return description
+                ? `${template.folder}: ${description}`
+                : `${template.folder}`;
+            });
+            socket.write(`${lines.join("\n")}\n`);
+          }
         } else {
           socket.write("error:unknown_command\n");
         }
@@ -754,6 +769,62 @@ const formatTemplateName = (folderName) => {
   return output.trim() || folderName;
 };
 
+const listTemplatesForProject = (projectPath) => {
+  if (!projectPath) {
+    return { error: "no_project", templates: [] };
+  }
+  const examplesPath = path.join(projectPath, "iPlug2", "Examples");
+  if (!fs.existsSync(examplesPath)) {
+    return { error: "examples_missing", templates: [] };
+  }
+  const entries = fs.readdirSync(examplesPath, { withFileTypes: true });
+  const templates = entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => {
+      const folder = entry.name;
+      const readmePath = path.join(examplesPath, folder, "README.md");
+      let description = "";
+      try {
+        if (fs.existsSync(readmePath)) {
+          const content = fs.readFileSync(readmePath, "utf8");
+          const lines = content.split(/\r?\n/);
+          if (lines.length > 1) {
+            for (let i = 1; i < lines.length; i += 1) {
+              const candidate = lines[i].trim();
+              if (candidate) {
+                description = candidate.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+                break;
+              }
+            }
+          }
+        }
+      } catch (error) {
+        description = "";
+      }
+      return {
+        folder,
+        description
+      };
+    })
+    .sort((a, b) => {
+      const priority = (item) => {
+        if (item.folder === "IPlugEffect") {
+          return 0;
+        }
+        if (item.folder === "IPlugInstrument") {
+          return 1;
+        }
+        return 2;
+      };
+      const priorityDiff = priority(a) - priority(b);
+      if (priorityDiff !== 0) {
+        return priorityDiff;
+      }
+      return a.folder.localeCompare(b.folder);
+    });
+  return { templates };
+};
+
 const sanitizeSettings = (settings) => {
   const sanitized = cloneSettings(settings);
   const github = sanitized.integrations.github;
@@ -767,6 +838,7 @@ let activeInstall = null;
 let activeBuild = null;
 let agentServer = null;
 let prompts = null;
+let currentProjectPath = "";
 
 const saveSettings = () => {
   const settingsPath = getSettingsPath();
@@ -1865,6 +1937,7 @@ const registerIpc = () => {
       }
 
       pushRecentProject({ name, projectPath });
+      currentProjectPath = projectPath;
 
       return {
         path: projectPath,
@@ -1901,6 +1974,7 @@ const registerIpc = () => {
         isRepo = false;
       }
       pushRecentProject({ projectPath });
+      currentProjectPath = projectPath;
       return {
         path: projectPath,
         needsIPlug,
