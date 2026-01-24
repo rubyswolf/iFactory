@@ -974,8 +974,122 @@ const buildChatPrompt = (messages) => {
   return `${system}\n\n${transcript}\n\nAssistant:`;
 };
 
+const isCmdScript = (value) => {
+  const lower = value.toLowerCase();
+  return lower.endsWith(".cmd") || lower.endsWith(".bat");
+};
+
+const isPsScript = (value) => value.toLowerCase().endsWith(".ps1");
+
+const getExtendedPath = () => {
+  const home = process.env.USERPROFILE || "";
+  const appdata = process.env.APPDATA || "";
+  const localAppData = process.env.LOCALAPPDATA || "";
+  const pnpmHome = process.env.PNPM_HOME || "";
+  const yarnHome = process.env.YARN_HOME || "";
+  const bunInstall = process.env.BUN_INSTALL || "";
+  const currentPath = process.env.PATH || "";
+  const extraPaths = [
+    home ? path.join(home, ".codex", "bin") : "",
+    home ? path.join(home, ".claude", "bin") : "",
+    home ? path.join(home, ".cargo", "bin") : "",
+    home ? path.join(home, "AppData", "Roaming", "npm") : "",
+    home ? path.join(home, "AppData", "Local", "npm") : "",
+    home ? path.join(home, "AppData", "Roaming", "pnpm") : "",
+    home ? path.join(home, "AppData", "Local", "Yarn", "bin") : "",
+    home ? path.join(home, "AppData", "Local", "Programs", "Microsoft VS Code", "bin") : "",
+    home ? path.join(home, "AppData", "Local", "Programs", "VSCodium", "bin") : "",
+    home ? path.join(home, "AppData", "Local", "Programs", "Cursor", "resources", "app", "bin") : "",
+    home ? path.join(home, "AppData", "Local", "Microsoft", "WindowsApps") : "",
+    "C:\\Program Files\\nodejs",
+    "C:\\Program Files\\Git\\bin",
+    "C:\\Program Files\\Microsoft VS Code\\bin",
+    "C:\\Program Files (x86)\\Microsoft VS Code\\bin"
+  ];
+  if (appdata) {
+    extraPaths.push(path.join(appdata, "npm"));
+    extraPaths.push(path.join(appdata, "pnpm"));
+  }
+  if (localAppData) {
+    extraPaths.push(path.join(localAppData, "npm"));
+    extraPaths.push(path.join(localAppData, "Yarn", "bin"));
+  }
+  if (pnpmHome) {
+    extraPaths.push(pnpmHome);
+  }
+  if (yarnHome) {
+    extraPaths.push(yarnHome);
+  }
+  if (bunInstall) {
+    extraPaths.push(path.join(bunInstall, "bin"));
+  }
+  const filtered = extraPaths.filter((entry) => entry);
+  return `${filtered.join(";")};${currentPath}`;
+};
+
+const findCodexInPath = (name) => {
+  const result = spawnSync("cmd", ["/c", "where", name], {
+    encoding: "utf8",
+    windowsHide: true
+  });
+  if (result.error || result.status !== 0) {
+    return "";
+  }
+  const line = String(result.stdout || "").split(/\r?\n/)[0].trim();
+  return line || "";
+};
+
+const resolveCodexCommand = () => {
+  const envPath = process.env.CODEX_CLI_PATH || "";
+  if (envPath && fs.existsSync(envPath)) {
+    return envPath;
+  }
+  const candidates = ["codex.cmd", "codex.ps1", "codex.exe", "codex"];
+  for (const candidate of candidates) {
+    const found = findCodexInPath(candidate);
+    if (found) {
+      return found;
+    }
+  }
+  const home = process.env.USERPROFILE || "";
+  if (home) {
+    const localCandidates = [
+      path.join(home, "AppData", "Roaming", "npm", "codex.cmd"),
+      path.join(home, "AppData", "Local", "npm", "codex.cmd"),
+      path.join(home, "AppData", "Roaming", "npm", "codex.exe"),
+      path.join(home, "AppData", "Local", "npm", "codex.exe"),
+      path.join(home, "AppData", "Roaming", "npm", "codex.ps1"),
+      path.join(home, "AppData", "Local", "npm", "codex.ps1")
+    ];
+    for (const candidate of localCandidates) {
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
+    }
+  }
+  return "";
+};
+
+const spawnCodex = (codexPath, args, options) => {
+  if (isCmdScript(codexPath)) {
+    return spawn("cmd", ["/C", codexPath, ...args], options);
+  }
+  if (isPsScript(codexPath)) {
+    return spawn(
+      "powershell",
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", codexPath, ...args],
+      options
+    );
+  }
+  return spawn(codexPath, args, options);
+};
+
 const runCodexChat = ({ projectPath, prompt }) =>
   new Promise((resolve, reject) => {
+    const codexPath = resolveCodexCommand();
+    if (!codexPath) {
+      return reject(new Error("Codex CLI not found"));
+    }
     const tempPath = path.join(
       os.tmpdir(),
       `ifactory-codex-${Date.now()}-${Math.random().toString(16).slice(2)}.txt`
@@ -986,16 +1100,21 @@ const runCodexChat = ({ projectPath, prompt }) =>
       projectPath,
       "--sandbox",
       "read-only",
-      "--ask-for-approval",
-      "never",
       "--skip-git-repo-check",
+      "--color",
+      "never",
       "--output-last-message",
       tempPath,
       "-"
     ];
-    const child = spawn("codex", args, {
+    const env = {
+      ...process.env,
+      PATH: getExtendedPath()
+    };
+    const child = spawnCodex(codexPath, args, {
       cwd: projectPath,
-      windowsHide: true
+      windowsHide: true,
+      env
     });
     let stderr = "";
     child.stderr.on("data", (chunk) => {
@@ -1003,11 +1122,6 @@ const runCodexChat = ({ projectPath, prompt }) =>
     });
     child.on("error", reject);
     child.on("close", (code) => {
-      if (code !== 0) {
-        return reject(
-          new Error(stderr || `Codex exited with code ${code}`)
-        );
-      }
       let output = "";
       try {
         output = fs.readFileSync(tempPath, "utf8").trim();
@@ -1015,6 +1129,14 @@ const runCodexChat = ({ projectPath, prompt }) =>
         output = "";
       }
       fs.rmSync(tempPath, { force: true });
+      if (code !== 0 || !output) {
+        return reject(
+          new Error(
+            stderr ||
+              "Codex did not return a response. Ensure you are logged in."
+          )
+        );
+      }
       resolve(output);
     });
     try {
@@ -1220,7 +1342,7 @@ const registerIpc = () => {
       const reply = await runCodexChat({ projectPath, prompt });
       return { reply };
     } catch (error) {
-      return { error: "codex_failed" };
+      return { error: "codex_failed", details: error?.message || "" };
     }
   });
   ipcMain.handle("build:check", () => {

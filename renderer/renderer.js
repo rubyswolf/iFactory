@@ -1525,7 +1525,9 @@ const setupGithubOAuth = () => {
             await appendChatMessage(
               result?.error === "codex_missing"
                 ? "Codex CLI was not found. Install it to continue."
-                : "Unable to reach Codex right now.",
+                : result?.details
+                  ? result.details
+                  : "Unable to reach Codex right now.",
               "assistant",
               { tone: "error" }
             );
@@ -1593,7 +1595,9 @@ const setupGithubOAuth = () => {
               await appendChatMessage(
                 result?.error === "codex_missing"
                   ? "Codex CLI was not found. Install it to continue."
-                  : "Unable to reach Codex right now.",
+                  : result?.details
+                    ? result.details
+                    : "Unable to reach Codex right now.",
                 "assistant",
                 { tone: "error" }
               );
