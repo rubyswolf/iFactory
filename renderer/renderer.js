@@ -72,9 +72,17 @@ const setupGithubOAuth = () => {
   const installPath = document.querySelector("[data-install-path]");
   const homeButtons = document.querySelectorAll("[data-action-home]");
   const agentNavButton = document.querySelector("[data-ai-nav=\"agent\"]");
+  const gitNavButton = document.querySelector("[data-ai-nav=\"git\"]");
   const createNavButton = document.querySelector("[data-ai-create]");
   const projectItemsEl = document.querySelector("[data-project-items]");
   const agentStatusEl = document.querySelector("[data-agent-status]");
+  const gitRepoNameEl = document.querySelector("[data-git-repo-name]");
+  const gitRepoPathEl = document.querySelector("[data-git-repo-path]");
+  const gitBodyEl = document.querySelector("[data-git-body]");
+  const gitEmptyEl = document.querySelector("[data-git-empty]");
+  const openDesktopButton = document.querySelector(
+    "[data-open-github-desktop]"
+  );
   const buildStatusEl = document.querySelector("[data-build-status]");
   const buildCheckButton = document.querySelector("[data-build-check]");
   const buildOpenButton = document.querySelector("[data-build-open]");
@@ -218,6 +226,9 @@ const setupGithubOAuth = () => {
   const updateSidebarActive = () => {
     if (agentNavButton) {
       agentNavButton.classList.toggle("is-active", aiView === "agent");
+    }
+    if (gitNavButton) {
+      gitNavButton.classList.toggle("is-active", aiView === "git");
     }
     if (createNavButton) {
       createNavButton.classList.toggle("is-active", aiView === "templates");
@@ -484,6 +495,29 @@ const setupGithubOAuth = () => {
     });
   };
 
+  const updateGitRepoHeader = () => {
+    if (!gitRepoNameEl || !gitRepoPathEl) {
+      return;
+    }
+    if (!currentProjectPath) {
+      gitRepoNameEl.textContent = "No repository";
+      gitRepoPathEl.textContent = "Open a project to see its repository";
+      return;
+    }
+    const parts = currentProjectPath.split(/[/\\]/).filter(Boolean);
+    const name = parts[parts.length - 1] || currentProjectPath;
+    gitRepoNameEl.textContent = name;
+    gitRepoPathEl.textContent = currentProjectPath;
+  };
+
+  const setGitRepoState = (isRepo) => {
+    if (!gitBodyEl || !gitEmptyEl) {
+      return;
+    }
+    gitBodyEl.hidden = !isRepo;
+    gitEmptyEl.hidden = isRepo;
+  };
+
   const openPluginScreen = async (name) => {
     setActiveProjectItem(name);
     setAiView("get-started");
@@ -716,6 +750,7 @@ const setupGithubOAuth = () => {
     try {
       const projects = await window.ifactory.recents.get();
       renderRecents(projects);
+      setGitRepoState(false);
     } catch (error) {
       console.error("Failed to load recent projects", error);
     }
@@ -776,6 +811,7 @@ const setupGithubOAuth = () => {
       installPath.textContent = currentProjectPath || "Not set";
     }
     document.body.dataset.projectPath = currentProjectPath;
+    updateGitRepoHeader();
   };
 
   const updateSetupState = () => {
@@ -842,6 +878,7 @@ const setupGithubOAuth = () => {
         return result;
       }
       updateInstallPath(result.path);
+      setGitRepoState(Boolean(result?.isGitRepo));
       await loadProjectItems(result.path);
       setActiveProjectItem("");
       if (result.needsIPlug) {
@@ -1089,6 +1126,25 @@ const setupGithubOAuth = () => {
       await showProjectEditor("agent");
     });
   }
+  if (gitNavButton) {
+    gitNavButton.addEventListener("click", () => {
+      setAiView("git");
+    });
+  }
+  if (openDesktopButton) {
+    openDesktopButton.addEventListener("click", async () => {
+      const projectPath =
+        currentProjectPath || document.body.dataset.projectPath || "";
+      if (!projectPath || !window.ifactory?.githubDesktop?.open) {
+        return;
+      }
+      try {
+        await window.ifactory.githubDesktop.open({ path: projectPath });
+      } catch (error) {
+        console.error("Failed to open GitHub Desktop", error);
+      }
+    });
+  }
   if (buildRunButton) {
     buildRunButton.addEventListener("click", async () => {
       if (buildRunning) {
@@ -1307,6 +1363,7 @@ const setupGithubOAuth = () => {
     });
   }
 
+  updateGitRepoHeader();
   loadGithub();
   loadRecents();
 };

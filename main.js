@@ -857,6 +857,31 @@ const checkBuildToolsInstalled = () => {
   return { installed: false, path: "" };
 };
 
+const getGithubDesktopCommand = () => {
+  const result = spawnSync(
+    "reg",
+    ["query", "HKCR\\x-github-client\\shell\\open\\command", "/ve"],
+    { encoding: "utf8", windowsHide: true }
+  );
+  if (result.error || result.status !== 0) {
+    return "";
+  }
+  const output = String(result.stdout || "");
+  const match = output.match(/\"([^\"]+GitHubDesktop\.exe)\"/i);
+  if (match && match[1]) {
+    return match[1];
+  }
+  const unquoted = output.match(/REG_SZ\s+([^\r\n]+)/i);
+  if (unquoted && unquoted[1]) {
+    const trimmed = unquoted[1].trim();
+    const exeMatch = trimmed.match(/([A-Z]:[^\"]+GitHubDesktop\.exe)/i);
+    return exeMatch ? exeMatch[1] : "";
+  }
+  return "";
+};
+
+const isGithubDesktopInstalled = () => Boolean(getGithubDesktopCommand());
+
 const pushRecentProject = ({ name, projectPath }) => {
   if (!projectPath) {
     return;
@@ -1069,6 +1094,23 @@ const registerIpc = () => {
     }
     return { stopped: true };
   });
+  ipcMain.handle("github-desktop:open", async (event, payload) => {
+    const projectPath = payload?.path?.trim();
+    if (!projectPath) {
+      return { error: "missing_path" };
+    }
+    const command = getGithubDesktopCommand();
+    if (command && fs.existsSync(command)) {
+      spawn(command, ["--cli-open", projectPath], {
+        detached: true,
+        windowsHide: true,
+        stdio: "ignore"
+      }).unref();
+      return { installed: true };
+    }
+    await shell.openExternal("https://desktop.github.com/download/");
+    return { installed: false };
+  });
   ipcMain.handle("recents:remove", (event, payload) => {
     const removePath = payload?.path?.trim();
     if (!removePath) {
@@ -1195,8 +1237,16 @@ const registerIpc = () => {
         const depsPath = getDepsBuildPath(iPlugPath);
         needsDependencies = !depsPath || !fs.existsSync(depsPath);
       }
+      let isRepo = false;
+      try {
+        isRepo = fs.existsSync(path.join(projectPath, ".git"))
+          ? isGitRepo(projectPath)
+          : false;
+      } catch (error) {
+        isRepo = false;
+      }
       pushRecentProject({ projectPath });
-      return { path: projectPath, needsIPlug, needsDependencies };
+      return { path: projectPath, needsIPlug, needsDependencies, isGitRepo: isRepo };
     } catch (error) {
       return { error: "open_failed" };
     }

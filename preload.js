@@ -63,6 +63,9 @@ contextBridge.exposeInMainWorld("ifactory", {
     listRepoBranches: (fullName) =>
       ipcRenderer.invoke("github:listRepoBranches", { fullName })
   },
+  githubDesktop: {
+    open: (payload) => ipcRenderer.invoke("github-desktop:open", payload)
+  },
   windowControls: {
     minimize: () => ipcRenderer.invoke("window:minimize"),
     maximize: () => ipcRenderer.invoke("window:maximize"),
