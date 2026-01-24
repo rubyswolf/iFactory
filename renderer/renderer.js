@@ -153,6 +153,9 @@ const setupGithubOAuth = () => {
   let projectItems = [];
   let gitChanges = [];
   let refreshPromptInput = null;
+  let chatMessages = [];
+  let chatProjectPath = "";
+  let codexBusy = false;
   let gitSelected = new Set();
 
   const sanitizeTemplateName = (value) => value.replace(/[^a-zA-Z0-9]/g, "");
@@ -282,6 +285,11 @@ const setupGithubOAuth = () => {
         window.setTimeout(() => {
           promptInput.focus();
         }, 0);
+      }
+      const projectPath =
+        currentProjectPath || document.body.dataset.projectPath || "";
+      if (projectPath && projectPath !== chatProjectPath) {
+        loadChatSession(projectPath);
       }
     }
     if (view === "get-started") {
@@ -567,17 +575,110 @@ const setupGithubOAuth = () => {
     }
     promptPanel.classList.add("is-sent");
     promptDock.classList.add("is-sent");
+    window.setTimeout(() => {
+      promptPanel.classList.add("is-hidden");
+    }, 260);
   };
 
-  const appendChatMessage = (text) => {
+  const appendChatMessage = async (text, role = "user", { save = true, tone } = {}) => {
     if (!chatListEl || !text) {
       return;
     }
     const bubble = document.createElement("div");
     bubble.className = "ai-chat-bubble";
+    if (role === "assistant") {
+      bubble.classList.add("ai-chat-bubble--assistant");
+    }
+    if (tone) {
+      bubble.classList.add(`ai-chat-bubble--${tone}`);
+    }
     bubble.textContent = text;
     chatListEl.appendChild(bubble);
     chatListEl.scrollTop = chatListEl.scrollHeight;
+    const message = {
+      role,
+      content: text,
+      createdAt: new Date().toISOString()
+    };
+    if (tone === "error") {
+      message.error = true;
+    }
+    chatMessages.push(message);
+    if (save && window.ifactory?.session?.append && chatProjectPath) {
+      try {
+        await window.ifactory.session.append({
+          path: chatProjectPath,
+          message
+        });
+      } catch (error) {
+        // ignore persistence errors
+      }
+    }
+  };
+
+  const renderChatHistory = (messages) => {
+    if (!chatListEl) {
+      return;
+    }
+    chatListEl.innerHTML = "";
+    chatMessages = Array.isArray(messages) ? messages : [];
+    chatMessages.forEach((message) => {
+      const bubble = document.createElement("div");
+      bubble.className = "ai-chat-bubble";
+      if (message.role === "assistant") {
+        bubble.classList.add("ai-chat-bubble--assistant");
+      }
+      if (message.error) {
+        bubble.classList.add("ai-chat-bubble--error");
+      }
+      bubble.textContent = message.content || "";
+      chatListEl.appendChild(bubble);
+    });
+    chatListEl.scrollTop = chatListEl.scrollHeight;
+  };
+
+  const loadChatSession = async (projectPath) => {
+    if (!window.ifactory?.session?.load || !projectPath) {
+      return;
+    }
+    try {
+      const result = await window.ifactory.session.load({ path: projectPath });
+      if (result?.error) {
+        return;
+      }
+      chatProjectPath = projectPath;
+      const sessionMessages = result?.session?.messages || [];
+      renderChatHistory(sessionMessages);
+      if (promptPanel && promptDock) {
+        if (sessionMessages.length > 0) {
+          promptPanel.classList.add("is-sent");
+          promptPanel.classList.add("is-hidden");
+          promptDock.classList.add("is-sent");
+        } else {
+          promptPanel.classList.remove("is-sent", "is-hidden");
+          promptDock.classList.remove("is-sent");
+        }
+      }
+    } catch (error) {
+      // ignore load errors
+    }
+  };
+
+  const ensureChatProjectPath = () => {
+    const projectPath =
+      currentProjectPath || document.body.dataset.projectPath || "";
+    if (projectPath) {
+      chatProjectPath = projectPath;
+    }
+    return projectPath;
+  };
+
+  const setCodexBusy = (busy) => {
+    codexBusy = busy;
+    if (promptSendButton) {
+      const value = promptInput?.value.trim() || "";
+      promptSendButton.disabled = busy || !value;
+    }
   };
 
   const getGitStatusInfo = (status) => {
@@ -1006,6 +1107,10 @@ const setupGithubOAuth = () => {
     }
     document.body.dataset.projectPath = currentProjectPath;
     updateGitRepoHeader();
+    if (!currentProjectPath) {
+      chatProjectPath = "";
+      renderChatHistory([]);
+    }
   };
 
   const updateSetupState = () => {
@@ -1389,15 +1494,50 @@ const setupGithubOAuth = () => {
         return;
       }
       if (promptInput) {
-        appendChatMessage(promptInput.value.trim());
+        const text = promptInput.value.trim();
         promptInput.value = "";
+        ensureChatProjectPath();
+        setCodexBusy(true);
+        appendChatMessage(text, "user").then(async () => {
+          runPromptSendTransition();
+          const projectPath = ensureChatProjectPath();
+          const history = chatMessages.slice(-20).map((message) => ({
+            role: message.role,
+            content: message.content
+          }));
+          if (!window.ifactory?.codex?.chat || !projectPath) {
+            await appendChatMessage(
+              "Codex is not available. Install Codex CLI to continue.",
+              "assistant",
+              { tone: "error" }
+            );
+            setCodexBusy(false);
+            return;
+          }
+          const result = await window.ifactory.codex.chat({
+            path: projectPath,
+            message: text,
+            history
+          });
+          if (result?.reply) {
+            await appendChatMessage(result.reply, "assistant");
+          } else {
+            await appendChatMessage(
+              result?.error === "codex_missing"
+                ? "Codex CLI was not found. Install it to continue."
+                : "Unable to reach Codex right now.",
+              "assistant",
+              { tone: "error" }
+            );
+          }
+          setCodexBusy(false);
+        });
       }
-      runPromptSendTransition();
     });
   }
   if (promptInput && promptSendButton) {
     const updatePromptSendState = () => {
-      promptSendButton.disabled = !promptInput.value.trim();
+      promptSendButton.disabled = codexBusy || !promptInput.value.trim();
     };
     const updatePromptHeight = () => {
       const style = window.getComputedStyle(promptInput);
@@ -1421,10 +1561,45 @@ const setupGithubOAuth = () => {
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
         if (!promptSendButton.disabled) {
-          appendChatMessage(promptInput.value.trim());
+          const text = promptInput.value.trim();
           promptInput.value = "";
           updatePromptSendState();
-          runPromptSendTransition();
+          ensureChatProjectPath();
+          setCodexBusy(true);
+          appendChatMessage(text, "user").then(async () => {
+            runPromptSendTransition();
+            const projectPath = ensureChatProjectPath();
+            const history = chatMessages.slice(-20).map((message) => ({
+              role: message.role,
+              content: message.content
+            }));
+            if (!window.ifactory?.codex?.chat || !projectPath) {
+              await appendChatMessage(
+                "Codex is not available. Install Codex CLI to continue.",
+                "assistant",
+                { tone: "error" }
+              );
+              setCodexBusy(false);
+              return;
+            }
+            const result = await window.ifactory.codex.chat({
+              path: projectPath,
+              message: text,
+              history
+            });
+            if (result?.reply) {
+              await appendChatMessage(result.reply, "assistant");
+            } else {
+              await appendChatMessage(
+                result?.error === "codex_missing"
+                  ? "Codex CLI was not found. Install it to continue."
+                  : "Unable to reach Codex right now.",
+                "assistant",
+                { tone: "error" }
+              );
+            }
+            setCodexBusy(false);
+          });
         }
       }
     });

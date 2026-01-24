@@ -591,6 +591,19 @@ body.is-ai .ai-shell {
   white-space: pre-wrap;
 }
 
+.ai-chat-bubble--assistant {
+  align-self: flex-start;
+  background: rgba(15, 20, 28, 0.85);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+
+.ai-chat-bubble--error {
+  border-color: rgba(255, 92, 92, 0.45);
+  background: rgba(255, 92, 92, 0.1);
+  color: #ffd6d6;
+}
+
 body.is-ai[data-ai-view="agent"] .ai-chat {
   display: block;
 }
@@ -1058,6 +1071,10 @@ body.is-ai:not(.ai-needs-agent) .prompt-dock {
 [data-ai-panel="prompt"] {
   transition:
     opacity 240ms ease;
+}
+
+[data-ai-panel="prompt"].is-hidden {
+  display: none !important;
 }
 
 .prompt-dock.is-sent .prompt-bar {

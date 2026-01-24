@@ -18,7 +18,8 @@ contextBridge.exposeInMainWorld("ifactory", {
     commit: (payload) => ipcRenderer.invoke("git:commit", payload)
   },
   codex: {
-    check: () => ipcRenderer.invoke("codex:check")
+    check: () => ipcRenderer.invoke("codex:check"),
+    chat: (payload) => ipcRenderer.invoke("codex:chat", payload)
   },
   build: {
     check: () => ipcRenderer.invoke("build:check"),
@@ -79,6 +80,10 @@ contextBridge.exposeInMainWorld("ifactory", {
     create: (payload) => ipcRenderer.invoke("project:create", payload),
     open: (payload) => ipcRenderer.invoke("project:open", payload),
     listItems: (payload) => ipcRenderer.invoke("project:listItems", payload)
+  },
+  session: {
+    load: (payload) => ipcRenderer.invoke("session:load", payload),
+    append: (payload) => ipcRenderer.invoke("session:append", payload)
   },
   templates: {
     list: (payload) => ipcRenderer.invoke("templates:list", payload),

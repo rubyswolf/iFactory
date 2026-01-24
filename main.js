@@ -912,6 +912,119 @@ const checkBuildToolsInstalled = () => {
   return { installed: false, path: "" };
 };
 
+const getSessionsDir = (projectPath) => path.join(projectPath, "sessions");
+
+const getSessionPath = (projectPath) =>
+  path.join(getSessionsDir(projectPath), "default.json");
+
+const loadSession = (projectPath) => {
+  const sessionPath = getSessionPath(projectPath);
+  if (!fs.existsSync(sessionPath)) {
+    return {
+      id: "default",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: []
+    };
+  }
+  try {
+    const raw = fs.readFileSync(sessionPath, "utf8");
+    const parsed = JSON.parse(raw);
+    return {
+      id: parsed?.id || "default",
+      createdAt: parsed?.createdAt || new Date().toISOString(),
+      updatedAt: parsed?.updatedAt || new Date().toISOString(),
+      messages: Array.isArray(parsed?.messages) ? parsed.messages : []
+    };
+  } catch (error) {
+    return {
+      id: "default",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: []
+    };
+  }
+};
+
+const saveSession = (projectPath, session) => {
+  const dir = getSessionsDir(projectPath);
+  fs.mkdirSync(dir, { recursive: true });
+  const payload = {
+    id: session.id || "default",
+    createdAt: session.createdAt || new Date().toISOString(),
+    updatedAt: session.updatedAt || new Date().toISOString(),
+    messages: Array.isArray(session.messages) ? session.messages : []
+  };
+  fs.writeFileSync(getSessionPath(projectPath), JSON.stringify(payload, null, 2));
+  return payload;
+};
+
+const buildChatPrompt = (messages) => {
+  const system = [
+    "System: You are the iFactory chat assistant.",
+    "System: Do not run commands or modify files.",
+    "System: Respond conversationally and concisely."
+  ].join("\n");
+  const transcript = messages
+    .map((message) => {
+      const role = message.role === "assistant" ? "Assistant" : "User";
+      return `${role}: ${message.content || ""}`.trim();
+    })
+    .join("\n\n");
+  return `${system}\n\n${transcript}\n\nAssistant:`;
+};
+
+const runCodexChat = ({ projectPath, prompt }) =>
+  new Promise((resolve, reject) => {
+    const tempPath = path.join(
+      os.tmpdir(),
+      `ifactory-codex-${Date.now()}-${Math.random().toString(16).slice(2)}.txt`
+    );
+    const args = [
+      "exec",
+      "--cd",
+      projectPath,
+      "--sandbox",
+      "read-only",
+      "--ask-for-approval",
+      "never",
+      "--skip-git-repo-check",
+      "--output-last-message",
+      tempPath,
+      "-"
+    ];
+    const child = spawn("codex", args, {
+      cwd: projectPath,
+      windowsHide: true
+    });
+    let stderr = "";
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code !== 0) {
+        return reject(
+          new Error(stderr || `Codex exited with code ${code}`)
+        );
+      }
+      let output = "";
+      try {
+        output = fs.readFileSync(tempPath, "utf8").trim();
+      } catch (error) {
+        output = "";
+      }
+      fs.rmSync(tempPath, { force: true });
+      resolve(output);
+    });
+    try {
+      child.stdin.write(prompt || "");
+      child.stdin.end();
+    } catch (error) {
+      reject(error);
+    }
+  });
+
 const getGithubDesktopCommand = () => {
   const result = spawnSync(
     "reg",
@@ -1084,6 +1197,32 @@ const registerIpc = () => {
     saveSettings();
     return settings.dependencies.codex;
   });
+  ipcMain.handle("codex:chat", async (event, payload) => {
+    try {
+      const projectPath = payload?.path?.trim();
+      const message = payload?.message || "";
+      const history = Array.isArray(payload?.history) ? payload.history : [];
+      if (!projectPath) {
+        return { error: "missing_path" };
+      }
+      if (!message.trim()) {
+        return { error: "missing_message" };
+      }
+      const codexState = checkCodexInstalled();
+      if (!codexState.installed) {
+        return { error: "codex_missing" };
+      }
+      const maxHistory = history.slice(-20);
+      const promptMessages = maxHistory.length
+        ? maxHistory
+        : loadSession(projectPath).messages;
+      const prompt = buildChatPrompt(promptMessages);
+      const reply = await runCodexChat({ projectPath, prompt });
+      return { reply };
+    } catch (error) {
+      return { error: "codex_failed" };
+    }
+  });
   ipcMain.handle("build:check", () => {
     const result = checkBuildToolsInstalled();
     settings.dependencies.buildTools = {
@@ -1094,6 +1233,51 @@ const registerIpc = () => {
     };
     saveSettings();
     return settings.dependencies.buildTools;
+  });
+  ipcMain.handle("session:load", (event, payload) => {
+    try {
+      const projectPath = payload?.path?.trim();
+      if (!projectPath) {
+        return { error: "missing_path" };
+      }
+      if (!fs.existsSync(projectPath)) {
+        return { error: "path_not_found" };
+      }
+      const session = loadSession(projectPath);
+      return { session };
+    } catch (error) {
+      return { error: "session_load_failed" };
+    }
+  });
+  ipcMain.handle("session:append", (event, payload) => {
+    try {
+      const projectPath = payload?.path?.trim();
+      if (!projectPath) {
+        return { error: "missing_path" };
+      }
+      const message = payload?.message;
+      if (!message || !message.content) {
+        return { error: "missing_message" };
+      }
+      const role = message.role === "assistant" ? "assistant" : "user";
+      const session = loadSession(projectPath);
+      const next = {
+        role,
+        content: String(message.content),
+        createdAt: new Date().toISOString()
+      };
+      if (message.error) {
+        next.error = true;
+      }
+      session.messages = Array.isArray(session.messages)
+        ? session.messages.concat(next)
+        : [next];
+      session.updatedAt = new Date().toISOString();
+      const saved = saveSession(projectPath, session);
+      return { session: saved };
+    } catch (error) {
+      return { error: "session_append_failed" };
+    }
   });
   ipcMain.handle("build:run", async (event, payload) => {
     if (activeBuild) {
