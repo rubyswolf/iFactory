@@ -101,7 +101,15 @@ contextBridge.exposeInMainWorld("ifactory", {
   project: {
     create: (payload) => ipcRenderer.invoke("project:create", payload),
     open: (payload) => ipcRenderer.invoke("project:open", payload),
-    listItems: (payload) => ipcRenderer.invoke("project:listItems", payload)
+    listItems: (payload) => ipcRenderer.invoke("project:listItems", payload),
+    onItemsUpdated: (callback) => {
+      if (typeof callback !== "function") {
+        return () => {};
+      }
+      const listener = (event, payload) => callback(payload);
+      ipcRenderer.on("project:items-updated", listener);
+      return () => ipcRenderer.removeListener("project:items-updated", listener);
+    }
   },
   session: {
     load: (payload) => ipcRenderer.invoke("session:load", payload),

@@ -95,6 +95,18 @@ const broadcastAgentPing = () => {
   });
 };
 
+const broadcastProjectItemsUpdated = (projectPath, itemName = "") => {
+  const windows = BrowserWindow.getAllWindows();
+  windows.forEach((win) => {
+    if (win && !win.isDestroyed()) {
+      win.webContents.send("project:items-updated", {
+        projectPath,
+        itemName,
+      });
+    }
+  });
+};
+
 const startAgentServer = () => {
   if (agentServer) {
     return;
@@ -208,6 +220,7 @@ const startAgentServer = () => {
             }
             patchPostbuildScript(targetPath);
             patchCreateBundleScript(currentProjectPath);
+            broadcastProjectItemsUpdated(currentProjectPath, name);
             socket.write(`ok:${targetPath}\n`);
           } catch (error) {
             cleanupTarget();

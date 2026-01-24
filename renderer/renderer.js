@@ -1928,6 +1928,19 @@ const setupGithubOAuth = () => {
     setActiveProjectItem
   };
 
+  if (window.ifactory?.project?.onItemsUpdated) {
+    window.ifactory.project.onItemsUpdated(async (payload) => {
+      if (!payload) {
+        return;
+      }
+      const projectPath = payload.projectPath || "";
+      if (!projectPath || projectPath !== currentProjectPath) {
+        return;
+      }
+      await loadProjectItems(currentProjectPath);
+    });
+  }
+
   if (window.ifactory?.build?.onOutput) {
     window.ifactory.build.onOutput((payload) => {
       if (!payload) {
