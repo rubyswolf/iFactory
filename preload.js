@@ -122,6 +122,9 @@ contextBridge.exposeInMainWorld("ifactory", {
     list: (payload) => ipcRenderer.invoke("templates:list", payload),
     copy: (payload) => ipcRenderer.invoke("templates:copy", payload)
   },
+  resource: {
+    add: (payload) => ipcRenderer.invoke("resource:add", payload)
+  },
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
   dialog: {
     selectFolder: () => ipcRenderer.invoke("dialog:selectFolder")

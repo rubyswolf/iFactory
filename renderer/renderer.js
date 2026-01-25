@@ -77,6 +77,15 @@ const setupGithubOAuth = () => {
   const createNavButton = document.querySelector("[data-ai-create]");
   const projectItemsEl = document.querySelector("[data-project-items]");
   const openSolutionButtons = document.querySelectorAll("[data-open-solution]");
+  const runView = document.querySelector('.ai-view[data-ai-view="run"]');
+  const dropOverlay = document.querySelector("[data-drop-overlay]");
+  const resourceDialog = document.querySelector("[data-resource-dialog]");
+  const resourceNameInput = document.querySelector("[data-resource-name]");
+  const resourceAddButton = document.querySelector("[data-resource-add]");
+  const resourceCancelButton = document.querySelector("[data-resource-cancel]");
+  const resourceFileLabel = document.querySelector("[data-resource-file]");
+  const resourceErrorEl = document.querySelector("[data-resource-error]");
+  const resourceRemoveToggle = document.querySelector("[data-resource-remove]");
   const agentStatusEl = document.querySelector("[data-agent-status]");
   const promptPanel = document.querySelector("[data-ai-panel=\"prompt\"]");
   const promptDock = document.querySelector("[data-prompt-dock]");
@@ -312,6 +321,10 @@ const setupGithubOAuth = () => {
       loadGitStatus();
     }
     updateOpenSolutionButtons();
+    if (view !== "run") {
+      updateDropOverlay(false);
+      closeResourceDialog();
+    }
   };
 
   const setActiveProjectItem = (name) => {
@@ -359,6 +372,115 @@ const setupGithubOAuth = () => {
       button.hidden = !isAvailable;
       button.disabled = !activeProjectItem;
     });
+  };
+
+  let pendingResourceFile = "";
+  let resourceDialogError = "";
+  let resourceNameError = "";
+  let resourceTypeSupported = false;
+
+  const updateDropOverlay = (active) => {
+    if (!dropOverlay) {
+      return;
+    }
+    dropOverlay.hidden = !active;
+    dropOverlay.classList.toggle("is-active", active);
+  };
+
+  const normalizeResourceInput = (value) => {
+    const raw = value || "";
+    const invalid = /[^a-zA-Z0-9 _]/.test(raw);
+    const cleaned = raw.replace(/[^a-zA-Z0-9 _]/g, "");
+    const upper = cleaned.toUpperCase();
+    const underscored = upper.replace(/\s+/g, "_");
+    const normalized = underscored.replace(/_+/g, "_");
+    return { value: normalized, invalid };
+  };
+
+  const renderResourceError = () => {
+    if (!resourceErrorEl) {
+      return;
+    }
+    const message = resourceDialogError || resourceNameError;
+    if (!message) {
+      resourceErrorEl.textContent = "";
+      resourceErrorEl.hidden = true;
+      return;
+    }
+    resourceErrorEl.textContent = message;
+    resourceErrorEl.hidden = false;
+  };
+
+  const updateResourceAddState = () => {
+    if (!resourceAddButton || !resourceNameInput) {
+      return;
+    }
+    const normalized = normalizeResourceInput(resourceNameInput.value);
+    if (resourceNameInput.value !== normalized.value) {
+      resourceNameInput.value = normalized.value;
+    }
+    resourceNameError = normalized.invalid
+      ? "Use only letters, numbers, spaces, or underscores."
+      : "";
+    renderResourceError();
+    const canAdd =
+      Boolean(pendingResourceFile) &&
+      resourceTypeSupported &&
+      Boolean(normalized.value.trim()) &&
+      !resourceDialogError &&
+      !resourceNameError;
+    resourceAddButton.disabled = !canAdd;
+  };
+
+  const closeResourceDialog = () => {
+    if (!resourceDialog) {
+      return;
+    }
+    resourceDialog.classList.remove("is-active");
+    resourceDialog.hidden = true;
+    pendingResourceFile = "";
+    resourceDialogError = "";
+    resourceNameError = "";
+    resourceTypeSupported = false;
+    if (resourceNameInput) {
+      resourceNameInput.value = "";
+    }
+    if (resourceRemoveToggle) {
+      resourceRemoveToggle.checked = false;
+    }
+    if (resourceFileLabel) {
+      resourceFileLabel.textContent = "";
+    }
+    renderResourceError();
+    updateResourceAddState();
+  };
+
+  const openResourceDialog = ({ filePath, fileName, errorMessage, supported }) => {
+    if (!resourceDialog) {
+      return;
+    }
+    pendingResourceFile = filePath || "";
+    resourceDialogError = errorMessage || "";
+    resourceNameError = "";
+    resourceTypeSupported = Boolean(supported);
+    if (resourceFileLabel) {
+      resourceFileLabel.textContent = fileName
+        ? `File: ${fileName}`
+        : "No file selected.";
+    }
+    if (resourceNameInput) {
+      resourceNameInput.value = "";
+    }
+    if (resourceRemoveToggle) {
+      resourceRemoveToggle.checked = false;
+    }
+    renderResourceError();
+    updateResourceAddState();
+    resourceDialog.hidden = false;
+    resourceDialog.classList.add("is-active");
+    if (resourceNameInput) {
+      window.setTimeout(() => resourceNameInput.focus(), 0);
+    }
   };
 
   const checkCodex = async () => {
@@ -1806,6 +1928,142 @@ const setupGithubOAuth = () => {
         } catch (error) {
           console.error("Failed to open solution", error);
         }
+      });
+    });
+  }
+  if (resourceNameInput) {
+    resourceNameInput.addEventListener("input", () => {
+      updateResourceAddState();
+    });
+    resourceNameInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        if (resourceAddButton && !resourceAddButton.disabled) {
+          resourceAddButton.click();
+        }
+      }
+    });
+  }
+  if (resourceCancelButton) {
+    resourceCancelButton.addEventListener("click", () => {
+      closeResourceDialog();
+    });
+  }
+  if (resourceAddButton) {
+    resourceAddButton.addEventListener("click", async () => {
+      if (!pendingResourceFile || resourceAddButton.disabled) {
+        return;
+      }
+      const projectPath =
+        currentProjectPath || document.body.dataset.projectPath || "";
+      if (!projectPath || !activeProjectItem) {
+        return;
+      }
+      if (!window.ifactory?.resource?.add) {
+        return;
+      }
+      try {
+        const result = await window.ifactory.resource.add({
+          projectPath,
+          pluginName: activeProjectItem,
+          filePath: pendingResourceFile,
+          resourceName: resourceNameInput?.value || "",
+          removeOriginal: Boolean(resourceRemoveToggle?.checked)
+        });
+        if (result?.error) {
+          const message =
+            result.error === "unsupported_type"
+              ? "Resource type not supported."
+              : result.error === "file_not_found"
+                ? "File not found."
+                : result.error === "plugin_not_found"
+                  ? "Plugin not found."
+                  : "Unable to add resource.";
+          if (result.error === "invalid_name") {
+            resourceNameError = "Use only letters, numbers, spaces, or underscores.";
+          } else {
+            resourceDialogError = message;
+          }
+          renderResourceError();
+          updateResourceAddState();
+          return;
+        }
+        closeResourceDialog();
+      } catch (error) {
+        resourceDialogError = "Unable to add resource.";
+        renderResourceError();
+        updateResourceAddState();
+      }
+    });
+  }
+  if (runView) {
+    let dragDepth = 0;
+    const isFileDrag = (event) =>
+      Array.from(event.dataTransfer?.types || []).includes("Files");
+    const canDrop = () =>
+      document.body.dataset.aiView === "run" &&
+      getActiveProjectItemType() === "plugin";
+    const getExtension = (fileName) => {
+      const index = fileName.lastIndexOf(".");
+      if (index === -1) {
+        return "";
+      }
+      return fileName.slice(index).toLowerCase();
+    };
+    const isSupportedResource = (fileName) => {
+      const ext = getExtension(fileName);
+      return ext === ".svg" || ext === ".png" || ext === ".ttf";
+    };
+
+    runView.addEventListener("dragenter", (event) => {
+      if (!canDrop() || !isFileDrag(event)) {
+        return;
+      }
+      event.preventDefault();
+      dragDepth += 1;
+      updateDropOverlay(true);
+    });
+    runView.addEventListener("dragover", (event) => {
+      if (!canDrop() || !isFileDrag(event)) {
+        return;
+      }
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+      updateDropOverlay(true);
+    });
+    runView.addEventListener("dragleave", (event) => {
+      if (!canDrop() || !isFileDrag(event)) {
+        return;
+      }
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) {
+        updateDropOverlay(false);
+      }
+    });
+    runView.addEventListener("drop", (event) => {
+      if (!canDrop() || !isFileDrag(event)) {
+        return;
+      }
+      event.preventDefault();
+      dragDepth = 0;
+      updateDropOverlay(false);
+      const files = Array.from(event.dataTransfer?.files || []);
+      if (files.length !== 1) {
+        openResourceDialog({
+          filePath: "",
+          fileName: "",
+          supported: false,
+          errorMessage: "Drop one file at a time."
+        });
+        return;
+      }
+      const file = files[0];
+      const supported = isSupportedResource(file.name);
+      openResourceDialog({
+        filePath: file.path || "",
+        fileName: file.name || "",
+        supported,
+        errorMessage: supported ? "" : "Resource type not supported."
       });
     });
   }

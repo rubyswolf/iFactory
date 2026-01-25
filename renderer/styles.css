@@ -1841,6 +1841,76 @@ body.is-ai .titlebar-group--ai {
   box-shadow: none;
 }
 
+.drop-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    140deg,
+    rgba(11, 18, 28, 0.96),
+    rgba(6, 10, 18, 0.92)
+  );
+  border: 1px solid rgba(179, 255, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  z-index: 4;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  pointer-events: none;
+}
+
+.drop-overlay.is-active {
+  opacity: 1;
+}
+
+.drop-overlay__inner {
+  max-width: 420px;
+}
+
+.resource-dialog {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 8, 14, 0.7);
+  border-radius: 0;
+  z-index: 5;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.resource-dialog.is-active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.resource-dialog__card {
+  width: min(520px, 90%);
+  background: var(--panel-strong);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 22px 24px;
+  box-shadow: 0 20px 40px rgba(4, 7, 12, 0.55);
+  display: grid;
+  gap: 14px;
+}
+
+.resource-dialog__card .resource-remove {
+  margin-top: 4px;
+}
+
+.resource-dialog__card .connect-actions {
+  justify-content: flex-end;
+}
+
+.resource-error {
+  color: #ffb7b7;
+}
+
 .eyebrow {
   font-size: 12px;
   letter-spacing: 0.2em;

@@ -123,8 +123,11 @@ const startAgentServer = () => {
         const [line] = buffer.split(/\r?\n/);
         buffer = "";
         const trimmed = line.trim();
-        const cmd = trimmed.split(" ")[0]?.toLowerCase() || "";
-        const arg = trimmed.slice(cmd.length).trim();
+        const tabTokens = trimmed.includes("\t") ? trimmed.split("\t") : null;
+        const cmd = (tabTokens ? tabTokens[0] : trimmed.split(" ")[0] || "")
+          .toLowerCase()
+          .trim();
+        const arg = tabTokens ? tabTokens.slice(1) : trimmed.slice(cmd.length).trim();
         if (cmd === "ping") {
           broadcastAgentPing();
           socket.write("ok\n");
@@ -147,7 +150,9 @@ const startAgentServer = () => {
             socket.end();
             return;
           }
-          const parts = arg.split(/\s+/).filter(Boolean);
+          const parts = Array.isArray(arg)
+            ? arg.filter(Boolean)
+            : arg.split(/\s+/).filter(Boolean);
           const templateInput = parts[0];
           const name = parts[1] || templateInput;
           const resolved = resolveTemplateFolder(
@@ -229,6 +234,44 @@ const startAgentServer = () => {
             activeInstall = null;
             socket.end();
           }
+          return;
+        } else if (cmd === "resource") {
+          const tokens = Array.isArray(arg)
+            ? arg.filter(Boolean)
+            : arg.split(/\s+/).filter(Boolean);
+          const action = tokens[0];
+          if (action !== "add") {
+            socket.write("error:unknown_command\n");
+            socket.end();
+            return;
+          }
+          const pluginName = tokens[1] || "";
+          const filePath = tokens[2] || "";
+          let nameTokens = tokens.slice(3);
+          let removeOriginal = false;
+          if (nameTokens.length > 0) {
+            const last = nameTokens[nameTokens.length - 1].toLowerCase();
+            if (last === "move" || last === "-m") {
+              removeOriginal = true;
+              nameTokens = nameTokens.slice(0, -1);
+            } else if (last === "copy") {
+              nameTokens = nameTokens.slice(0, -1);
+            }
+          }
+          const resourceName = nameTokens.join(" ").trim();
+          const result = addResourceToPlugin({
+            projectPath: currentProjectPath,
+            pluginName,
+            filePath,
+            resourceName,
+            removeOriginal,
+          });
+          if (result.error) {
+            socket.write(`error:${result.error}\n`);
+          } else {
+            socket.write(`ok:${result.resourceName}\n`);
+          }
+          socket.end();
           return;
         } else {
           socket.write("error:unknown_command\n");
@@ -924,6 +967,168 @@ const listTemplatesForProject = (projectPath) => {
       return a.folder.localeCompare(b.folder);
     });
   return { templates };
+};
+
+const SUPPORTED_RESOURCE_TYPES = {
+  ".svg": { folder: "img", type: "SVG" },
+  ".png": { folder: "img", type: "PNG" },
+  ".ttf": { folder: "fonts", type: "TTF" },
+};
+
+const normalizeResourceName = (value) => {
+  const raw = (value || "").trim();
+  if (!raw) {
+    return { error: "missing_name" };
+  }
+  if (/[^a-zA-Z0-9 _]/.test(raw)) {
+    return { error: "invalid_name" };
+  }
+  const normalized = raw.replace(/\s+/g, "_").toUpperCase();
+  if (!normalized) {
+    return { error: "invalid_name" };
+  }
+  return { name: normalized };
+};
+
+const moveFileSafely = (source, destination) => {
+  try {
+    fs.renameSync(source, destination);
+  } catch (error) {
+    fs.copyFileSync(source, destination);
+    fs.unlinkSync(source);
+  }
+};
+
+const copyFileSafely = (source, destination) => {
+  fs.copyFileSync(source, destination);
+};
+
+const updateResourceRcFile = (rcFilePath, resourceName, extUpper) => {
+  if (!fs.existsSync(rcFilePath)) {
+    return;
+  }
+  const content = fs.readFileSync(rcFilePath, "utf8");
+  const lineBreak = content.includes("\r\n") ? "\r\n" : "\n";
+  const endsWithNewline = content.endsWith("\n");
+  const lines = content.split(/\r?\n/);
+  const updatedLines = [...lines];
+  const newLine = `    "${resourceName}_FN ${extUpper} ${resourceName}_FN\\0"`;
+
+  let startIdx = -1;
+  let endIdx = -1;
+  for (let i = 0; i < updatedLines.length; i += 1) {
+    const trimmed = updatedLines[i].trim();
+    if (trimmed === "3 TEXTINCLUDE") {
+      startIdx = i;
+      continue;
+    }
+    if (startIdx > -1 && trimmed === "END") {
+      endIdx = i;
+      break;
+    }
+  }
+  if (startIdx > -1 && endIdx > -1) {
+    const insertIdx = endIdx - 1;
+    if (updatedLines[insertIdx]) {
+      updatedLines[insertIdx] = updatedLines[insertIdx].replace(
+        /\\0/g,
+        "\\r\\n",
+      );
+    }
+    updatedLines.splice(insertIdx + 1, 0, newLine);
+  }
+
+  const includeLine = '#include "..\\config.h"';
+  let includeIdx = -1;
+  for (let i = 0; i < updatedLines.length; i += 1) {
+    if (updatedLines[i].trim() === includeLine) {
+      includeIdx = i;
+      break;
+    }
+  }
+  if (includeIdx > -1) {
+    let endifIdx = -1;
+    for (let i = includeIdx + 1; i < updatedLines.length; i += 1) {
+      if (updatedLines[i].trim().startsWith("#endif")) {
+        endifIdx = i;
+        break;
+      }
+    }
+    if (endifIdx > 0) {
+      let insertLast = endifIdx - 1;
+      if (updatedLines[insertLast]?.trim().startsWith("/")) {
+        insertLast -= 1;
+      }
+      const rcDefine = `${resourceName}_FN ${extUpper} ${resourceName}_FN`;
+      updatedLines.splice(insertLast + 1, 0, rcDefine);
+    }
+  }
+
+  const output = updatedLines.join(lineBreak) + (endsWithNewline ? lineBreak : "");
+  fs.writeFileSync(rcFilePath, output);
+};
+
+const addResourceToPlugin = ({
+  projectPath,
+  pluginName,
+  filePath,
+  resourceName,
+  removeOriginal = false,
+}) => {
+  if (!projectPath || !pluginName || !filePath || !resourceName) {
+    return { error: "missing_fields" };
+  }
+  if (pluginName !== path.basename(pluginName)) {
+    return { error: "invalid_plugin" };
+  }
+  if (!fs.existsSync(filePath)) {
+    return { error: "file_not_found" };
+  }
+  const ext = path.extname(filePath).toLowerCase();
+  const resourceType = SUPPORTED_RESOURCE_TYPES[ext];
+  if (!resourceType) {
+    return { error: "unsupported_type" };
+  }
+  const normalized = normalizeResourceName(resourceName);
+  if (normalized.error) {
+    return { error: normalized.error };
+  }
+  const pluginPath = path.join(projectPath, pluginName);
+  if (!fs.existsSync(pluginPath)) {
+    return { error: "plugin_not_found" };
+  }
+
+  const fileName = path.basename(filePath);
+  const resourcesDir = path.join(pluginPath, "resources");
+  const destDir = path.join(resourcesDir, resourceType.folder);
+  fs.mkdirSync(destDir, { recursive: true });
+  const destPath = path.join(destDir, fileName);
+  if (removeOriginal) {
+    moveFileSafely(filePath, destPath);
+  } else {
+    copyFileSafely(filePath, destPath);
+  }
+
+  const configFile = path.join(pluginPath, "config.h");
+  const defineLine = `#define ${normalized.name}_FN "${fileName}"`;
+  fs.appendFileSync(configFile, `${defineLine}${os.EOL}`);
+
+  updateResourceRcFile(
+    path.join(resourcesDir, "main.rc"),
+    normalized.name,
+    resourceType.type,
+  );
+
+  const apsFile = path.join(resourcesDir, "main.aps");
+  if (fs.existsSync(apsFile)) {
+    try {
+      fs.unlinkSync(apsFile);
+    } catch (error) {
+      // ignore delete errors
+    }
+  }
+
+  return { fileName, resourceName: normalized.name };
 };
 
 const resolveTemplateFolder = (projectPath, input) => {
@@ -2406,6 +2611,24 @@ const registerIpc = () => {
         window.setProgressBar(-1);
       }
       activeInstall = null;
+    }
+  });
+  ipcMain.handle("resource:add", async (event, payload) => {
+    try {
+      const projectPath = payload?.projectPath?.trim();
+      const pluginName = payload?.pluginName?.trim();
+      const filePath = payload?.filePath?.trim();
+      const resourceName = payload?.resourceName?.trim();
+      const removeOriginal = Boolean(payload?.removeOriginal);
+      return addResourceToPlugin({
+        projectPath,
+        pluginName,
+        filePath,
+        resourceName,
+        removeOriginal,
+      });
+    } catch (error) {
+      return { error: "resource_failed" };
     }
   });
   ipcMain.handle("window:minimize", (event) => {

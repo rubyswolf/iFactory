@@ -652,7 +652,41 @@
                   <div class="build-console" data-build-console hidden>
                     <pre data-build-output></pre>
                   </div>
+                  <div class="drop-overlay" data-drop-overlay hidden>
+                    <div class="drop-overlay__inner">
+                      <div class="eyebrow">Add resource</div>
+                      <h2>Drop to add the resource to the plugin.</h2>
+                    </div>
+                  </div>
                 </section>
+                <div class="resource-dialog" data-resource-dialog hidden>
+                  <div class="resource-dialog__card">
+                    <div class="eyebrow">Add resource</div>
+                    <h2>Add a resource to the plugin.</h2>
+                    <p class="card-meta" data-resource-file></p>
+                      <label class="field">
+                        <span>Resource name</span>
+                        <input
+                          type="text"
+                          placeholder="RESOURCE_NAME"
+                          data-resource-name
+                        />
+                      </label>
+                      <label class="checkbox-field resource-remove">
+                        <input type="checkbox" data-resource-remove />
+                        <span>Remove original</span>
+                      </label>
+                      <p class="field-note resource-error" data-resource-error hidden></p>
+                    <div class="connect-actions">
+                      <button class="ghost" type="button" data-resource-cancel>
+                        Cancel
+                      </button>
+                      <button class="cta" type="button" data-resource-add disabled>
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
