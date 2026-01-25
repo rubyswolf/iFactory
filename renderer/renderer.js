@@ -76,6 +76,7 @@ const setupGithubOAuth = () => {
   const gitNavButton = document.querySelector("[data-ai-nav=\"git\"]");
   const createNavButton = document.querySelector("[data-ai-create]");
   const projectItemsEl = document.querySelector("[data-project-items]");
+  const openSolutionButtons = document.querySelectorAll("[data-open-solution]");
   const agentStatusEl = document.querySelector("[data-agent-status]");
   const promptPanel = document.querySelector("[data-ai-panel=\"prompt\"]");
   const promptDock = document.querySelector("[data-prompt-dock]");
@@ -310,11 +311,13 @@ const setupGithubOAuth = () => {
     if (view === "git") {
       loadGitStatus();
     }
+    updateOpenSolutionButtons();
   };
 
   const setActiveProjectItem = (name) => {
     activeProjectItem = name || "";
     updateSidebarActive();
+    updateOpenSolutionButtons();
   };
 
   const getActiveProjectItemType = () => {
@@ -339,6 +342,23 @@ const setupGithubOAuth = () => {
       return;
     }
     agentStatusEl.textContent = message;
+  };
+
+  const updateOpenSolutionButtons = () => {
+    if (!openSolutionButtons.length) {
+      return;
+    }
+    const isVisibleView =
+      document.body.dataset.aiView === "get-started" ||
+      document.body.dataset.aiView === "run";
+    const isAvailable = Boolean(activeProjectItem) && isVisibleView;
+    openSolutionButtons.forEach((button) => {
+      if (!button) {
+        return;
+      }
+      button.hidden = !isAvailable;
+      button.disabled = !activeProjectItem;
+    });
   };
 
   const checkCodex = async () => {
@@ -627,6 +647,72 @@ const setupGithubOAuth = () => {
     chatListEl.appendChild(bubble);
     chatListEl.scrollTop = chatListEl.scrollHeight;
     return bubble;
+  };
+
+  const createActivityBubble = () => {
+    const bubble = createChatBubble("assistant");
+    if (!bubble) {
+      return null;
+    }
+    bubble.classList.add("ai-chat-bubble--activity");
+
+    const title = document.createElement("div");
+    title.className = "ai-chat-activity__title";
+    title.textContent = "Working";
+
+    const makeRow = (labelText, valueText) => {
+      const row = document.createElement("div");
+      row.className = "ai-chat-activity__row";
+      const label = document.createElement("span");
+      label.className = "ai-chat-activity__label";
+      label.textContent = labelText;
+      const value = document.createElement("span");
+      value.className = "ai-chat-activity__value";
+      value.textContent = valueText;
+      row.append(label, value);
+      return { row, value };
+    };
+
+    const thoughts = makeRow("Thoughts", "Thinking...");
+    const commands = makeRow("Commands", "Waiting...");
+    const edits = makeRow("Edits", "None yet.");
+
+    bubble.append(title, thoughts.row, commands.row, edits.row);
+    bubble.dataset.activity = "live";
+    bubble._activity = {
+      thoughts: thoughts.value,
+      commands: commands.value,
+      edits: edits.value
+    };
+    return bubble;
+  };
+
+  const updateActivityBubble = (bubble, updates = {}) => {
+    if (!bubble || !bubble._activity) {
+      return;
+    }
+    const { thoughts, commands, edits } = updates;
+    if (typeof thoughts === "string") {
+      bubble._activity.thoughts.textContent = thoughts;
+    }
+    if (typeof commands === "string") {
+      bubble._activity.commands.textContent = commands;
+    }
+    if (typeof edits === "string") {
+      bubble._activity.edits.textContent = edits;
+    }
+  };
+
+  const clearActivityBubble = (bubble) => {
+    if (!bubble) {
+      return;
+    }
+    bubble.classList.add("is-complete");
+    window.setTimeout(() => {
+      if (bubble.parentElement) {
+        bubble.remove();
+      }
+    }, 260);
   };
 
   const persistChatMessage = async (message, save = true) => {
@@ -1570,6 +1656,58 @@ const setupGithubOAuth = () => {
       }
     });
   }
+  const sendPrompt = async (text) => {
+    ensureChatProjectPath();
+    setCodexBusy(true);
+    await appendChatMessage(text, "user");
+    runPromptSendTransition();
+    const activityBubble = createActivityBubble();
+    updateActivityBubble(activityBubble, {
+      thoughts: "Drafting a response...",
+      commands: "Running Codex CLI...",
+      edits: "No edits yet."
+    });
+    const projectPath = ensureChatProjectPath();
+    const history = chatMessages.slice(-20).map((message) => ({
+      role: message.role,
+      content: message.content
+    }));
+    if (!window.ifactory?.codex?.chat || !projectPath) {
+      clearActivityBubble(activityBubble);
+      await appendChatMessage(
+        "Codex is not available. Install Codex CLI to continue.",
+        "assistant",
+        { tone: "error" }
+      );
+      setCodexBusy(false);
+      return;
+    }
+    const result = await window.ifactory.codex.chat({
+      path: projectPath,
+      message: text,
+      history
+    });
+    clearActivityBubble(activityBubble);
+    if (result?.reply) {
+      const parsed = extractToolCalls(result.reply);
+      handleToolCalls(parsed.tools);
+      if (parsed.clean) {
+        await streamAssistantMessage(parsed.clean);
+      }
+    } else {
+      await appendChatMessage(
+        result?.error === "codex_missing"
+          ? "Codex CLI was not found. Install it to continue."
+          : result?.details
+            ? result.details
+            : "Unable to reach Codex right now.",
+        "assistant",
+        { tone: "error" }
+      );
+    }
+    setCodexBusy(false);
+  };
+
   if (promptSendButton) {
     promptSendButton.addEventListener("click", () => {
       if (promptInput && !promptInput.value.trim()) {
@@ -1578,48 +1716,7 @@ const setupGithubOAuth = () => {
       if (promptInput) {
         const text = promptInput.value.trim();
         promptInput.value = "";
-        ensureChatProjectPath();
-        setCodexBusy(true);
-        appendChatMessage(text, "user").then(async () => {
-          runPromptSendTransition();
-          const projectPath = ensureChatProjectPath();
-          const history = chatMessages.slice(-20).map((message) => ({
-            role: message.role,
-            content: message.content
-          }));
-          if (!window.ifactory?.codex?.chat || !projectPath) {
-            await appendChatMessage(
-              "Codex is not available. Install Codex CLI to continue.",
-              "assistant",
-              { tone: "error" }
-            );
-            setCodexBusy(false);
-            return;
-          }
-          const result = await window.ifactory.codex.chat({
-            path: projectPath,
-            message: text,
-            history
-          });
-          if (result?.reply) {
-            const parsed = extractToolCalls(result.reply);
-            handleToolCalls(parsed.tools);
-            if (parsed.clean) {
-              await streamAssistantMessage(parsed.clean);
-            }
-          } else {
-            await appendChatMessage(
-              result?.error === "codex_missing"
-                ? "Codex CLI was not found. Install it to continue."
-                : result?.details
-                  ? result.details
-                  : "Unable to reach Codex right now.",
-              "assistant",
-              { tone: "error" }
-            );
-          }
-          setCodexBusy(false);
-        });
+        sendPrompt(text);
       }
     });
   }
@@ -1652,48 +1749,7 @@ const setupGithubOAuth = () => {
           const text = promptInput.value.trim();
           promptInput.value = "";
           updatePromptSendState();
-          ensureChatProjectPath();
-          setCodexBusy(true);
-          appendChatMessage(text, "user").then(async () => {
-            runPromptSendTransition();
-            const projectPath = ensureChatProjectPath();
-            const history = chatMessages.slice(-20).map((message) => ({
-              role: message.role,
-              content: message.content
-            }));
-            if (!window.ifactory?.codex?.chat || !projectPath) {
-              await appendChatMessage(
-                "Codex is not available. Install Codex CLI to continue.",
-                "assistant",
-                { tone: "error" }
-              );
-              setCodexBusy(false);
-              return;
-            }
-          const result = await window.ifactory.codex.chat({
-            path: projectPath,
-            message: text,
-            history
-          });
-          if (result?.reply) {
-            const parsed = extractToolCalls(result.reply);
-            handleToolCalls(parsed.tools);
-            if (parsed.clean) {
-              await streamAssistantMessage(parsed.clean);
-            }
-          } else {
-            await appendChatMessage(
-              result?.error === "codex_missing"
-                ? "Codex CLI was not found. Install it to continue."
-                : result?.details
-                    ? result.details
-                    : "Unable to reach Codex right now.",
-                "assistant",
-                { tone: "error" }
-              );
-            }
-            setCodexBusy(false);
-          });
+          sendPrompt(text);
         }
       }
     });
@@ -1726,6 +1782,31 @@ const setupGithubOAuth = () => {
       window.ifactory.openExternal(
         "https://visualstudio.microsoft.com/visual-cpp-build-tools/"
       );
+    });
+  }
+  if (openSolutionButtons.length) {
+    openSolutionButtons.forEach((button) => {
+      button.addEventListener("click", async () => {
+        const projectPath =
+          currentProjectPath || document.body.dataset.projectPath || "";
+        if (!projectPath || !activeProjectItem) {
+          return;
+        }
+        if (!window.ifactory?.solution?.open) {
+          return;
+        }
+        try {
+          const result = await window.ifactory.solution.open({
+            projectPath,
+            pluginName: activeProjectItem
+          });
+          if (result?.error) {
+            console.error("Failed to open solution", result);
+          }
+        } catch (error) {
+          console.error("Failed to open solution", error);
+        }
+      });
     });
   }
   if (openProjectButton) {

@@ -1903,6 +1903,33 @@ const registerIpc = () => {
       return { error: "build_failed" };
     }
   });
+  ipcMain.handle("solution:open", async (event, payload) => {
+    try {
+      const projectPath = payload?.projectPath?.trim();
+      const pluginName = payload?.pluginName?.trim();
+      if (!projectPath || !pluginName) {
+        return { error: "missing_fields" };
+      }
+      if (pluginName !== path.basename(pluginName)) {
+        return { error: "invalid_plugin" };
+      }
+      const pluginPath = path.join(projectPath, pluginName);
+      if (!fs.existsSync(pluginPath)) {
+        return { error: "plugin_not_found" };
+      }
+      const slnPath = findSolutionPath(pluginPath, pluginName);
+      if (!slnPath) {
+        return { error: "solution_not_found" };
+      }
+      const result = await shell.openPath(slnPath);
+      if (result) {
+        return { error: "open_failed", details: result };
+      }
+      return { opened: true };
+    } catch (error) {
+      return { error: "open_failed" };
+    }
+  });
   ipcMain.handle("build:stop", () => {
     if (!activeBuild) {
       return { stopped: false };

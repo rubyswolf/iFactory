@@ -111,6 +111,9 @@ contextBridge.exposeInMainWorld("ifactory", {
       return () => ipcRenderer.removeListener("project:items-updated", listener);
     }
   },
+  solution: {
+    open: (payload) => ipcRenderer.invoke("solution:open", payload)
+  },
   session: {
     load: (payload) => ipcRenderer.invoke("session:load", payload),
     append: (payload) => ipcRenderer.invoke("session:append", payload)
