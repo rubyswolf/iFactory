@@ -118,6 +118,9 @@ contextBridge.exposeInMainWorld("ifactory", {
     load: (payload) => ipcRenderer.invoke("session:load", payload),
     append: (payload) => ipcRenderer.invoke("session:append", payload)
   },
+  prompts: {
+    modes: () => ipcRenderer.invoke("prompts:modes")
+  },
   templates: {
     list: (payload) => ipcRenderer.invoke("templates:list", payload),
     copy: (payload) => ipcRenderer.invoke("templates:copy", payload)

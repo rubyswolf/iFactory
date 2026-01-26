@@ -273,6 +273,38 @@ const startAgentServer = () => {
           }
           socket.end();
           return;
+        } else if (cmd === "mode") {
+          const modeValue = Array.isArray(arg)
+            ? (arg[0] || "").trim().toLowerCase()
+            : arg.toLowerCase();
+          if (!currentProjectPath) {
+            socket.write("error:no_project\n");
+            socket.end();
+            return;
+          }
+          const availableModes = prompts?.codex?.modes || {};
+          if (!modeValue || !availableModes[modeValue]) {
+            socket.write("error:invalid_mode\n");
+            socket.end();
+            return;
+          }
+          const session = loadSession(currentProjectPath);
+          const previousMode = session.mode || "manage";
+          session.mode = modeValue;
+          session.updatedAt = new Date().toISOString();
+          saveSession(currentProjectPath, session);
+          socket.write(`ok:Switched modes: ${previousMode} -> ${modeValue}\n`);
+          socket.end();
+          return;
+        } else if (cmd === "modes") {
+          const availableModes = Object.keys(prompts?.codex?.modes || {});
+          if (availableModes.length === 0) {
+            socket.write("error:no_modes\n");
+          } else {
+            socket.write(`${availableModes.join("\n")}\n`);
+          }
+          socket.end();
+          return;
         } else {
           socket.write("error:unknown_command\n");
         }
@@ -1474,17 +1506,19 @@ const loadSession = (projectPath) => {
   try {
     const raw = fs.readFileSync(sessionPath, "utf8");
     const parsed = JSON.parse(raw);
-    return {
-      id: parsed?.id || "default",
-      createdAt: parsed?.createdAt || new Date().toISOString(),
-      updatedAt: parsed?.updatedAt || new Date().toISOString(),
-      messages: Array.isArray(parsed?.messages) ? parsed.messages : [],
-    };
+      return {
+        id: parsed?.id || "default",
+        createdAt: parsed?.createdAt || new Date().toISOString(),
+        updatedAt: parsed?.updatedAt || new Date().toISOString(),
+        mode: parsed?.mode || "manage",
+        messages: Array.isArray(parsed?.messages) ? parsed.messages : [],
+      };
   } catch (error) {
     return {
       id: "default",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      mode: "manage",
       messages: [],
     };
   }
@@ -1497,6 +1531,7 @@ const saveSession = (projectPath, session) => {
     id: session.id || "default",
     createdAt: session.createdAt || new Date().toISOString(),
     updatedAt: session.updatedAt || new Date().toISOString(),
+    mode: session.mode || "manage",
     messages: Array.isArray(session.messages) ? session.messages : [],
   };
   fs.writeFileSync(
@@ -1506,11 +1541,15 @@ const saveSession = (projectPath, session) => {
   return payload;
 };
 
-const buildChatPrompt = (messages) => {
+const buildChatPrompt = (messages, mode) => {
   const systemLines = Array.isArray(prompts?.codex?.system)
     ? prompts.codex.system
     : [];
-  const system = systemLines.map((line) => `System: ${line}`).join("\n");
+  const modes = prompts?.codex?.modes || {};
+  const modeKey = typeof mode === "string" && modes[mode] ? mode : "manage";
+  const modeLines = Array.isArray(modes?.[modeKey]) ? modes[modeKey] : [];
+  const combined = systemLines.concat(modeLines);
+  const system = combined.map((line) => `System: ${line}`).join("\n");
   const transcript = messages
     .map((message) => {
       const role = message.role === "assistant" ? "Assistant" : "User";
@@ -1902,10 +1941,9 @@ const registerIpc = () => {
         return { error: "codex_missing" };
       }
       const maxHistory = history.slice(-20);
-      const promptMessages = maxHistory.length
-        ? maxHistory
-        : loadSession(projectPath).messages;
-      const prompt = buildChatPrompt(promptMessages);
+      const session = loadSession(projectPath);
+      const promptMessages = maxHistory.length ? maxHistory : session.messages;
+      const prompt = buildChatPrompt(promptMessages, session.mode);
       const reply = await runCodexChat({ projectPath, prompt });
       return { reply };
     } catch (error) {
@@ -1927,13 +1965,13 @@ const registerIpc = () => {
     try {
       const projectPath = payload?.path?.trim();
       if (!projectPath) {
-        return { error: "missing_path" };
-      }
-      if (!fs.existsSync(projectPath)) {
-        return { error: "path_not_found" };
-      }
-      const session = loadSession(projectPath);
-      return { session };
+      return { error: "missing_path" };
+    }
+    if (!fs.existsSync(projectPath)) {
+      return { error: "path_not_found" };
+    }
+    const session = loadSession(projectPath);
+    return { session };
     } catch (error) {
       return { error: "session_load_failed" };
     }
@@ -1967,6 +2005,10 @@ const registerIpc = () => {
     } catch (error) {
       return { error: "session_append_failed" };
     }
+  });
+  ipcMain.handle("prompts:modes", () => {
+    const modes = prompts?.codex?.modes || {};
+    return { modes: Object.keys(modes) };
   });
   ipcMain.handle("build:run", async (event, payload) => {
     if (activeBuild) {
