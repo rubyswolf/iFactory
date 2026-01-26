@@ -5,10 +5,10 @@ const net = require("net");
 
 const pipeName = "\\\\.\\pipe\\ifactory-agent";
 
-const usage = (modes = []) => {
-  const modeList = Array.isArray(modes) && modes.length
-    ? modes.join("|")
-    : "<mode>";
+const usage = (topics = []) => {
+  const topicList = Array.isArray(topics) && topics.length
+    ? topics.join("|")
+    : "<topic>";
   console.log("ifact <command>");
   console.log("");
   console.log("Commands:");
@@ -16,20 +16,20 @@ const usage = (modes = []) => {
   console.log("  templates  List iPlug2 templates for the current project");
   console.log("  create     Create a plugin from a template");
   console.log("  resource   Add a resource to a plugin");
-  console.log("  mode       Set the session prompt mode");
+  console.log("  info       Print additional topic notes");
   console.log("");
   console.log("Usage:");
   console.log("  ifact create <template> [name]");
   console.log("  ifact resource add <plugin> <path> <resource name> [-m]");
-  console.log(`  ifact mode <${modeList}>`);
+  console.log(`  ifact info <${topicList}>`);
 };
 
 const command = (process.argv[2] || "").toLowerCase();
 const args = process.argv.slice(3);
-const fetchModes = () =>
+const fetchTopics = () =>
   new Promise((resolve) => {
     const client = net.createConnection(pipeName, () => {
-      client.write("modes\n");
+      client.write("topics\n");
     });
     let buffer = "";
     client.setEncoding("utf8");
@@ -38,19 +38,19 @@ const fetchModes = () =>
     });
     client.on("error", () => resolve([]));
     client.on("close", () => {
-      const modes = buffer
+      const topics = buffer
         .split(/\r?\n/)
         .map((line) => line.trim())
         .filter(Boolean)
         .filter((line) => !line.startsWith("error:"));
-      resolve(modes);
+      resolve(topics);
     });
   });
 
 const run = async () => {
-  const modeList = await fetchModes();
+  const topicList = await fetchTopics();
   if (!command || command === "help" || command === "--help" || command === "-h") {
-    usage(modeList);
+    usage(topicList);
     process.exit(0);
   }
 
@@ -59,7 +59,7 @@ const socket = net.createConnection(pipeName, () => {
       const template = args[0];
       const name = args[1];
       if (!template) {
-        usage(modeList);
+        usage(topicList);
         process.exit(1);
       }
       if (name && /\s/.test(name)) {
@@ -76,14 +76,14 @@ const socket = net.createConnection(pipeName, () => {
     const filtered = args.filter((arg) => arg !== "-m" && arg !== "--move");
     const action = (filtered[0] || "").toLowerCase();
     if (action !== "add") {
-      usage(modeList);
+      usage(topicList);
       process.exit(1);
     }
     const plugin = filtered[1];
     const filePath = filtered[2];
     const name = filtered.slice(3).join(" ").trim();
     if (!plugin || !filePath || !name) {
-      usage(modeList);
+      usage(topicList);
       process.exit(1);
     }
     if (/[^a-zA-Z0-9 _]/.test(name)) {
@@ -95,13 +95,13 @@ const socket = net.createConnection(pipeName, () => {
     );
     return;
   }
-  if (command === "mode") {
-    const mode = (args[0] || "").toLowerCase();
-    if (!mode) {
-      usage(modeList);
+  if (command === "info") {
+    const topic = (args[0] || "").toLowerCase();
+    if (!topic) {
+      usage(topicList);
       process.exit(1);
     }
-    socket.write(`mode\t${mode}\n`);
+    socket.write(`info\t${topic}\n`);
     return;
   }
   socket.write(`${command}\n`);

@@ -119,7 +119,7 @@ contextBridge.exposeInMainWorld("ifactory", {
     append: (payload) => ipcRenderer.invoke("session:append", payload)
   },
   prompts: {
-    modes: () => ipcRenderer.invoke("prompts:modes")
+    topics: () => ipcRenderer.invoke("prompts:topics")
   },
   templates: {
     list: (payload) => ipcRenderer.invoke("templates:list", payload),
