@@ -97,7 +97,7 @@ const socket = net.createConnection(pipeName, () => {
     return;
   }
   if (command === "info") {
-    const topic = (args[0] || "").toLowerCase();
+    const topic = args.join(" ").trim().toLowerCase();
     if (!topic) {
       usage(topicList);
       process.exit(1);

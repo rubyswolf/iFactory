@@ -277,7 +277,7 @@ const startAgentServer = () => {
           return;
         } else if (cmd === "info") {
           const topicValue = Array.isArray(arg)
-            ? (arg[0] || "").trim().toLowerCase()
+            ? arg.join(" ").trim().toLowerCase()
             : arg.toLowerCase();
           const topics = prompts?.codex?.info || prompts?.codex?.modes || {};
           if (!topicValue) {

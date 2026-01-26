@@ -12,7 +12,7 @@
       "dsp: Signal processing and how to make the functionality of the plugin.",
       "parameter: Create and manage plugin parameters and read their values efficiently within the DSP code.",
       "preset: Create builtin presets.",
-      "data: Plugin data serialization, how to store arbitrary data within the plugin state so it persists when the DAW is closed and reopened.",
+      "serialize: Plugin data serialization, how to store arbitrary data within the plugin state so it persists when the DAW is closed and reopened.",
       "inspect: How to dig through the code of iPlug2 in order to find additional info about how to do something when you can't find what you're looking for in other info commands.",
       "`ifact ping` plays a sound to get the user's attention. You should call this once you've finished making code changes and are ready for the client to review the changes."
     ],
@@ -23,16 +23,20 @@
         "You can create a new plugin within the project by using `ifact create <template> [name]`. The name is the internal code name so it may not contain spaces or special characters."
       ],
       "ui": [
-        "The main graphics library within iPlug2 is IGraphics. For more details and advanced features inspect iPlug2/IGraphics.",
-        "The most important class within IGraphics is IRECT which defines a rectangle within the UI. It is used for bounding boxes on all UI elements and has properties float L, T, R, B. These are its most useful constructors and methods:",
-        "`IRECT(float l, float t, float r, float b)`",
+        "iPlug2's UI/graphics framework is IGraphics, and the on-screen UI pieces you attach to it are “controls,” i.e., classes that derive from IControl. For more details and advanced features inspect iPlug2/IGraphics.",
+        "The interface is created by the `std::function<void(IGraphics* pGraphics)> mLayoutFunc` of your plugin which you assign in the constructor.",
+        "Controls are attached to the interface within the layout fuction with `pGraphics->AttachControl(<control>)`.",
+        "The most important class within IGraphics is `IRECT(float l, float t, float r, float b)` which defines a rectangle within the UI. It is used for bounding boxes for controls and has properties `float L, T, R, B`. These are its most useful methods:",
         "`static IRECT MakeXYWH(float l, float t, float w, float h)`",
         "`static IRECT MakeMidXYWH(float x, float y, float w, float h)` (xy defines center of rect rather than top left)",
         "Methods `W()` and `H()` for getting width and height.",
-        "For building the UI you can use resources such as vector and bitmap images and fonts.",
+        "Some controls accept resources such as vector and bitmap images and fonts, you can learn how to import and use resources with `ifact info ui resources`."
+      ],
+      "ui resources": [
         "The available resources are listed at the bottom of config.h of the plugin as macros for the file names of resources.",
         "To add a resource to a plugin you can use `ifact resource add <plugin folder name> <absolute resource path> <resource name in uppercase snake case>`; it will automatically include the resource and add a macro entry like '#define ROBOTO_FN \"Roboto-Regular.ttf\"' (_FN suffix added automatically).",
         "Resources will normally be provided by the user, if the user has not provided the resources they want, let them know they can add resources to the plugin by selecting the plugin in the sidebar and dragging and dropping a file onto the build and run menu or that you can add resources if they provide the path to the resources.",
+        "Fonts are loaded like `pGraphics->LoadFont(\"Roboto-Regular\", ROBOTO_FN)` where the first parameter is the ID.",
         "SVGs are loaded as `const ISVG example = pGraphics->LoadSVG(EXAMPLE_FN)`"
       ],
       "dsp": [
@@ -59,7 +63,7 @@
         "For presets the easiest way to create them is to just put a list of `void IPluginBase::MakePreset(const char* name, ...)` calls in the constructor after your parameters which creates built-in factory presets, specifying parameter values sequentially.",
         "For more advanced preset creation, inspect iPlug2/IPlug/IPlugPluginBase.h"
       ],
-      "data": [
+      "serialize": [
         "Serialization is broken into `virtual bool SerializeState(IByteChunk& chunk) const { TRACE return SerializeParams(chunk); }` and `virtual int UnserializeState(const IByteChunk& chunk, int startPos) { TRACE return UnserializeParams(chunk, startPos); }`",
         "By default as you can see they call Serialize and Unserialize Params which are provided below for you to understand how serialization works.",
         "```c++",
@@ -99,7 +103,6 @@
         "  return pos;",
         "}",
         "```",
-        "The serializers are modular in the way that you can make a custom serializer system which adds custom data to the start and then ends with `return SerializeParams(chunk);` and `return UnserializeParams(chunk, startPos);`",
         "However there is a huge issue with the builtin parameter serializer, as you can see it just stores a list of values, that means if you ever rearrange the order of parameters or insert new parameters between existing parameters then the wrong values will be assigned to different parameters.",
         "For simple plugins this is normally fine, you just face the limitation that you can only safely add new parameters to the end of the list.",
         "But for any complex system you are highly recommended to override and make a custom serializer that has a version number integer as the first bit of data and update it when adding new data to ensure backwards compatibility so that projects saved using an older version of the plugin can load correctly."
