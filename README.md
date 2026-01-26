@@ -1,6 +1,6 @@
 # iFactory
 
-iFactory by Dart Spark is an Electron desktop experience for building audio plugins with
+iFactory by Dart Spark is an Electron desktop for Windows for building audio plugins with
 the Codex CLI and iPlug2 plugin framework.
 
 ## CLI
