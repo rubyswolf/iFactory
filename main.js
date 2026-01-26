@@ -3457,6 +3457,7 @@ const createWindow = () => {
     minWidth: 980,
     minHeight: 640,
     title: "iFactory",
+    icon: path.join(__dirname, "icons", "logo.ico"),
     backgroundColor: "#0b0f14",
     frame: false,
     autoHideMenuBar: true,
