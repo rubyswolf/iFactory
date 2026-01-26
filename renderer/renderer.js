@@ -837,6 +837,107 @@ const setupGithubOAuth = () => {
     }, 260);
   };
 
+  const renderAssistantMarkdown = (bubble, text) => {
+    if (!bubble) {
+      return;
+    }
+    bubble.innerHTML = "";
+    const blocks = String(text || "").split(/```/);
+    const appendInlineContent = (parent, value) => {
+      const parts = String(value || "")
+        .split(/(`[^`]+`)/g)
+        .filter(Boolean);
+      parts.forEach((part) => {
+        const inlineMatch = part.match(/^`([^`]+)`$/);
+        if (inlineMatch) {
+          const code = document.createElement("code");
+          code.className = "inline-code";
+          code.textContent = inlineMatch[1];
+          parent.appendChild(code);
+        } else {
+          parent.appendChild(document.createTextNode(part));
+        }
+      });
+    };
+    const appendParagraph = (lines) => {
+      if (!lines.length) {
+        return;
+      }
+      const p = document.createElement("p");
+      appendInlineContent(p, lines.join(" ").trim());
+      bubble.appendChild(p);
+    };
+    const renderTextBlock = (segment) => {
+      const lines = segment.split(/\r?\n/);
+      let buffer = [];
+      let i = 0;
+      while (i < lines.length) {
+        const line = lines[i];
+        if (!line.trim()) {
+          appendParagraph(buffer);
+          buffer = [];
+          i += 1;
+          continue;
+        }
+        const ulMatch = line.match(/^\s*[-*+]\s+(.*)$/);
+        if (ulMatch) {
+          appendParagraph(buffer);
+          buffer = [];
+          const ul = document.createElement("ul");
+          while (i < lines.length) {
+            const match = lines[i].match(/^\s*[-*+]\s+(.*)$/);
+            if (!match) {
+              break;
+            }
+            const li = document.createElement("li");
+            appendInlineContent(li, match[1]);
+            ul.appendChild(li);
+            i += 1;
+          }
+          bubble.appendChild(ul);
+          continue;
+        }
+        const olMatch = line.match(/^\s*\d+[.)]\s+(.*)$/);
+        if (olMatch) {
+          appendParagraph(buffer);
+          buffer = [];
+          const ol = document.createElement("ol");
+          while (i < lines.length) {
+            const match = lines[i].match(/^\s*\d+[.)]\s+(.*)$/);
+            if (!match) {
+              break;
+            }
+            const li = document.createElement("li");
+            appendInlineContent(li, match[1]);
+            ol.appendChild(li);
+            i += 1;
+          }
+          bubble.appendChild(ol);
+          continue;
+        }
+        buffer.push(line.trim());
+        i += 1;
+      }
+      appendParagraph(buffer);
+    };
+
+    blocks.forEach((block, index) => {
+      if (index % 2 === 1) {
+        const lines = block.replace(/^\n/, "").split(/\r?\n/);
+        const hasLang =
+          lines.length > 1 && /^[a-z0-9_-]+$/i.test(lines[0].trim());
+        const codeText = hasLang ? lines.slice(1).join("\n") : block;
+        const pre = document.createElement("pre");
+        const code = document.createElement("code");
+        code.textContent = codeText.replace(/^\n/, "");
+        pre.appendChild(code);
+        bubble.appendChild(pre);
+      } else {
+        renderTextBlock(block);
+      }
+    });
+  };
+
   const persistChatMessage = async (message, save = true) => {
     chatMessages.push(message);
     if (save && window.ifactory?.session?.append && chatProjectPath) {
@@ -859,7 +960,11 @@ const setupGithubOAuth = () => {
     if (!bubble) {
       return;
     }
-    bubble.textContent = text;
+    if (role === "assistant" && tone !== "error") {
+      renderAssistantMarkdown(bubble, text);
+    } else {
+      bubble.textContent = text;
+    }
     const message = {
       role,
       content: text,
@@ -893,6 +998,7 @@ const setupGithubOAuth = () => {
           window.requestAnimationFrame(tick);
         } else {
           bubble.classList.remove("is-streaming");
+          renderAssistantMarkdown(bubble, text);
           persistChatMessage(
             {
               role: "assistant",
@@ -921,7 +1027,11 @@ const setupGithubOAuth = () => {
       if (message.error) {
         bubble.classList.add("ai-chat-bubble--error");
       }
-      bubble.textContent = message.content || "";
+      if (message.role === "assistant" && !message.error) {
+        renderAssistantMarkdown(bubble, message.content || "");
+      } else {
+        bubble.textContent = message.content || "";
+      }
       chatListEl.appendChild(bubble);
     });
     chatListEl.scrollTop = chatListEl.scrollHeight;

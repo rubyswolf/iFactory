@@ -7,7 +7,7 @@
       "You have access to the terminal command `ifact` which can be used to make special iFactory calls.",
       "Use `ifact info <topic>` to print additional topic notes on demand.",
       "Available info topics (lowercase): manage, ui, dsp, parameter, preset, data, inspect.",
-      "manage: Equips you to control the project as a whole, creating and managing plugins and tools.",
+      "manage: Equips you to control the project as a whole, creating and managing plugins and tools, use as a starting point.",
       "ui: Plugin interface design and creation.",
       "dsp: Signal processing and how to make the functionality of the plugin.",
       "parameter: Create and manage plugin parameters and read their values efficiently within the DSP code.",
