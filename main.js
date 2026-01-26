@@ -127,7 +127,9 @@ const startAgentServer = () => {
         const cmd = (tabTokens ? tabTokens[0] : trimmed.split(" ")[0] || "")
           .toLowerCase()
           .trim();
-        const arg = tabTokens ? tabTokens.slice(1) : trimmed.slice(cmd.length).trim();
+        const arg = tabTokens
+          ? tabTokens.slice(1)
+          : trimmed.slice(cmd.length).trim();
         if (cmd === "ping") {
           broadcastAgentPing();
           socket.write("ok\n");
@@ -295,12 +297,41 @@ const startAgentServer = () => {
           socket.end();
           return;
         } else if (cmd === "topics") {
-          const topics = Object.keys(prompts?.codex?.info || prompts?.codex?.modes || {});
+          const topics = Object.keys(
+            prompts?.codex?.info || prompts?.codex?.modes || {},
+          );
           if (topics.length === 0) {
             socket.write("error:no_topics\n");
           } else {
             socket.write(`${topics.join("\n")}\n`);
           }
+          socket.end();
+          return;
+        } else if (cmd === "list") {
+          if (!currentProjectPath) {
+            socket.write("error:no_project\n");
+            socket.end();
+            return;
+          }
+          const listResult = listProjectItems(currentProjectPath);
+          if (listResult.error) {
+            socket.write(`error:${listResult.error}\n`);
+            socket.end();
+            return;
+          }
+          const items = listResult.items || [];
+          if (!items.length) {
+            socket.write(
+              "No items found, maybe you should create something.\n",
+            );
+            socket.end();
+            return;
+          }
+          const lines = items.map((item) => {
+            const label = item.type === "tool" ? "Tool" : "Plugin";
+            return `${label}: ${item.name}`;
+          });
+          socket.write(`${lines.join("\n")}\n`);
           socket.end();
           return;
         } else {
@@ -977,7 +1008,7 @@ const listTemplatesForProject = (projectPath) => {
       }
       return {
         folder,
-        description
+        description,
       };
     })
     .sort((a, b) => {
@@ -1094,7 +1125,8 @@ const updateResourceRcFile = (rcFilePath, resourceName, extUpper) => {
     }
   }
 
-  const output = updatedLines.join(lineBreak) + (endsWithNewline ? lineBreak : "");
+  const output =
+    updatedLines.join(lineBreak) + (endsWithNewline ? lineBreak : "");
   fs.writeFileSync(rcFilePath, output);
 };
 
@@ -1551,6 +1583,94 @@ const buildChatPrompt = (messages) => {
   return `${system}\n\n${transcript}\n\n${assistantPrefix}`;
 };
 
+const listProjectItems = (projectPath) => {
+  if (!projectPath) {
+    return { error: "missing_path" };
+  }
+  if (!fs.existsSync(projectPath)) {
+    return { error: "path_not_found" };
+  }
+
+  const skipNames = new Set(["iPlug2", "node_modules", ".git"]);
+  const shouldSkip = (name) => {
+    if (!name) {
+      return true;
+    }
+    if (name.startsWith(".")) {
+      return true;
+    }
+    if (skipNames.has(name)) {
+      return true;
+    }
+    if (name === "build" || name.startsWith("build-")) {
+      return true;
+    }
+    return false;
+  };
+
+  const hasFileRecursive = (root, matcher, maxDepth = 4) => {
+    const stack = [{ dir: root, depth: 0 }];
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (!current || current.depth > maxDepth) {
+        continue;
+      }
+      let entries = [];
+      try {
+        entries = fs.readdirSync(current.dir, { withFileTypes: true });
+      } catch (error) {
+        continue;
+      }
+      for (const entry of entries) {
+        if (entry.isFile() && matcher(entry.name)) {
+          return true;
+        }
+        if (entry.isDirectory() && !shouldSkip(entry.name)) {
+          stack.push({
+            dir: path.join(current.dir, entry.name),
+            depth: current.depth + 1,
+          });
+        }
+      }
+    }
+    return false;
+  };
+
+  const hasConfigAtRoot = (root) => {
+    try {
+      const entries = fs.readdirSync(root, { withFileTypes: true });
+      return entries.some(
+        (entry) => entry.isFile() && entry.name.toLowerCase() === "config.h",
+      );
+    } catch (error) {
+      return false;
+    }
+  };
+
+  const entries = fs.readdirSync(projectPath, { withFileTypes: true });
+  const items = entries
+    .filter((entry) => entry.isDirectory() && !shouldSkip(entry.name))
+    .map((entry) => {
+      const folderPath = path.join(projectPath, entry.name);
+      const hasSolution = hasFileRecursive(
+        folderPath,
+        (name) => name.toLowerCase().endsWith(".sln"),
+        5,
+      );
+      if (!hasSolution) {
+        return null;
+      }
+      const hasConfig = hasConfigAtRoot(folderPath);
+      return {
+        name: entry.name,
+        type: hasConfig ? "plugin" : "tool",
+      };
+    })
+    .filter(Boolean);
+
+  return { items };
+};
+
 const isCmdScript = (value) => {
   const lower = value.toLowerCase();
   return lower.endsWith(".cmd") || lower.endsWith(".bat");
@@ -1956,13 +2076,13 @@ const registerIpc = () => {
     try {
       const projectPath = payload?.path?.trim();
       if (!projectPath) {
-      return { error: "missing_path" };
-    }
-    if (!fs.existsSync(projectPath)) {
-      return { error: "path_not_found" };
-    }
-    const session = loadSession(projectPath);
-    return { session };
+        return { error: "missing_path" };
+      }
+      if (!fs.existsSync(projectPath)) {
+        return { error: "path_not_found" };
+      }
+      const session = loadSession(projectPath);
+      return { session };
     } catch (error) {
       return { error: "session_load_failed" };
     }
@@ -2380,92 +2500,7 @@ const registerIpc = () => {
   ipcMain.handle("project:listItems", async (event, payload) => {
     try {
       const projectPath = payload?.path?.trim();
-      if (!projectPath) {
-        return { error: "missing_path" };
-      }
-      if (!fs.existsSync(projectPath)) {
-        return { error: "path_not_found" };
-      }
-
-      const skipNames = new Set(["iPlug2", "node_modules", ".git"]);
-      const shouldSkip = (name) => {
-        if (!name) {
-          return true;
-        }
-        if (name.startsWith(".")) {
-          return true;
-        }
-        if (skipNames.has(name)) {
-          return true;
-        }
-        if (name === "build" || name.startsWith("build-")) {
-          return true;
-        }
-        return false;
-      };
-
-      const hasFileRecursive = (root, matcher, maxDepth = 4) => {
-        const stack = [{ dir: root, depth: 0 }];
-        while (stack.length > 0) {
-          const current = stack.pop();
-          if (!current || current.depth > maxDepth) {
-            continue;
-          }
-          let entries = [];
-          try {
-            entries = fs.readdirSync(current.dir, { withFileTypes: true });
-          } catch (error) {
-            continue;
-          }
-          for (const entry of entries) {
-            if (entry.isFile() && matcher(entry.name)) {
-              return true;
-            }
-            if (entry.isDirectory() && !shouldSkip(entry.name)) {
-              stack.push({
-                dir: path.join(current.dir, entry.name),
-                depth: current.depth + 1,
-              });
-            }
-          }
-        }
-        return false;
-      };
-
-      const hasConfigAtRoot = (root) => {
-        try {
-          const entries = fs.readdirSync(root, { withFileTypes: true });
-          return entries.some(
-            (entry) =>
-              entry.isFile() && entry.name.toLowerCase() === "config.h",
-          );
-        } catch (error) {
-          return false;
-        }
-      };
-
-      const entries = fs.readdirSync(projectPath, { withFileTypes: true });
-      const items = entries
-        .filter((entry) => entry.isDirectory() && !shouldSkip(entry.name))
-        .map((entry) => {
-          const folderPath = path.join(projectPath, entry.name);
-          const hasSolution = hasFileRecursive(
-            folderPath,
-            (name) => name.toLowerCase().endsWith(".sln"),
-            5,
-          );
-          if (!hasSolution) {
-            return null;
-          }
-          const hasConfig = hasConfigAtRoot(folderPath);
-          return {
-            name: entry.name,
-            type: hasConfig ? "plugin" : "tool",
-          };
-        })
-        .filter(Boolean);
-
-      return { items };
+      return listProjectItems(projectPath);
     } catch (error) {
       return { error: "list_failed" };
     }

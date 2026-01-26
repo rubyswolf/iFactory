@@ -14,6 +14,7 @@ const usage = (topics = []) => {
   console.log("Commands:");
   console.log("  ping       Play attention sound in iFactory");
   console.log("  templates  List iPlug2 templates for the current project");
+  console.log("  list       List plugins and tools in the current project");
   console.log("  create     Create a plugin from a template");
   console.log("  resource   Add a resource to a plugin");
   console.log("  info       Print additional topic notes");
@@ -102,6 +103,10 @@ const socket = net.createConnection(pipeName, () => {
       process.exit(1);
     }
     socket.write(`info\t${topic}\n`);
+    return;
+  }
+  if (command === "list") {
+    socket.write("list\n");
     return;
   }
   socket.write(`${command}\n`);
