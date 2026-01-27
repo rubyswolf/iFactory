@@ -346,6 +346,41 @@ const startAgentServer = () => {
           socket.write(`${lines.join("\n")}\n`);
           socket.end();
           return;
+        } else if (cmd === "doxy") {
+          const tokens = Array.isArray(arg)
+            ? arg.filter(Boolean)
+            : arg.split(/\s+/).filter(Boolean);
+          const action = (tokens[0] || "").toLowerCase();
+          const target = tokens[1] || "";
+          if (action !== "generate") {
+            socket.write("error:unknown_command\n");
+            socket.end();
+            return;
+          }
+          if (!currentProjectPath) {
+            socket.write("error:no_project\n");
+            socket.end();
+            return;
+          }
+          runDoxygenGenerate(currentProjectPath, target)
+            .then((result) => {
+              if (result?.error) {
+                socket.write(`error:${result.error}\n`);
+              } else if (result?.outputDir) {
+                socket.write(`ok:${result.outputDir}\n`);
+              } else {
+                socket.write("ok\n");
+              }
+            })
+            .catch((error) => {
+              socket.write(
+                `error:${error?.message || String(error) || "doxygen_failed"}\n`,
+              );
+            })
+            .finally(() => {
+              socket.end();
+            });
+          return;
         } else {
           socket.write("error:unknown_command\n");
         }
@@ -628,6 +663,35 @@ const replaceAll = (value, search, replacement) => {
     return value;
   }
   return value.split(search).join(replacement);
+};
+
+const updateDoxySetting = (content, key, value) => {
+  const pattern = new RegExp(`^\\s*${key}\\s*=.*$`, "m");
+  const line = `${key} = ${value}`;
+  if (pattern.test(content)) {
+    return content.replace(pattern, line);
+  }
+  const trimmed = content.replace(/\s*$/, "");
+  return `${trimmed}\n${line}\n`;
+};
+
+const createPatchedDoxyfile = (sourcePath, outputDir) => {
+  const raw = fs.readFileSync(sourcePath, "utf8");
+  const normalizedOutput = outputDir.replace(/\\/g, "/");
+  let next = raw;
+  next = updateDoxySetting(next, "GENERATE_HTML", "NO");
+  next = updateDoxySetting(next, "GENERATE_XML", "YES");
+  next = updateDoxySetting(
+    next,
+    "OUTPUT_DIRECTORY",
+    `"${normalizedOutput}"`,
+  );
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "ifactory-doxyfile-"),
+  );
+  const tempPath = path.join(tempDir, "Doxyfile");
+  fs.writeFileSync(tempPath, next);
+  return { tempPath, tempDir };
 };
 
 const findDoxygenExecutable = (rootDir, maxDepth = 4) => {
@@ -1654,6 +1718,61 @@ const installDoxygen = async (event) => {
     }
     if (window && !window.isDestroyed()) {
       window.setProgressBar(-1);
+    }
+  }
+};
+
+const runDoxygenGenerate = async (projectPath, target) => {
+  if (!projectPath) {
+    return { error: "missing_path" };
+  }
+  const normalizedTarget = String(target || "").toLowerCase();
+  if (!normalizedTarget) {
+    return { error: "missing_target" };
+  }
+  if (normalizedTarget !== "iplug2") {
+    return { error: "unknown_target" };
+  }
+  const installState = checkDoxygenInstalled();
+  if (!installState.installed || !installState.path) {
+    return { error: "doxygen_missing" };
+  }
+  const doxyfilePath = path.join(
+    projectPath,
+    "iPlug2",
+    "Documentation",
+    "Doxyfile",
+  );
+  if (!fs.existsSync(doxyfilePath)) {
+    return { error: "doxyfile_missing" };
+  }
+  const outputDir = path.join(projectPath, "doxygen", "iPlug2");
+  fs.mkdirSync(outputDir, { recursive: true });
+  const { tempPath, tempDir } = createPatchedDoxyfile(
+    doxyfilePath,
+    outputDir,
+  );
+  try {
+    const result = spawnSync(installState.path, [tempPath], {
+      cwd: path.dirname(doxyfilePath),
+      encoding: "utf8",
+      windowsHide: true,
+    });
+    if (result.error || result.status !== 0) {
+      return {
+        error: "doxygen_failed",
+        details:
+          String(result.stderr || result.stdout || result.error?.message || "")
+            .trim()
+            .slice(0, 400),
+      };
+    }
+    return { generated: true, outputDir };
+  } finally {
+    try {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    } catch (error) {
+      // ignore cleanup errors
     }
   }
 };

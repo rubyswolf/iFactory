@@ -18,10 +18,12 @@ const usage = (topics = []) => {
   console.log("  create     Create a plugin from a template");
   console.log("  resource   Add a resource to a plugin");
   console.log("  info       Print additional topic notes");
+  console.log("  doxy       Generate Doxygen XML for the current project");
   console.log("");
   console.log("Usage:");
   console.log("  ifact create <template> [name]");
   console.log("  ifact resource add <plugin> <path> <resource name> [-m]");
+  console.log("  ifact doxy generate iPlug2");
   console.log(`  ifact info <${topicList}>`);
 };
 
@@ -107,6 +109,16 @@ const socket = net.createConnection(pipeName, () => {
   }
   if (command === "list") {
     socket.write("list\n");
+    return;
+  }
+  if (command === "doxy") {
+    const action = (args[0] || "").toLowerCase();
+    const target = args[1] || "";
+    if (action !== "generate" || !target) {
+      usage(topicList);
+      process.exit(1);
+    }
+    socket.write(`doxy ${action} ${target}\n`);
     return;
   }
   socket.write(`${command}\n`);
