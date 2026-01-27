@@ -34,6 +34,12 @@ const defaultSettings = {
       path: "",
       checkedAt: null,
     },
+    doxygen: {
+      installed: false,
+      path: "",
+      version: "",
+      checkedAt: null,
+    },
   },
   recentProjects: [],
 };
@@ -42,6 +48,9 @@ const cloneSettings = (value) => JSON.parse(JSON.stringify(value));
 
 const getSettingsPath = () =>
   path.join(app.getPath("userData"), "settings.json");
+
+const getDoxygenInstallDir = () =>
+  path.join(app.getPath("userData"), "tools", "doxygen");
 
 const mergeSettings = (settings) => {
   const merged = cloneSettings(defaultSettings);
@@ -59,6 +68,9 @@ const mergeSettings = (settings) => {
       merged.dependencies.buildTools,
       settings.dependencies.buildTools,
     );
+  }
+  if (settings?.dependencies?.doxygen) {
+    Object.assign(merged.dependencies.doxygen, settings.dependencies.doxygen);
   }
   if (Array.isArray(settings?.recentProjects)) {
     merged.recentProjects = settings.recentProjects;
@@ -482,6 +494,36 @@ const expandArchive = (zipPath, destDir, onChild) =>
     });
   });
 
+const requestText = (urlString) =>
+  new Promise((resolve, reject) => {
+    const url = new URL(urlString);
+    const request = https.request(
+      {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        path: `${url.pathname}${url.search}`,
+        method: "GET",
+      },
+      (response) => {
+        let data = "";
+        response.on("data", (chunk) => {
+          data += chunk;
+        });
+        response.on("end", () => {
+          const status = response.statusCode || 0;
+          if (status < 200 || status >= 300) {
+            return reject(
+              new Error(`Request failed (${status}): ${data.slice(0, 200)}`),
+            );
+          }
+          resolve(data);
+        });
+      },
+    );
+    request.on("error", reject);
+    request.end();
+  });
+
 const getDepsConfig = () => {
   const platform = process.platform;
   if (platform === "darwin") {
@@ -586,6 +628,45 @@ const replaceAll = (value, search, replacement) => {
     return value;
   }
   return value.split(search).join(replacement);
+};
+
+const findDoxygenExecutable = (rootDir, maxDepth = 4) => {
+  if (!rootDir || !fs.existsSync(rootDir)) {
+    return "";
+  }
+  const stack = [{ dir: rootDir, depth: 0 }];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current || current.depth > maxDepth) {
+      continue;
+    }
+    let entries = [];
+    try {
+      entries = fs.readdirSync(current.dir, { withFileTypes: true });
+    } catch (error) {
+      continue;
+    }
+    for (const entry of entries) {
+      const fullPath = path.join(current.dir, entry.name);
+      if (entry.isFile() && entry.name.toLowerCase() === "doxygen.exe") {
+        return fullPath;
+      }
+      if (entry.isDirectory()) {
+        stack.push({ dir: fullPath, depth: current.depth + 1 });
+      }
+    }
+  }
+  return "";
+};
+
+const checkDoxygenInstalled = () => {
+  const rootDir = getDoxygenInstallDir();
+  const exePath = findDoxygenExecutable(rootDir);
+  return {
+    installed: Boolean(exePath),
+    path: exePath || "",
+    version: "",
+  };
 };
 
 const extractIPlugRoot = (content) => {
@@ -1455,10 +1536,126 @@ const checkCodexInstalled = () => {
     windowsHide: true,
   });
   if (!whereResult.error && whereResult.status === 0) {
-    return { installed: true, version: "" };
+    const candidates = String(whereResult.stdout || "")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    for (const candidate of candidates) {
+      const lower = candidate.toLowerCase();
+      let result = null;
+      if (lower.endsWith(".cmd") || lower.endsWith(".bat")) {
+        result = spawnSync("cmd", ["/c", candidate, "--version"], {
+          encoding: "utf8",
+          windowsHide: true,
+        });
+      } else if (lower.endsWith(".ps1")) {
+        result = spawnSync(
+          "powershell",
+          ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", candidate, "--version"],
+          { encoding: "utf8", windowsHide: true },
+        );
+      } else {
+        result = spawnSync(candidate, ["--version"], {
+          encoding: "utf8",
+          windowsHide: true,
+        });
+      }
+      const parsed = tryResult(result);
+      if (parsed) {
+        return parsed;
+      }
+    }
   }
 
   return { installed: false, version: "" };
+};
+
+const getLatestDoxygenLink = async () => {
+  const html = await requestText("https://www.doxygen.nl/download.html");
+  const match = html.match(/href="([^"]*windows\.x64\.bin\.zip)"/i);
+  if (!match || !match[1]) {
+    throw new Error("Doxygen download link not found");
+  }
+  const href = match[1];
+  if (href.startsWith("http")) {
+    return href;
+  }
+  return `https://www.doxygen.nl/${href.replace(/^\/+/, "")}`;
+};
+
+const installDoxygen = async (event) => {
+  const installDir = getDoxygenInstallDir();
+  const tmpDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "ifactory-doxygen-"),
+  );
+  const zipPath = path.join(tmpDir, "doxygen.zip");
+  const extractDir = path.join(tmpDir, "extract");
+  fs.mkdirSync(extractDir, { recursive: true });
+
+  const window = BrowserWindow.fromWebContents(event.sender);
+  const sendProgress = (progress, stage) => {
+    const normalized = Number.isFinite(progress)
+      ? Math.max(0, Math.min(progress, 1))
+      : null;
+    if (window && !window.isDestroyed()) {
+      window.setProgressBar(normalized === null ? -1 : normalized);
+    }
+    event.sender.send("doxygen:progress", {
+      progress: normalized,
+      stage,
+    });
+  };
+
+  try {
+    sendProgress(0.05, "Fetching latest Doxygen release...");
+    const url = await getLatestDoxygenLink();
+    sendProgress(0.1, "Downloading Doxygen...");
+    await downloadFile(url, zipPath, {
+      onProgress: (value) =>
+        sendProgress(0.1 + value * 0.6, "Downloading Doxygen..."),
+    });
+    sendProgress(0.75, "Extracting Doxygen...");
+    await expandArchive(zipPath, extractDir);
+
+    if (fs.existsSync(installDir)) {
+      fs.rmSync(installDir, { recursive: true, force: true });
+    }
+    fs.mkdirSync(path.dirname(installDir), { recursive: true });
+
+    const entries = fs.readdirSync(extractDir, { withFileTypes: true });
+    const rootDir = entries.find((entry) => entry.isDirectory());
+    const sourceRoot = rootDir
+      ? path.join(extractDir, rootDir.name)
+      : extractDir;
+
+    fs.renameSync(sourceRoot, installDir);
+
+    const exePath = findDoxygenExecutable(installDir);
+    if (!exePath) {
+      throw new Error("Doxygen executable not found after extraction");
+    }
+    sendProgress(0.95, "Finalizing...");
+    settings.dependencies.doxygen = {
+      installed: true,
+      path: exePath,
+      version: "",
+      checkedAt: new Date().toISOString(),
+    };
+    saveSettings();
+    sendProgress(1, "Done");
+    return { installed: true, path: exePath };
+  } catch (error) {
+    return { error: "doxygen_failed", details: error?.message || "" };
+  } finally {
+    try {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    } catch (error) {
+      // ignore cleanup errors
+    }
+    if (window && !window.isDestroyed()) {
+      window.setProgressBar(-1);
+    }
+  }
 };
 
 const checkBuildToolsInstalled = () => {
@@ -2071,6 +2268,32 @@ const registerIpc = () => {
     };
     saveSettings();
     return settings.dependencies.buildTools;
+  });
+  ipcMain.handle("doxygen:check", () => {
+    const result = checkDoxygenInstalled();
+    settings.dependencies.doxygen = {
+      ...settings.dependencies.doxygen,
+      installed: result.installed,
+      path: result.path || "",
+      version: result.version || "",
+      checkedAt: new Date().toISOString(),
+    };
+    saveSettings();
+    return settings.dependencies.doxygen;
+  });
+  ipcMain.handle("doxygen:install", async (event) => {
+    const result = await installDoxygen(event);
+    if (!result?.error) {
+      settings.dependencies.doxygen = {
+        ...settings.dependencies.doxygen,
+        installed: true,
+        path: result.path || "",
+        version: "",
+        checkedAt: new Date().toISOString(),
+      };
+      saveSettings();
+    }
+    return result;
   });
   ipcMain.handle("session:load", (event, payload) => {
     try {

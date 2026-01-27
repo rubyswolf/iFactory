@@ -702,6 +702,7 @@ body.is-ai[data-ai-view="agent"] .ai-chat {
 body.is-ai[data-ai-view="agent"] .ai-view[data-ai-view="agent"],
 body.is-ai[data-ai-view="templates"] .ai-view[data-ai-view="templates"],
 body.is-ai[data-ai-view="git"] .ai-view[data-ai-view="git"],
+body.is-ai[data-ai-view="doxygen"] .ai-view[data-ai-view="doxygen"],
 body.is-ai[data-ai-view="get-started"] .ai-view[data-ai-view="get-started"],
 body.is-ai[data-ai-view="run"] .ai-view[data-ai-view="run"] {
   display: flex;
@@ -746,6 +747,19 @@ body.is-ai:not(.ai-needs-agent) .prompt-dock {
   display: flex;
   flex-direction: column;
   gap: 18px;
+}
+
+.doxygen-panel {
+  width: min(760px, 100%);
+}
+
+.doxygen-ready {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(179, 255, 0, 0.2);
+  background: rgba(179, 255, 0, 0.08);
+  color: var(--text);
 }
 
 .git-current {

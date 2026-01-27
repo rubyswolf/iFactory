@@ -64,6 +64,18 @@ contextBridge.exposeInMainWorld("ifactory", {
       return () => ipcRenderer.removeListener("build:state", listener);
     }
   },
+  doxygen: {
+    check: () => ipcRenderer.invoke("doxygen:check"),
+    install: () => ipcRenderer.invoke("doxygen:install"),
+    onProgress: (callback) => {
+      if (typeof callback !== "function") {
+        return () => {};
+      }
+      const listener = (event, payload) => callback(payload);
+      ipcRenderer.on("doxygen:progress", listener);
+      return () => ipcRenderer.removeListener("doxygen:progress", listener);
+    }
+  },
   iplug: {
     install: (payload) => ipcRenderer.invoke("iplug:install", payload),
     installDependencies: (payload) =>

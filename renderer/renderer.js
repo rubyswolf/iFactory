@@ -74,6 +74,7 @@ const setupGithubOAuth = () => {
   const homeButtons = document.querySelectorAll("[data-action-home]");
   const agentNavButton = document.querySelector("[data-ai-nav=\"agent\"]");
   const gitNavButton = document.querySelector("[data-ai-nav=\"git\"]");
+  const doxygenNavButton = document.querySelector("[data-ai-nav=\"doxygen\"]");
   const createNavButton = document.querySelector("[data-ai-create]");
   const projectItemsEl = document.querySelector("[data-project-items]");
   const openSolutionButtons = document.querySelectorAll("[data-open-solution]");
@@ -114,6 +115,10 @@ const setupGithubOAuth = () => {
   const openDesktopButton = document.querySelector(
     "[data-open-github-desktop]"
   );
+  const doxygenStatusEl = document.querySelector("[data-doxygen-status]");
+  const doxygenInstallButton = document.querySelector("[data-doxygen-install]");
+  const doxygenReadyEl = document.querySelector("[data-doxygen-ready]");
+  const doxygenInstructions = document.querySelector("[data-doxygen-instructions]");
   const buildStatusEl = document.querySelector("[data-build-status]");
   const buildCheckButton = document.querySelector("[data-build-check]");
   const buildOpenButton = document.querySelector("[data-build-open]");
@@ -276,6 +281,9 @@ const setupGithubOAuth = () => {
     if (gitNavButton) {
       gitNavButton.classList.toggle("is-active", aiView === "git");
     }
+    if (doxygenNavButton) {
+      doxygenNavButton.classList.toggle("is-active", aiView === "doxygen");
+    }
     if (createNavButton) {
       createNavButton.classList.toggle("is-active", aiView === "templates");
     }
@@ -319,6 +327,9 @@ const setupGithubOAuth = () => {
     }
     if (view === "git") {
       loadGitStatus();
+    }
+    if (view === "doxygen") {
+      checkDoxygen();
     }
     updateOpenSolutionButtons();
     if (view !== "run") {
@@ -372,6 +383,48 @@ const setupGithubOAuth = () => {
       button.hidden = !isAvailable;
       button.disabled = !activeProjectItem;
     });
+  };
+
+  let doxygenInstalled = false;
+  let doxygenChecking = false;
+
+  const applyDoxygenState = (state) => {
+    doxygenInstalled = Boolean(state?.installed);
+    if (doxygenStatusEl) {
+      if (doxygenChecking) {
+        doxygenStatusEl.textContent = "Checking for Doxygen...";
+      } else if (doxygenInstalled) {
+        doxygenStatusEl.textContent = "Installed";
+      } else {
+        doxygenStatusEl.textContent = "Not installed";
+      }
+    }
+    if (doxygenInstallButton) {
+      doxygenInstallButton.disabled = doxygenChecking || doxygenInstalled;
+    }
+    if (doxygenInstructions) {
+      doxygenInstructions.hidden = doxygenInstalled;
+    }
+    if (doxygenReadyEl) {
+      doxygenReadyEl.hidden = !doxygenInstalled;
+    }
+  };
+
+  const checkDoxygen = async () => {
+    if (!window.ifactory?.doxygen?.check) {
+      applyDoxygenState({ installed: false });
+      return;
+    }
+    doxygenChecking = true;
+    applyDoxygenState({ installed: false });
+    try {
+      const result = await window.ifactory.doxygen.check();
+      doxygenChecking = false;
+      applyDoxygenState(result);
+    } catch (error) {
+      doxygenChecking = false;
+      applyDoxygenState({ installed: false });
+    }
   };
 
   let pendingResourceFile = "";
@@ -1830,6 +1883,11 @@ const setupGithubOAuth = () => {
       setAiView("git");
     });
   }
+  if (doxygenNavButton) {
+    doxygenNavButton.addEventListener("click", () => {
+      setAiView("doxygen");
+    });
+  }
   if (gitFilterInput) {
     gitFilterInput.addEventListener("input", () => {
       renderGitChanges();
@@ -1872,6 +1930,37 @@ const setupGithubOAuth = () => {
         await loadGitStatus();
       }
       updateCommitButton();
+    });
+  }
+  if (doxygenInstallButton) {
+    doxygenInstallButton.addEventListener("click", async () => {
+      if (!window.ifactory?.doxygen?.install) {
+        return;
+      }
+      const installApi = getInstallApi();
+      installApi.setHeader?.("Installing", "Setting up Doxygen");
+      installApi.setStatus?.("");
+      installApi.start?.();
+      window.ifactoryInstall?.setCancelDisabled?.(true);
+      try {
+        const result = await window.ifactory.doxygen.install();
+        if (result?.error) {
+          const message = result.details
+            ? `Installation failed: ${result.details}`
+            : "Installation failed. Check your settings and try again.";
+          installApi.setStatus?.(message, "error");
+          return;
+        }
+        installApi.setStatus?.("Doxygen installed.", "success");
+        doxygenInstalled = true;
+        applyDoxygenState({ installed: true });
+      } catch (error) {
+        installApi.setStatus?.("Installation failed. Check your settings and try again.", "error");
+      } finally {
+        installApi.stop?.();
+        window.ifactoryInstall?.setCancelDisabled?.(false);
+        window.ifactoryInstall?.resetHeader?.();
+      }
     });
   }
   if (openDesktopButton) {
@@ -3095,6 +3184,11 @@ const setupInstallScreen = () => {
       updateProgress(payload?.progress, payload?.stage);
     });
   }
+  if (window.ifactory?.doxygen?.onProgress) {
+    window.ifactory.doxygen.onProgress((payload) => {
+      updateProgress(payload?.progress, payload?.stage);
+    });
+  }
 
   installButton.addEventListener("click", handleInstall);
 
@@ -3112,7 +3206,12 @@ const setupInstallScreen = () => {
         installTitleTextEl.textContent = title;
       }
     },
-    resetHeader: resetInstallHeader
+    resetHeader: resetInstallHeader,
+    setCancelDisabled: (disabled) => {
+      if (installCancel) {
+        installCancel.disabled = Boolean(disabled);
+      }
+    }
   };
 
   setActiveSource("official");

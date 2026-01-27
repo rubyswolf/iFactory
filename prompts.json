@@ -58,7 +58,10 @@
         "Switches (Multi-state, click to increment): IVSwitchControl, IBSwitchControl, ISVGSwitchControl, IVSlideSwitchControl (A click to increment slideswitch (not draggable) with text on the handle for the state)",
         "Others: IVMenuButtonControl (dropdown), IVRadioButtonControl, IVTabSwitchControl (side by side text options using font icons)",
         "# Controls that don't control parameters",
-        "Buttons: IVButtonControl, IBButtonControl, ISVGButtonControl. (trigger a provided function when clicked)"
+        "Buttons: IVButtonControl, IBButtonControl, ISVGButtonControl. (trigger a provided function when clicked)",
+        "Static: IPanelControl (Filled rectangle), IBitmapControl, ISVGControl",
+        "Text: ITextControl, IBTextControl (Bitmap font from spritesheet), IURLControl, IEditableTextControl, IRTTextControl (Real-time text, can be safely updated from DSP at high rates)",
+        ""
       ],
       "dsp": [
         "Audio runs in `void <Your Plugin>::ProcessBlock(sample** inputs, sample** outputs, int nFrames)` where `sample` is a typedef for double/float depending on the project config.",

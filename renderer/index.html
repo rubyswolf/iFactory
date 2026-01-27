@@ -400,6 +400,10 @@
                   <img src="../icons/git.svg" alt="Git" />
                   <span class="ai-nav-label">Git</span>
                 </button>
+                <button class="ai-nav-item" type="button" data-ai-nav="doxygen">
+                  <img src="../icons/doxygen.svg" alt="Doxygen" />
+                  <span class="ai-nav-label">Doxygen</span>
+                </button>
               </div>
               <div class="ai-sidebar-center">
                 <button
@@ -598,6 +602,31 @@
                         Select files to include in this commit.
                       </p>
                     </div>
+                  </div>
+                </section>
+              </div>
+              <div class="ai-view" data-ai-view="doxygen">
+                <section class="panel doxygen-panel reveal">
+                  <div class="eyebrow">Doxygen</div>
+                  <h2>Doxygen documentation.</h2>
+                  <p class="card-meta" data-doxygen-status>
+                    Checking for Doxygen...
+                  </p>
+                  <div class="agent-instructions" data-doxygen-instructions>
+                    <div class="instruction-title">Install Doxygen</div>
+                    <ol class="instruction-list">
+                      <li>Download the latest Doxygen release.</li>
+                      <li>Extract it into your iFactory tools folder.</li>
+                      <li>Continue once installation completes.</li>
+                    </ol>
+                  </div>
+                  <div class="connect-actions">
+                    <button class="cta" type="button" data-doxygen-install>
+                      Install Doxygen
+                    </button>
+                  </div>
+                  <div class="doxygen-ready" data-doxygen-ready hidden>
+                    Doxygen installed.
                   </div>
                 </section>
               </div>
