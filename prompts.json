@@ -6,15 +6,15 @@
       "Plugins are built with the iPlug2 framework.",
       "You have access to the terminal command `ifact` which can be used to make special iFactory calls.",
       "Use `ifact info <topic>` to print additional topic notes on demand.",
-      "Available info topics (lowercase): manage, ui, dsp, parameter, preset, data, inspect.",
+      "`ifact ping` plays a sound to get the user's attention. You should call this once you've finished making code changes and are ready for the client to build and test the changes.",
+      "Available info topics (lowercase name):",
       "manage: Equips you to control the project as a whole, creating and managing plugins and tools, use as a starting point.",
       "ui: Plugin interface design and creation.",
       "dsp: Signal processing and how to make the functionality of the plugin.",
       "parameter: Create and manage plugin parameters and read their values efficiently within the DSP code.",
       "preset: Create builtin presets.",
       "serialize: Plugin data serialization, how to store arbitrary data within the plugin state so it persists when the DAW is closed and reopened.",
-      "inspect: How to dig through the code of iPlug2 in order to find additional info about how to do something when you can't find what you're looking for in other info commands.",
-      "`ifact ping` plays a sound to get the user's attention. You should call this once you've finished making code changes and are ready for the client to review the changes."
+      "inspect: How to dig through the code of iPlug2 in order to find additional info about how to do something when you can't find what you're looking for in other info commands."
     ],
     "info": {
       "manage": [
@@ -23,14 +23,13 @@
         "You can create a new plugin within the project by using `ifact create <template> [name]`. The name is the internal code name so it may not contain spaces or special characters."
       ],
       "ui": [
-        "iPlug2's UI/graphics framework is IGraphics, and the on-screen UI pieces you attach to it are “controls,” i.e., classes that derive from IControl. For more details and advanced features inspect iPlug2/IGraphics.",
+        "iPlug2's UI/graphics framework is IGraphics, and the on-screen UI pieces you attach to it are \"controls,\" i.e., classes that derive from IControl. For more details and advanced features inspect iPlug2/IGraphics.",
         "The interface is created by the `std::function<void(IGraphics* pGraphics)> mLayoutFunc` of your plugin which you assign in the constructor.",
-        "Controls are attached to the interface within the layout fuction with `pGraphics->AttachControl(<control>)`.",
-        "The most important class within IGraphics is `IRECT(float l, float t, float r, float b)` which defines a rectangle within the UI. It is used for bounding boxes for controls and has properties `float L, T, R, B`. These are its most useful methods:",
-        "`static IRECT MakeXYWH(float l, float t, float w, float h)`",
-        "`static IRECT MakeMidXYWH(float x, float y, float w, float h)` (xy defines center of rect rather than top left)",
-        "Methods `W()` and `H()` for getting width and height.",
-        "Some controls accept resources such as vector and bitmap images and fonts, you can learn how to import and use resources with `ifact info ui resources`."
+        "Controls are attached to IGraphics within the layout function with `pGraphics->AttachControl(<control>)`.",
+        "The most important class within IGraphics is `IRECT` which defines a rectangle within the UI for control bounding boxes.",
+        "IRECT has properties `float L, T, R, B` and `W()`/`H()`. While its main constructor is `IRECT(float l, float t, float r, float b)` you'll often want to use `static IRECT MakeXYWH(float l, float t, float w, float h)`",
+        "Some controls accept resources such as vector and bitmap images and fonts, you can learn how to import and use resources with `ifact info ui resources`.",
+        "You can see a list of available controls and learn more with `ifact ui controls`."
       ],
       "ui resources": [
         "The available resources are listed at the bottom of config.h of the plugin as macros for the file names of resources.",
@@ -39,10 +38,34 @@
         "Fonts are loaded like `pGraphics->LoadFont(\"Roboto-Regular\", ROBOTO_FN)` where the first parameter is the ID.",
         "SVGs are loaded as `const ISVG example = pGraphics->LoadSVG(EXAMPLE_FN)`"
       ],
+      "ui controls": [
+        "If you want make a new control outside of what is built into IGraphics or make a modified version of an existing control then you find a tutorial on how to make your own control with `ifact ui control custom`",
+        "You can look up any control and how to use it with `ifact find <control>`, use the exact control name with the same pascal case.",
+        "Controls are broken into 3 categories based on prefix:",
+        "'IV': These these controls use a default builtin vector skin, they're functional but not the prettiest.",
+        "'IB': These controls accept provided bitmap images to use for skins, these bitmaps can have multiple textures stacked into a sprite sheet.",
+        "'ISVG': These controls accept provided svg vector images to use for skins.",
+        "All controls without a prefix don't need a skin image like text controls",
+        "# Controls that *can* control parameters",
+        "Functional controls link directly to parameters, automatically linking to the parameter and using its label.",
+        "However you may link them to kNoParameter to use them standalone.",
+        "## Continuous",
+        "Knobs: IVKnobControl, IBKnobControl (Sprite sheet), IBKnobRotaterControl (Rotates texture), ISVGKnobControl.",
+        "Sliders: IVSliderControl, IBSliderControl, ISVGSliderControl.",
+        "Others: IVXYPadControl, IVNumberBoxControl (Very versatile number input with +- buttons, number entry and vertical dragging.), IVRangeSliderControl.",
+        "## Discrete:",
+        "Toggles (Binary on/off): IVToggleControl, ISVGToggleControl, ITextToggleControl (Uses text as the skin, mainly used with forkawesome, the fork of fontawesome).",
+        "Switches (Multi-state, click to increment): IVSwitchControl, IBSwitchControl, ISVGSwitchControl, IVSlideSwitchControl (A click to increment slideswitch (not draggable) with text on the handle for the state)",
+        "Others: IVMenuButtonControl (dropdown), IVRadioButtonControl, IVTabSwitchControl (side by side text options using font icons)",
+        "# Controls that don't control parameters",
+        "Buttons: IVButtonControl, IBButtonControl, ISVGButtonControl. (trigger a provided function when clicked)"
+      ],
       "dsp": [
-        "DSP is done through `void <Your Plugin>::ProcessBlock(sample** inputs, sample** outputs, int nFrames)`.",
-        "Useful helpers include `NOutChansConnected()` and `GetSampleRate()`.",
-        "Beyond that, it is regular sample manipulation."
+        "Audio runs in `void <Your Plugin>::ProcessBlock(sample** inputs, sample** outputs, int nFrames)` where `sample` is a typedef for double/float depending on the project config.",
+        "Useful helpers include `NInChansConnected()` `NOutChansConnected()` and `GetSampleRate()`.",
+        "Report processing latency (e.g. for lookahead) with `SetLatency(int samples)`, so the host compensates correctly.",
+        "If you need the sample rate then you only need to cache it once in the plugin constructor instead of a more expensive `GetSampleRate()` call within the DSP",
+        "This caching philosphy applies everywhere since realtime audio processing needs to be efficient, pre allocate buffers and cache values where possible."
       ],
       "parameter": [
         "When you construct your plugin you extend `iplug::Plugin(info, MakeConfig(kNumParams, kNumPresets))` where you define an enum of parameters in the plugin header.",
@@ -55,12 +78,19 @@
         "Then there is `void IParam::InitEnum(const char* name, int defaultVal, int nEnums, const char* label, int flags, const char* group, const char* listItems, ...)` which is a preset of int which uses SetDisplayText for every value.",
         "The final initializers are presets of Enum. InitPitch takes (const char *name, int defaultVal, int minVal, int maxVal, int flags, const char *group, bool middleCisC4) and uses MIDI pitch numbers 0-127. If middleCisC4 is true uses C4 as middle C, otherwise uses C3.",
         "Finally there is `void IParam::InitBool(const char* name, bool defaultVal, const char* label, int flags, const char* group, const char* offText, const char* onText)`",
-        "There also exists the `Value()` method to get the readable value of a parameter (say I do InitPercentage, then this is from 0 to 100) but be warned that as tempting as it is, you really shouldn't use it directly within the DSP as calling it is slow.",
+        "`Value()` exists to get the readable value of a parameter (say I do InitPercentage, then this is from 0 to 100) but be warned that as tempting as it is, you really shouldn't use it directly within the DSP as calling it is slow.",
         "There is `void <Your Plugin>::OnParamChange(int index)` which you can fill up with a nice big ugly switch statement to change private properties you assign to the plugin itself like `case kDryPercentage: DryFactor = GetParam(kDryPercentage)->Value() / 100` and then use those properties within the DSP to avoid making `Value()` calls all the time.",
         "For additional parameter manipulation inspect iPlug2/IPlug/IPlugParameter.h"
       ],
       "preset": [
         "For presets the easiest way to create them is to just put a list of `void IPluginBase::MakePreset(const char* name, ...)` calls in the constructor after your parameters which creates built-in factory presets, specifying parameter values sequentially.",
+        "You can create presets without relying on parameter order using `MakePresetFromNamedParams(const char* name, int nPairs, ...)`.",
+        "`nPairs` is the number of (paramIdx, value) pairs that follow. Each pair is `int paramIdx, <value>` where <value> is the parameter's plain/display value (not normalized).",
+        "This avoids the fragility of `MakePreset(...)` when parameters are reordered—because each value is tied to a specific parameter index.",
+        "Example:",
+        "```c++\n// enum EParams { kBypass, kRate, kDepth, kShape, kNumParams };\n// kRate: 0.1..20.0 Hz, kDepth: 0..24 dB, kShape: 0/1 enum (Sine/Square)\nMakePresetFromNamedParams(\"Subtle Sine\", 3,\n  kRate, 3.0,\n  kDepth, 4.5,\n  kShape, 0);\n\nMakePresetFromNamedParams(\"Too Much\", 2,\n  kRate, 20.0,\n  kDepth, 24.0);\n```",
+        "Use integer values for enum parameters, booleans for toggles, and doubles for continuous params. Values should be in the same units you used to initialize the parameter (e.g., Hz, dB, %, seconds).",
+        "Tip: keep your parameter indices stable; if indices change between versions, update the preset definitions accordingly.",
         "For more advanced preset creation, inspect iPlug2/IPlug/IPlugPluginBase.h"
       ],
       "serialize": [
@@ -108,7 +138,7 @@
         "But for any complex system you are highly recommended to override and make a custom serializer that has a version number integer as the first bit of data and update it when adding new data to ensure backwards compatibility so that projects saved using an older version of the plugin can load correctly."
       ],
       "inspect": [
-        "The project folder should contain an iPlug2 folder with library code.",
+        "The project folder should contain an iPlug2 folder with framework code.",
         "iPlug2 has very extensive internal documentation to help guide you and explain what everything does.",
         "The codebase is large; add reasonable limits to search and file reads to avoid flooding the context window.",
         "There is a set of example plugins which can be listed with descriptions using `ifact templates`, you can find them all within iPlug2/Examples for inspecting examples of different features.",
