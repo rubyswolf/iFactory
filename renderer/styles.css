@@ -152,6 +152,14 @@ body.is-ai .page-ai {
   display: block !important;
 }
 
+body.is-ai.is-installing-run .page-installing {
+  display: block !important;
+}
+
+body.is-ai.is-installing-run .page-ai {
+  display: none !important;
+}
+
 body.is-ai .titlebar-global {
   display: none;
 }

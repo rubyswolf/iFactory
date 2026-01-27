@@ -60,7 +60,7 @@
         "# Controls that don't control parameters",
         "Buttons: IVButtonControl, IBButtonControl, ISVGButtonControl. (trigger a provided function when clicked)",
         "Static: IPanelControl (Filled rectangle), IBitmapControl, ISVGControl",
-        "Text: ITextControl, IBTextControl (Bitmap font from spritesheet), IURLControl, IEditableTextControl, IRTTextControl (Real-time text, can be safely updated from DSP at high rates)",
+        "Text: ITextControl, IVLabelControl (More fancy and stylable than ITextControl), IBTextControl (Bitmap font from spritesheet), IURLControl, IEditableTextControl, IRTTextControl (Real-time text, can be safely updated from DSP at high rates)",
         ""
       ],
       "dsp": [
