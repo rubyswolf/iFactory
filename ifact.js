@@ -26,6 +26,7 @@ const usage = (topics = []) => {
   console.log("  ifact create <template> [name]");
   console.log("  ifact resource add <plugin> <path> <resource name> [-m]");
   console.log("  ifact doxy generate iPlug2");
+  console.log("  ifact doxy find <target> <query> [--limit N]");
   console.log(`  ifact info <${topicList}>`);
 };
 
@@ -143,9 +144,29 @@ const socket = net.createConnection(pipeName, () => {
   if (command === "doxy") {
     const action = (args[0] || "").toLowerCase();
     const target = args[1] || "";
-    if (action !== "generate" || !target) {
+    if (action !== "generate" && action !== "find") {
       usage(topicList);
       process.exit(1);
+    }
+    if (!target) {
+      usage(topicList);
+      process.exit(1);
+    }
+    if (action === "find") {
+      const limitIndex = args.findIndex((arg) => arg === "--limit");
+      let limit = "";
+      let queryParts = args.slice(2);
+      if (limitIndex !== -1) {
+        limit = args[limitIndex + 1] || "";
+        queryParts = args.slice(2, limitIndex);
+      }
+      const query = queryParts.join(" ").trim();
+      if (!query) {
+        usage(topicList);
+        process.exit(1);
+      }
+      socket.write(`doxy\tfind\t${target}\t${query}\t${limit}\n`);
+      return;
     }
     socket.write(`doxy ${action} ${target}\n`);
     return;

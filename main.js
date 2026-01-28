@@ -352,7 +352,7 @@ const startAgentServer = () => {
             : arg.split(/\s+/).filter(Boolean);
           const action = (tokens[0] || "").toLowerCase();
           const target = tokens[1] || "";
-          if (action !== "generate") {
+          if (action !== "generate" && action !== "find") {
             socket.write("error:unknown_command\n");
             socket.end();
             return;
@@ -362,15 +362,35 @@ const startAgentServer = () => {
             socket.end();
             return;
           }
-          runDoxygenGenerate(currentProjectPath, target)
+          const query = tokens[2] || "";
+          const limit = tokens[3] || "";
+          const handler =
+            action === "find" ? runDoxygenFind : runDoxygenGenerate;
+          handler(currentProjectPath, target, query, limit)
             .then((result) => {
               if (result?.error) {
                 if (result.error === "doxygen_missing") {
                   socket.write(
                     "error:Doxygen is not installed, please let the user know to install it using the Doxygen tab in the sidebar.\n",
                   );
+                } else if (result.error === "db_missing") {
+                  socket.write(
+                    "error:Doxygen database not found. Ask the user for permission to run `ifact doxy generate <target>` first; let them know it may take some time.\n",
+                  );
                 } else {
                   socket.write(`error:${result.error}\n`);
+                }
+              } else if (result?.results) {
+                if (!result.results.length) {
+                  socket.write("No results found.\n");
+                } else {
+                  const lines = result.results.map((item) => {
+                    if (item.description) {
+                      return `${item.kind}: ${item.name} - ${item.description}`;
+                    }
+                    return `${item.kind}: ${item.name}`;
+                  });
+                  socket.write(`${lines.join("\n")}\n`);
                 }
               } else if (result?.outputDir) {
                 socket.write(`ok:${result.outputDir}\n`);
@@ -687,15 +707,9 @@ const createPatchedDoxyfile = (sourcePath, outputDir) => {
   let next = raw;
   next = updateDoxySetting(next, "GENERATE_HTML", "NO");
   next = updateDoxySetting(next, "GENERATE_SQLITE3", "YES");
-  next = updateDoxySetting(next, "SQLITE3_OUTPUT", "\"doxygen.sqlite3\"");
-  next = updateDoxySetting(
-    next,
-    "OUTPUT_DIRECTORY",
-    `"${normalizedOutput}"`,
-  );
-  const tempDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), "ifactory-doxyfile-"),
-  );
+  next = updateDoxySetting(next, "SQLITE3_OUTPUT", '"doxygen.sqlite3"');
+  next = updateDoxySetting(next, "OUTPUT_DIRECTORY", `"${normalizedOutput}"`);
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ifactory-doxyfile-"));
   const tempPath = path.join(tempDir, "Doxyfile");
   fs.writeFileSync(tempPath, next);
   return { tempPath, tempDir };
@@ -1622,7 +1636,14 @@ const checkCodexInstalled = () => {
       } else if (lower.endsWith(".ps1")) {
         result = spawnSync(
           "powershell",
-          ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", candidate, "--version"],
+          [
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            candidate,
+            "--version",
+          ],
           { encoding: "utf8", windowsHide: true },
         );
       } else {
@@ -1656,9 +1677,7 @@ const getLatestDoxygenLink = async () => {
 
 const installDoxygen = async (event) => {
   const installDir = getDoxygenInstallDir();
-  const tmpDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), "ifactory-doxygen-"),
-  );
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ifactory-doxygen-"));
   const zipPath = path.join(tmpDir, "doxygen.zip");
   const extractDir = path.join(tmpDir, "extract");
   fs.mkdirSync(extractDir, { recursive: true });
@@ -1755,10 +1774,7 @@ const runDoxygenGenerate = async (projectPath, target) => {
   }
   const outputDir = path.join(projectPath, "doxygen", "iPlug2");
   fs.mkdirSync(outputDir, { recursive: true });
-  const { tempPath, tempDir } = createPatchedDoxyfile(
-    doxyfilePath,
-    outputDir,
-  );
+  const { tempPath, tempDir } = createPatchedDoxyfile(doxyfilePath, outputDir);
   try {
     const result = spawnSync(installState.path, [tempPath], {
       cwd: path.dirname(doxyfilePath),
@@ -1768,10 +1784,11 @@ const runDoxygenGenerate = async (projectPath, target) => {
     if (result.error || result.status !== 0) {
       return {
         error: "doxygen_failed",
-        details:
-          String(result.stderr || result.stdout || result.error?.message || "")
-            .trim()
-            .slice(0, 400),
+        details: String(
+          result.stderr || result.stdout || result.error?.message || "",
+        )
+          .trim()
+          .slice(0, 400),
       };
     }
     try {
@@ -1799,6 +1816,107 @@ const runDoxygenGenerate = async (projectPath, target) => {
     } catch (error) {
       // ignore cleanup errors
     }
+  }
+};
+
+const runDoxygenFind = async (projectPath, target, query, limitInput) => {
+  if (!projectPath) {
+    return { error: "missing_path" };
+  }
+  const normalizedTarget = String(target || "").toLowerCase();
+  if (!normalizedTarget) {
+    return { error: "missing_target" };
+  }
+  const searchQuery = String(query || "").trim();
+  if (!searchQuery) {
+    return { error: "missing_query" };
+  }
+  const outputDir = path.join(projectPath, "doxygen", normalizedTarget);
+  const sqliteFolder = path.join(outputDir, "doxygen.sqlite3");
+  const sqliteDbPath = path.join(sqliteFolder, "doxygen_sqlite3.db");
+  if (!fs.existsSync(sqliteDbPath)) {
+    return { error: "db_missing" };
+  }
+  const limitRaw = parseInt(String(limitInput || ""), 10);
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : 10;
+  const maxLimit = 100;
+  const cappedLimit = Math.min(limit, maxLimit);
+  const terms = searchQuery
+    .split("|")
+    .map((term) => term.trim().toLowerCase())
+    .filter(Boolean);
+  const cleanDescription = (value) => {
+    if (!value) {
+      return "";
+    }
+    return String(value)
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+  const truncate = (value, max = 160) => {
+    if (!value) {
+      return "";
+    }
+    if (value.length <= max) {
+      return value;
+    }
+    return `${value.slice(0, max - 1).trim()}…`;
+  };
+  const buildWhere = (columns) => {
+    const parts = [];
+    const params = [];
+    terms.forEach((term) => {
+      const like = `%${term}%`;
+      const group = columns.map((col) => `LOWER(${col}) LIKE ?`).join(" OR ");
+      parts.push(`(${group})`);
+      columns.forEach(() => params.push(like));
+    });
+    const clause = parts.length ? parts.join(" OR ") : "1";
+    return { clause, params };
+  };
+  try {
+    const sqlite3 = require("better-sqlite3");
+    const db = sqlite3(sqliteDbPath, { readonly: true });
+    const compoundWhere = buildWhere([
+      "name",
+      "briefdescription",
+      "detaileddescription",
+    ]);
+    const memberWhere = buildWhere([
+      "name",
+      "briefdescription",
+      "detaileddescription",
+    ]);
+    const sql = `
+      SELECT kind, name, '' as scope, briefdescription, detaileddescription
+      FROM compounddef
+      WHERE ${compoundWhere.clause}
+      UNION ALL
+      SELECT kind, name, scope, briefdescription, detaileddescription
+      FROM memberdef
+      WHERE ${memberWhere.clause}
+      ORDER BY name
+      LIMIT ?
+    `;
+    const rows = db
+      .prepare(sql)
+      .all(...compoundWhere.params, ...memberWhere.params, cappedLimit);
+    db.close();
+    const results = rows.map((row) => {
+      const fullName = row.scope ? `${row.scope}::${row.name}` : row.name;
+      const brief = truncate(
+        cleanDescription(row.briefdescription || row.detaileddescription || ""),
+      );
+      return {
+        kind: row.kind || "symbol",
+        name: fullName,
+        description: brief,
+      };
+    });
+    return { results };
+  } catch (error) {
+    return { error: "find_failed", details: error?.message || "" };
   }
 };
 
