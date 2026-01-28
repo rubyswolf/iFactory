@@ -365,7 +365,13 @@ const startAgentServer = () => {
           runDoxygenGenerate(currentProjectPath, target)
             .then((result) => {
               if (result?.error) {
-                socket.write(`error:${result.error}\n`);
+                if (result.error === "doxygen_missing") {
+                  socket.write(
+                    "error:Doxygen is not installed, please let the user know to install it using the Doxygen tab in the sidebar.\n",
+                  );
+                } else {
+                  socket.write(`error:${result.error}\n`);
+                }
               } else if (result?.outputDir) {
                 socket.write(`ok:${result.outputDir}\n`);
               } else {
@@ -680,7 +686,8 @@ const createPatchedDoxyfile = (sourcePath, outputDir) => {
   const normalizedOutput = outputDir.replace(/\\/g, "/");
   let next = raw;
   next = updateDoxySetting(next, "GENERATE_HTML", "NO");
-  next = updateDoxySetting(next, "GENERATE_XML", "YES");
+  next = updateDoxySetting(next, "GENERATE_SQLITE3", "YES");
+  next = updateDoxySetting(next, "SQLITE3_OUTPUT", "\"doxygen.sqlite3\"");
   next = updateDoxySetting(
     next,
     "OUTPUT_DIRECTORY",
@@ -1766,6 +1773,24 @@ const runDoxygenGenerate = async (projectPath, target) => {
             .trim()
             .slice(0, 400),
       };
+    }
+    try {
+      const sqliteFolder = path.join(outputDir, "doxygen.sqlite3");
+      const sqliteDbPath = path.join(sqliteFolder, "doxygen_sqlite3.db");
+      if (fs.existsSync(sqliteDbPath)) {
+        const sqlite3 = require("better-sqlite3");
+        const db = sqlite3(sqliteDbPath);
+        db.exec(
+          [
+            "CREATE INDEX IF NOT EXISTS idx_compounddef_name_kind ON compounddef(name, kind);",
+            "CREATE INDEX IF NOT EXISTS idx_memberdef_name_kind_scope ON memberdef(name, kind, scope);",
+            "CREATE INDEX IF NOT EXISTS idx_memberdef_scope ON memberdef(scope);",
+          ].join("\n"),
+        );
+        db.close();
+      }
+    } catch (error) {
+      // ignore index creation failures
     }
     return { generated: true, outputDir };
   } finally {

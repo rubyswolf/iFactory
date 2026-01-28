@@ -2,6 +2,8 @@
 "use strict";
 
 const net = require("net");
+const fs = require("fs");
+const path = require("path");
 
 const pipeName = "\\\\.\\pipe\\ifactory-agent";
 
@@ -29,6 +31,26 @@ const usage = (topics = []) => {
 
 const command = (process.argv[2] || "").toLowerCase();
 const args = process.argv.slice(3);
+const printSystemPrompt = () => {
+  const promptsPath = path.resolve(__dirname, "prompts.json");
+  if (!fs.existsSync(promptsPath)) {
+    return false;
+  }
+  try {
+    const raw = fs.readFileSync(promptsPath, "utf8");
+    const parsed = JSON.parse(raw);
+    const lines = parsed?.codex?.system;
+    if (!Array.isArray(lines) || lines.length === 0) {
+      return false;
+    }
+    lines.forEach((line) => {
+      console.log(String(line));
+    });
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
 const fetchTopics = () =>
   new Promise((resolve) => {
     const client = net.createConnection(pipeName, () => {
@@ -52,7 +74,14 @@ const fetchTopics = () =>
 
 const run = async () => {
   const topicList = await fetchTopics();
-  if (!command || command === "help" || command === "--help" || command === "-h") {
+  if (!command) {
+    const printed = printSystemPrompt();
+    if (!printed) {
+      usage(topicList);
+    }
+    process.exit(0);
+  }
+  if (command === "help" || command === "--help" || command === "-h") {
     usage(topicList);
     process.exit(0);
   }
