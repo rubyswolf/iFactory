@@ -135,7 +135,9 @@ const startAgentServer = () => {
         const [line] = buffer.split(/\r?\n/);
         buffer = "";
         const trimmed = line.trim();
-        const tabTokens = trimmed.includes("\t") ? trimmed.split("\t") : null;
+        const tabTokens = trimmed.includes("\t")
+          ? trimmed.split("\t").map((token) => token.trim())
+          : null;
         const cmd = (tabTokens ? tabTokens[0] : trimmed.split(" ")[0] || "")
           .toLowerCase()
           .trim();
@@ -251,7 +253,7 @@ const startAgentServer = () => {
           return;
         } else if (cmd === "resource") {
           const tokens = Array.isArray(arg)
-            ? arg.filter(Boolean)
+            ? arg.map((item) => (item === undefined ? "" : String(item)))
             : arg.split(/\s+/).filter(Boolean);
           const action = tokens[0];
           if (action !== "add") {
@@ -347,11 +349,34 @@ const startAgentServer = () => {
           socket.end();
           return;
         } else if (cmd === "doxy") {
-          const tokens = Array.isArray(arg)
-            ? arg.filter(Boolean)
-            : arg.split(/\s+/).filter(Boolean);
-          const action = (tokens[0] || "").toLowerCase();
-          const target = tokens[1] || "";
+          let action = "";
+          let target = "";
+          let query = "";
+          let limit = "";
+          let type = "";
+          let noDesc = "";
+          let nameOnly = "";
+          if (Array.isArray(arg)) {
+            const tokens = arg.map((item) =>
+              item === undefined ? "" : String(item),
+            );
+            action = (tokens[0] || "").toLowerCase();
+            target = tokens[1] || "";
+            query = tokens[2] || "";
+            limit = tokens[3] || "";
+            type = tokens[4] || "";
+            noDesc = tokens[5] || "";
+            nameOnly = tokens[6] || "";
+          } else {
+            const tokens = arg.split(/\s+/).filter(Boolean);
+            action = (tokens[0] || "").toLowerCase();
+            target = tokens[1] || "";
+            query = tokens[2] || "";
+            limit = tokens[3] || "";
+            type = tokens[4] || "";
+            noDesc = tokens[5] || "";
+            nameOnly = tokens[6] || "";
+          }
           if (action !== "generate" && action !== "find") {
             socket.write("error:unknown_command\n");
             socket.end();
@@ -362,13 +387,17 @@ const startAgentServer = () => {
             socket.end();
             return;
           }
-          const query = tokens[2] || "";
-          const limit = tokens[3] || "";
-          const type = tokens[4] || "";
-          const noDesc = tokens[5] || "";
           const handler =
             action === "find" ? runDoxygenFind : runDoxygenGenerate;
-          handler(currentProjectPath, target, query, limit, type, noDesc)
+          handler(
+            currentProjectPath,
+            target,
+            query,
+            limit,
+            type,
+            noDesc,
+            nameOnly,
+          )
             .then((result) => {
               if (result?.error) {
                 if (result.error === "doxygen_missing") {

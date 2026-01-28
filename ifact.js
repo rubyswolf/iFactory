@@ -26,7 +26,9 @@ const usage = (topics = []) => {
   console.log("  ifact create <template> [name]");
   console.log("  ifact resource add <plugin> <path> <resource name> [-m]");
   console.log("  ifact doxy generate iPlug2");
-  console.log("  ifact doxy find <target> <query> [--limit N] [--type kind] [--no-desc]");
+  console.log(
+    "  ifact doxy find <target> <query> [--limit N] [--type kind] [--no-desc] [--name-only]",
+  );
   console.log(`  ifact info <${topicList}>`);
 };
 
@@ -156,6 +158,7 @@ const socket = net.createConnection(pipeName, () => {
       let limit = "";
       let type = "";
       let noDesc = false;
+      let nameOnly = false;
       const queryParts = [];
       const rawArgs = args.slice(2);
       for (let i = 0; i < rawArgs.length; i += 1) {
@@ -174,6 +177,10 @@ const socket = net.createConnection(pipeName, () => {
           noDesc = true;
           continue;
         }
+        if (value === "--name-only") {
+          nameOnly = true;
+          continue;
+        }
         queryParts.push(value);
       }
       const query = queryParts.join(" ").trim();
@@ -182,7 +189,7 @@ const socket = net.createConnection(pipeName, () => {
         process.exit(1);
       }
       socket.write(
-        `doxy\tfind\t${target}\t${query}\t${limit}\t${type}\t${noDesc ? "1" : "0"}\n`,
+        `doxy\tfind\t${target}\t${query}\t${limit}\t${type}\t${noDesc ? "1" : "0"}\t${nameOnly ? "1" : "0"}\n`,
       );
       return;
     }
