@@ -364,9 +364,11 @@ const startAgentServer = () => {
           }
           const query = tokens[2] || "";
           const limit = tokens[3] || "";
+          const type = tokens[4] || "";
+          const noDesc = tokens[5] || "";
           const handler =
             action === "find" ? runDoxygenFind : runDoxygenGenerate;
-          handler(currentProjectPath, target, query, limit)
+          handler(currentProjectPath, target, query, limit, type, noDesc)
             .then((result) => {
               if (result?.error) {
                 if (result.error === "doxygen_missing") {
@@ -1774,7 +1776,10 @@ const runDoxygenGenerate = async (projectPath, target) => {
   }
   const outputDir = path.join(projectPath, "doxygen", "iPlug2");
   fs.mkdirSync(outputDir, { recursive: true });
-  const { tempPath, tempDir } = createPatchedDoxyfile(doxyfilePath, outputDir);
+  const { tempPath, tempDir } = createPatchedDoxyfile(
+    doxyfilePath,
+    outputDir,
+  );
   try {
     const result = spawnSync(installState.path, [tempPath], {
       cwd: path.dirname(doxyfilePath),
@@ -1784,11 +1789,10 @@ const runDoxygenGenerate = async (projectPath, target) => {
     if (result.error || result.status !== 0) {
       return {
         error: "doxygen_failed",
-        details: String(
-          result.stderr || result.stdout || result.error?.message || "",
-        )
-          .trim()
-          .slice(0, 400),
+        details:
+          String(result.stderr || result.stdout || result.error?.message || "")
+            .trim()
+            .slice(0, 400),
       };
     }
     try {
@@ -1819,7 +1823,15 @@ const runDoxygenGenerate = async (projectPath, target) => {
   }
 };
 
-const runDoxygenFind = async (projectPath, target, query, limitInput) => {
+const runDoxygenFind = async (
+  projectPath,
+  target,
+  query,
+  limitInput,
+  typeInput,
+  noDescInput,
+  nameOnlyInput,
+) => {
   if (!projectPath) {
     return { error: "missing_path" };
   }
@@ -1841,10 +1853,43 @@ const runDoxygenFind = async (projectPath, target, query, limitInput) => {
   const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : 10;
   const maxLimit = 100;
   const cappedLimit = Math.min(limit, maxLimit);
-  const terms = searchQuery
-    .split("|")
-    .map((term) => term.trim().toLowerCase())
-    .filter(Boolean);
+  const normalizedType = String(typeInput || "").trim().toLowerCase();
+  const noDesc =
+    String(noDescInput || "").trim() === "1" ||
+    String(noDescInput || "").trim().toLowerCase() === "true";
+  const nameOnly =
+    String(nameOnlyInput || "").trim() === "1" ||
+    String(nameOnlyInput || "").trim().toLowerCase() === "true";
+  const typeAliases = {
+    class: ["class", "struct", "union", "interface"],
+    struct: ["struct"],
+    union: ["union"],
+    interface: ["interface"],
+    namespace: ["namespace"],
+    file: ["file"],
+    page: ["page"],
+    group: ["group"],
+    dir: ["dir"],
+    function: ["function"],
+    variable: ["variable"],
+    enum: ["enum"],
+    typedef: ["typedef"],
+    define: ["define"],
+    property: ["property"],
+    signal: ["signal"],
+    slot: ["slot"],
+    event: ["event"],
+    friend: ["friend"],
+  };
+  let kindFilter = [];
+  if (normalizedType) {
+    kindFilter = typeAliases[normalizedType] || [];
+    if (!kindFilter.length) {
+      return { error: "unknown_type" };
+    }
+  }
+  const normalizedQuery = searchQuery;
+  const isRegex = true;
   const cleanDescription = (value) => {
     if (!value) {
       return "";
@@ -1861,53 +1906,88 @@ const runDoxygenFind = async (projectPath, target, query, limitInput) => {
     if (value.length <= max) {
       return value;
     }
-    return `${value.slice(0, max - 1).trim()}…`;
+    return `${value.slice(0, max - 1).trim()}...`;
   };
-  const buildWhere = (columns) => {
+  const buildWhere = (columns, columnCase) => {
     const parts = [];
     const params = [];
-    terms.forEach((term) => {
-      const like = `%${term}%`;
-      const group = columns.map((col) => `LOWER(${col}) LIKE ?`).join(" OR ");
-      parts.push(`(${group})`);
-      columns.forEach(() => params.push(like));
+    if (!normalizedQuery) {
+      return { clause: "1", params: [] };
+    }
+    columns.forEach((col) => {
+      const expr = columnCase ? `${columnCase}(${col})` : col;
+      parts.push(`${expr} REGEXP ?`);
+      params.push(normalizedQuery);
     });
-    const clause = parts.length ? parts.join(" OR ") : "1";
-    return { clause, params };
+    return { clause: `(${parts.join(" OR ")})`, params };
+  };
+  const buildKindClause = () => {
+    if (!kindFilter.length) {
+      return { clause: "1", params: [] };
+    }
+    const placeholders = kindFilter.map(() => "?").join(", ");
+    return {
+      clause: `kind IN (${placeholders})`,
+      params: [...kindFilter],
+    };
   };
   try {
     const sqlite3 = require("better-sqlite3");
     const db = sqlite3(sqliteDbPath, { readonly: true });
-    const compoundWhere = buildWhere([
-      "name",
-      "briefdescription",
-      "detaileddescription",
-    ]);
-    const memberWhere = buildWhere([
-      "name",
-      "briefdescription",
-      "detaileddescription",
-    ]);
+    if (isRegex) {
+      db.function("REGEXP", { deterministic: true }, (pattern, value) => {
+        if (value === null || value === undefined) {
+          return 0;
+        }
+        try {
+          const regex = new RegExp(pattern, "i");
+          return regex.test(String(value)) ? 1 : 0;
+        } catch (error) {
+          return 0;
+        }
+      });
+    }
+    const searchColumns = nameOnly
+      ? ["name"]
+      : ["name", "briefdescription", "detaileddescription"];
+    const compoundWhere = buildWhere(searchColumns, "");
+    const memberWhere = buildWhere(searchColumns, "");
+    const compoundKind = buildKindClause();
+    const memberKind = buildKindClause();
     const sql = `
-      SELECT kind, name, '' as scope, briefdescription, detaileddescription
+      SELECT kind, name, '' as scope, briefdescription, detaileddescription,
+        CASE
+          WHEN kind IN ('class','struct','union','interface') THEN 0
+          ELSE 1
+        END as kind_rank
       FROM compounddef
-      WHERE ${compoundWhere.clause}
+      WHERE ${compoundWhere.clause} AND ${compoundKind.clause}
       UNION ALL
-      SELECT kind, name, scope, briefdescription, detaileddescription
+      SELECT kind, name, scope, briefdescription, detaileddescription, 2 as kind_rank
       FROM memberdef
-      WHERE ${memberWhere.clause}
-      ORDER BY name
+      WHERE ${memberWhere.clause} AND ${memberKind.clause}
+      ORDER BY kind_rank, name
       LIMIT ?
     `;
     const rows = db
       .prepare(sql)
-      .all(...compoundWhere.params, ...memberWhere.params, cappedLimit);
+      .all(
+        ...compoundWhere.params,
+        ...compoundKind.params,
+        ...memberWhere.params,
+        ...memberKind.params,
+        cappedLimit,
+      );
     db.close();
     const results = rows.map((row) => {
       const fullName = row.scope ? `${row.scope}::${row.name}` : row.name;
-      const brief = truncate(
-        cleanDescription(row.briefdescription || row.detaileddescription || ""),
-      );
+      const brief = noDesc
+        ? ""
+        : truncate(
+            cleanDescription(
+              row.briefdescription || row.detaileddescription || "",
+            ),
+          );
       return {
         kind: row.kind || "symbol",
         name: fullName,

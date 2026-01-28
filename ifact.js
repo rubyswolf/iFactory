@@ -26,7 +26,7 @@ const usage = (topics = []) => {
   console.log("  ifact create <template> [name]");
   console.log("  ifact resource add <plugin> <path> <resource name> [-m]");
   console.log("  ifact doxy generate iPlug2");
-  console.log("  ifact doxy find <target> <query> [--limit N]");
+  console.log("  ifact doxy find <target> <query> [--limit N] [--type kind] [--no-desc]");
   console.log(`  ifact info <${topicList}>`);
 };
 
@@ -153,19 +153,37 @@ const socket = net.createConnection(pipeName, () => {
       process.exit(1);
     }
     if (action === "find") {
-      const limitIndex = args.findIndex((arg) => arg === "--limit");
       let limit = "";
-      let queryParts = args.slice(2);
-      if (limitIndex !== -1) {
-        limit = args[limitIndex + 1] || "";
-        queryParts = args.slice(2, limitIndex);
+      let type = "";
+      let noDesc = false;
+      const queryParts = [];
+      const rawArgs = args.slice(2);
+      for (let i = 0; i < rawArgs.length; i += 1) {
+        const value = rawArgs[i];
+        if (value === "--limit") {
+          limit = rawArgs[i + 1] || "";
+          i += 1;
+          continue;
+        }
+        if (value === "--type") {
+          type = rawArgs[i + 1] || "";
+          i += 1;
+          continue;
+        }
+        if (value === "--no-desc") {
+          noDesc = true;
+          continue;
+        }
+        queryParts.push(value);
       }
       const query = queryParts.join(" ").trim();
       if (!query) {
         usage(topicList);
         process.exit(1);
       }
-      socket.write(`doxy\tfind\t${target}\t${query}\t${limit}\n`);
+      socket.write(
+        `doxy\tfind\t${target}\t${query}\t${limit}\t${type}\t${noDesc ? "1" : "0"}\n`,
+      );
       return;
     }
     socket.write(`doxy ${action} ${target}\n`);
