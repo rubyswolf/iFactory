@@ -25,30 +25,35 @@
       "ui": [
         "iPlug2's UI/graphics framework is IGraphics, and the on-screen UI pieces you attach to it are \"controls,\" i.e., classes that derive from IControl. For more details and advanced features inspect iPlug2/IGraphics.",
         "The interface is created by the `std::function<void(IGraphics* pGraphics)> mLayoutFunc` of your plugin which you assign in the constructor.",
+        "The interface will be destroyed if the plugin window is closed but not the DSP rest of the plugin. When reopened the UI is rebuilt so keep in mind that the UI should be initalized into the correct state as changes to controls like disabling and hiding will not persist across the UI rebuild.",
         "Controls are attached to IGraphics within the layout function with `pGraphics->AttachControl(<control>)`.",
         "The most important class within IGraphics is `IRECT` which defines a rectangle within the UI for control bounding boxes.",
         "IRECT has properties `float L, T, R, B` and `W()`/`H()`. While its main constructor is `IRECT(float l, float t, float r, float b)` you'll often want to use `static IRECT MakeXYWH(float l, float t, float w, float h)`",
         "Some controls accept resources such as vector and bitmap images and fonts, you can learn how to import and use resources with `ifact info ui resources`.",
-        "You can see a list of available controls and learn more with `ifact ui controls`."
+        "You can see a list of available controls and learn more with `ifact info ui controls`."
       ],
       "ui resources": [
         "The available resources are listed at the bottom of config.h of the plugin as macros for the file names of resources.",
         "To add a resource to a plugin you can use `ifact resource add <plugin folder name> <absolute resource path> <resource name in uppercase snake case>`; it will automatically include the resource and add a macro entry like '#define ROBOTO_FN \"Roboto-Regular.ttf\"' (_FN suffix added automatically).",
         "Resources will normally be provided by the user, if the user has not provided the resources they want, let them know they can add resources to the plugin by selecting the plugin in the sidebar and dragging and dropping a file onto the build and run menu or that you can add resources if they provide the path to the resources.",
         "Fonts are loaded like `pGraphics->LoadFont(\"Roboto-Regular\", ROBOTO_FN)` where the first parameter is the ID.",
-        "SVGs are loaded as `const ISVG example = pGraphics->LoadSVG(EXAMPLE_FN)`"
+        "SVGs are loaded as `const ISVG example = pGraphics->LoadSVG(EXAMPLE_FN)`.",
+        "Bitmaps can contian multiple textures stacked side by side as a sprite sheet which is either top to bottom or left to right.",
+        "Bitmaps can have multiple scales by having multiple versions with different multipliers at the end using a filename like having example.png and example@2x.png",
+        "Bitmaps are loaded with `IBitmap IGraphics::LoadBitmap(const char* fileNameOrResID, int nStates=1, bool framesAreHorizontal=false, int targetScale=0)`.",
+        "Use targetScale > 0 to explicity load e.g. an @2x.png"
       ],
       "ui controls": [
-        "If you want make a new control outside of what is built into IGraphics or make a modified version of an existing control then you find a tutorial on how to make your own control with `ifact ui control custom`",
+        "If you want make a new control outside of what is built into IGraphics or make a modified version of an existing control then you find a tutorial on how to make your own control with `ifact info ui control custom`",
         "You can look up any control and how to use it with `ifact find <control>`, use the exact control name with the same pascal case.",
         "Controls are broken into 3 categories based on prefix:",
-        "'IV': These these controls use a default builtin vector skin, they're functional but not the prettiest.",
-        "'IB': These controls accept provided bitmap images to use for skins, these bitmaps can have multiple textures stacked into a sprite sheet.",
+        "'IV': These these controls render with default builtin vectors, they're functional but often not the prettiest.",
+        "'IB': These controls accept provided bitmap images to use for skins, these bitmaps can have multiple textures stacked side by side into a sprite sheet.",
         "'ISVG': These controls accept provided svg vector images to use for skins.",
         "All controls without a prefix don't need a skin image like text controls",
         "# Controls that *can* control parameters",
         "Functional controls link directly to parameters, automatically linking to the parameter and using its label.",
-        "However you may link them to kNoParameter to use them standalone.",
+        "However you may link them to kNoParameter.",
         "## Continuous",
         "Knobs: IVKnobControl, IBKnobControl (Sprite sheet), IBKnobRotaterControl (Rotates texture), ISVGKnobControl.",
         "Sliders: IVSliderControl, IBSliderControl, ISVGSliderControl.",
@@ -60,8 +65,23 @@
         "# Controls that don't control parameters",
         "Buttons: IVButtonControl, IBButtonControl, ISVGButtonControl. (trigger a provided function when clicked)",
         "Static: IPanelControl (Filled rectangle), IBitmapControl, ISVGControl",
-        "Text: ITextControl, IVLabelControl (More fancy and stylable than ITextControl), IBTextControl (Bitmap font from spritesheet), IURLControl, IEditableTextControl, IRTTextControl (Real-time text, can be safely updated from DSP at high rates)",
-        ""
+        "Text: `ifact info ui controls text`",
+        "Line Plots: IVPlotControl, IVDisplayControl (Rolling history), IVScopeControl (Multi-channel oscilloscope)",
+        "Meters: IVMeterControl, IVLEDMeterControl (Segmented LED), IVPeakAvgMeterControl, IBMeterControl (Spritesheet of volume levels)",
+        "Spectrum analyzers: IVSpectrumAnalyzerControl, IVBarGraphSpectrumAnalyzerControl",
+        "MIDI: IVKeyboardControl, IWheelControl (Pitchbend/Mod wheel)",
+        "Preset managers: IVBakedPresetManagerControl, IVDiskPresetManagerControl",
+        "Colors: IColorPickerControl, IVColorSwatchControl",
+        "Tabs: IVTabbedPagesControl, IVTabPage",
+        "Tests: `ifact info ui controls tests`",
+        "Custom graphics: IWebViewControl, ILambdaControl (Plays custom animation when clicked), IPlatformViewControl (Embed a HWND, UIView or NSView), ISkLottieControl (Skia Lottie animation via Skottie), IShaderControl (Draw to UI via Skia shading language)",
+        "Others: IContainerBase (Allows a control to nest sub controls), IVMultiSliderControl (Editable bar graph), ICornerResizerControl, ILEDControl, IFPSDisplayControl, IPopupMenuControl (The popup list itself for a menu/drop-down), IVGroupControl (Draw rect around named IControl group), IGraphicsLiveEdit (Enables live-edit to rearrange UI)"
+      ],
+      "ui controls text": [
+        "ITextControl, IMultiLineTextControl, IVLabelControl (More fancy and stylable than ITextControl), ISkParagraphControl (Rich text demo with Skia), IBTextControl (Bitmap font from spritesheet), IURLControl, IEditableTextControl, ITextEntryControl, IRTTextControl (Real-time text, can be safely updated from DSP at high rates), ICaptionControl (Displays the textual representation of a parameter), IBubbleControl (Text bubble, good for attaching to sliders to display value next to handle when dragging), PlaceHolder (Placeholder control which is text)"
+      ],
+      "ui controls tests": [
+        "TestAnimationControl, TestArcControl, TestBezierControl, TestBlendControl, TestColorControl, TestCursorControl, TestCustomShaderControl, TestDirBrowseControl, TestDragAndDropControl, TestDrawContextControl, TestDropShadowControl, TestFlexBoxControl, TestFontControl, TestGesturesControl, GFXLabelControl, TestGradientControl, TestImageControl, TestKeyboardControl, TestLayerControl, TestMaskControl, TestMPSControl, TestMultiPathControl, TestMTControl, TestPolyControl, TestShadowGradientControl, TestSizeControl, TestSVGControl, TestTextControl, TestTextOrientationControl, TestTextSizeControl"
       ],
       "dsp": [
         "Audio runs in `void <Your Plugin>::ProcessBlock(sample** inputs, sample** outputs, int nFrames)` where `sample` is a typedef for double/float depending on the project config.",

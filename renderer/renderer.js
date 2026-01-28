@@ -179,8 +179,48 @@ const setupGithubOAuth = () => {
   let chatProjectPath = "";
   let codexBusy = false;
   let gitSelected = new Set();
+  let initialChatScrollDone = false;
 
   const sanitizeTemplateName = (value) => value.replace(/[^a-zA-Z0-9]/g, "");
+  const scrollChatToBottom = (defer = true) => {
+    if (!chatListEl) {
+      return;
+    }
+    const doScroll = () => {
+      chatListEl.scrollTop = chatListEl.scrollHeight;
+    };
+    if (defer) {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(doScroll);
+      });
+    } else {
+      doScroll();
+    }
+  };
+  const scheduleChatScroll = () => {
+    scrollChatToBottom(true);
+    window.setTimeout(() => {
+      scrollChatToBottom(false);
+    }, 120);
+  };
+  const scheduleInitialChatScroll = () => {
+    if (!chatListEl || initialChatScrollDone) {
+      return;
+    }
+    initialChatScrollDone = true;
+    const observer = new ResizeObserver(() => {
+      scrollChatToBottom(false);
+    });
+    observer.observe(chatListEl);
+    scheduleChatScroll();
+    window.setTimeout(() => {
+      scrollChatToBottom(false);
+    }, 300);
+    window.setTimeout(() => {
+      scrollChatToBottom(false);
+      observer.disconnect();
+    }, 900);
+  };
 
   const updateTemplateContinue = () => {
     if (!templateContinueButton) {
@@ -316,6 +356,8 @@ const setupGithubOAuth = () => {
       if (projectPath && projectPath !== chatProjectPath) {
         loadChatSession(projectPath);
       }
+      scheduleChatScroll();
+      scheduleInitialChatScroll();
     }
     if (view === "get-started") {
       if (buildToolsInstalled) {
@@ -1071,6 +1113,7 @@ const setupGithubOAuth = () => {
     }
     chatListEl.innerHTML = "";
     chatMessages = Array.isArray(messages) ? messages : [];
+    let lastBubble = null;
     chatMessages.forEach((message) => {
       const bubble = document.createElement("div");
       bubble.className = "ai-chat-bubble";
@@ -1086,8 +1129,13 @@ const setupGithubOAuth = () => {
         bubble.textContent = message.content || "";
       }
       chatListEl.appendChild(bubble);
+      lastBubble = bubble;
     });
-    chatListEl.scrollTop = chatListEl.scrollHeight;
+    if (lastBubble && typeof lastBubble.scrollIntoView === "function") {
+      lastBubble.scrollIntoView({ block: "end" });
+    } else {
+      chatListEl.scrollTop = chatListEl.scrollHeight;
+    }
   };
 
   const loadChatSession = async (projectPath) => {
@@ -1101,17 +1149,19 @@ const setupGithubOAuth = () => {
       }
       chatProjectPath = projectPath;
       const sessionMessages = result?.session?.messages || [];
-      renderChatHistory(sessionMessages);
-      if (promptPanel && promptDock) {
-        if (sessionMessages.length > 0) {
-          promptPanel.classList.add("is-sent");
-          promptPanel.classList.add("is-hidden");
-          promptDock.classList.add("is-sent");
-        } else {
-          promptPanel.classList.remove("is-sent", "is-hidden");
-          promptDock.classList.remove("is-sent");
-        }
+    renderChatHistory(sessionMessages);
+    scheduleChatScroll();
+    if (promptPanel && promptDock) {
+      if (sessionMessages.length > 0) {
+        promptPanel.classList.add("is-sent");
+        promptPanel.classList.add("is-hidden");
+        promptDock.classList.add("is-sent");
+        scheduleChatScroll();
+      } else {
+        promptPanel.classList.remove("is-sent", "is-hidden");
+        promptDock.classList.remove("is-sent");
       }
+    }
     } catch (error) {
       // ignore load errors
     }
