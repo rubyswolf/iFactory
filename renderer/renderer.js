@@ -34,7 +34,7 @@ const hydrateAppMeta = async () => {
   }
 };
 
-const setupGithubOAuth = () => {
+const setupProjectManager = () => {
   if (!window.ifactory?.settings || !window.ifactory?.git) {
     return;
   }
@@ -60,7 +60,7 @@ const setupGithubOAuth = () => {
   const doxygenNavButton = document.querySelector("[data-ai-nav=\"doxygen\"]");
   const createNavButton = document.querySelector("[data-ai-create]");
   const projectItemsEl = document.querySelector("[data-project-items]");
-  const aiSidebar = document.querySelector(".ai-sidebar");
+  const projectSidebar = document.querySelector(".project-sidebar");
   const resourceDialog = document.querySelector("[data-resource-dialog]");
   const resourceNameInput = document.querySelector("[data-resource-name]");
   const resourceAddButton = document.querySelector("[data-resource-add]");
@@ -68,17 +68,6 @@ const setupGithubOAuth = () => {
   const resourceFileLabel = document.querySelector("[data-resource-file]");
   const resourceErrorEl = document.querySelector("[data-resource-error]");
   const resourceRemoveToggle = document.querySelector("[data-resource-remove]");
-  const gitRepoNameEl = document.querySelector("[data-git-repo-name]");
-  const gitRepoPathEl = document.querySelector("[data-git-repo-path]");
-  const gitBodyEl = document.querySelector("[data-git-body]");
-  const gitEmptyEl = document.querySelector("[data-git-empty]");
-  const gitChangesListEl = document.querySelector("[data-git-changes]");
-  const gitChangesEmptyEl = document.querySelector("[data-git-changes-empty]");
-  const gitChangesCountEl = document.querySelector("[data-git-count]");
-  const gitFilterInput = document.querySelector("[data-git-filter]");
-  const gitSummaryInput = document.querySelector("[data-git-summary]");
-  const gitDescriptionInput = document.querySelector("[data-git-description]");
-  const gitCommitButton = document.querySelector(".git-commit-button");
   const openDesktopButton = document.querySelector(
     "[data-open-github-desktop]"
   );
@@ -117,11 +106,11 @@ const setupGithubOAuth = () => {
   let aiView = "agent";
   let activeProjectItem = "";
   let projectItems = [];
-  let gitChanges = [];
-  let gitSelected = new Set();
   let sidebarHoverLock = false;
 
   const sanitizeTemplateName = (value) => value.replace(/[^a-zA-Z0-9]/g, "");
+  const getProjectPath = () =>
+    currentProjectPath || document.body.dataset.projectPath || "";
   const updateTemplateContinue = () => {
     if (!templateContinueButton) {
       return;
@@ -210,8 +199,6 @@ const setupGithubOAuth = () => {
     }
   };
 
-  const updateAiPanels = () => {};
-
   const updateSidebarActive = () => {
     if (agentNavButton) {
       agentNavButton.classList.toggle("is-active", aiView === "agent");
@@ -246,8 +233,6 @@ const setupGithubOAuth = () => {
     activeProjectItem = name || "";
     updateSidebarActive();
   };
-
-  const updateAgentStatus = () => {};
 
   let doxygenInstalled = false;
   let doxygenChecking = false;
@@ -312,7 +297,7 @@ const setupGithubOAuth = () => {
   };
 
   const setSidebarDragHover = (active, lockOverride) => {
-    if (!aiSidebar) {
+    if (!projectSidebar) {
       return;
     }
     if (typeof lockOverride === "boolean") {
@@ -321,16 +306,16 @@ const setupGithubOAuth = () => {
     if (!active && sidebarHoverLock) {
       return;
     }
-    aiSidebar.classList.toggle("is-drag-hover", active);
+    projectSidebar.classList.toggle("is-drag-hover", active);
     if (!active) {
       sidebarHoverLock = false;
     }
   };
 
-  if (aiSidebar) {
+  if (projectSidebar) {
     let sidebarDragDepth = 0;
     const isPointInsideSidebar = (event) => {
-      const rect = aiSidebar.getBoundingClientRect();
+      const rect = projectSidebar.getBoundingClientRect();
       const x = event.clientX;
       const y = event.clientY;
       return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
@@ -347,14 +332,14 @@ const setupGithubOAuth = () => {
       return item.dataset.itemType === "plugin";
     };
 
-    aiSidebar.addEventListener("dragenter", (event) => {
+    projectSidebar.addEventListener("dragenter", (event) => {
       if (!isFileDrag(event)) {
         return;
       }
       sidebarDragDepth += 1;
       setSidebarDragHover(true);
     });
-    aiSidebar.addEventListener("dragover", (event) => {
+    projectSidebar.addEventListener("dragover", (event) => {
       if (!isFileDrag(event)) {
         return;
       }
@@ -363,7 +348,7 @@ const setupGithubOAuth = () => {
       }
       setSidebarDragHover(true);
     });
-    aiSidebar.addEventListener("dragleave", (event) => {
+    projectSidebar.addEventListener("dragleave", (event) => {
       if (!isFileDrag(event)) {
         return;
       }
@@ -372,7 +357,7 @@ const setupGithubOAuth = () => {
         setSidebarDragHover(false);
       }
     });
-    aiSidebar.addEventListener("drop", (event) => {
+    projectSidebar.addEventListener("drop", (event) => {
       if (!isFileDrag(event)) {
         return;
       }
@@ -537,7 +522,6 @@ const setupGithubOAuth = () => {
 
   const showProjectEditor = async (view = "agent") => {
     setAiView(view);
-    updateAiPanels();
   };
 
   const renderRecents = (projects) => {
@@ -600,156 +584,9 @@ const setupGithubOAuth = () => {
     });
   };
 
-  const updateGitRepoHeader = () => {
-    if (!gitRepoNameEl || !gitRepoPathEl) {
-      return;
-    }
-    if (!currentProjectPath) {
-      gitRepoNameEl.textContent = "No repository";
-      gitRepoPathEl.textContent = "Open a project to see its repository";
-      return;
-    }
-    const parts = currentProjectPath.split(/[/\\]/).filter(Boolean);
-    const name = parts[parts.length - 1] || currentProjectPath;
-    gitRepoNameEl.textContent = name;
-    gitRepoPathEl.textContent = currentProjectPath;
-  };
-
-  const getGitStatusInfo = (status) => {
-    switch (status) {
-      case "A":
-        return { label: "A", className: "git-file-status--new" };
-      case "D":
-        return { label: "D", className: "git-file-status--del" };
-      case "R":
-        return { label: "R", className: "git-file-status--ren" };
-      case "C":
-        return { label: "C", className: "git-file-status--ren" };
-      case "U":
-        return { label: "U", className: "git-file-status--conflict" };
-      case "?":
-        return { label: "U", className: "git-file-status--new" };
-      case "M":
-      default:
-        return { label: "M", className: "git-file-status--mod" };
-    }
-  };
-
-  const updateCommitButton = () => {
-    if (!gitCommitButton) {
-      return;
-    }
-    const summary = gitSummaryInput?.value.trim() || "";
-    const hasSelection = gitSelected.size > 0;
-    gitCommitButton.disabled = !summary || !hasSelection;
-  };
-
-  const renderGitChanges = () => {
-    if (!gitChangesListEl || !gitChangesEmptyEl) {
-      return;
-    }
-    const query = (gitFilterInput?.value || "").trim().toLowerCase();
-    const filtered = query
-      ? gitChanges.filter((change) =>
-          change.path.toLowerCase().includes(query)
-        )
-      : gitChanges;
-
-    gitChangesListEl.innerHTML = "";
-    const emptyMessage = gitChanges.length
-      ? "No matching files."
-      : "No local changes yet.";
-    gitChangesEmptyEl.textContent = emptyMessage;
-    gitChangesEmptyEl.hidden = filtered.length > 0;
-    if (gitChangesCountEl) {
-      gitChangesCountEl.textContent = String(gitChanges.length);
-    }
-    filtered.forEach((change) => {
-      const row = document.createElement("div");
-      row.className = "git-file-item";
-
-      const checkWrap = document.createElement("label");
-      checkWrap.className = "git-file-check";
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.checked = gitSelected.has(change.path);
-      checkbox.addEventListener("change", () => {
-        if (checkbox.checked) {
-          gitSelected.add(change.path);
-        } else {
-          gitSelected.delete(change.path);
-        }
-        updateCommitButton();
-      });
-      checkWrap.appendChild(checkbox);
-
-      const name = document.createElement("span");
-      name.className = "git-file-name";
-      name.textContent = change.path;
-
-      const statusInfo = getGitStatusInfo(change.status);
-      const status = document.createElement("span");
-      status.className = `git-file-status ${statusInfo.className}`;
-      status.textContent = statusInfo.label;
-
-      row.appendChild(checkWrap);
-      row.appendChild(name);
-      row.appendChild(status);
-      gitChangesListEl.appendChild(row);
-    });
-  };
-
-  const loadGitStatus = async () => {
-    if (!window.ifactory?.git?.status) {
-      gitChanges = [];
-      renderGitChanges();
-      return;
-    }
-    const projectPath =
-      currentProjectPath || document.body.dataset.projectPath || "";
-    if (!projectPath) {
-      gitChanges = [];
-      renderGitChanges();
-      return;
-    }
-    try {
-      const result = await window.ifactory.git.status({ path: projectPath });
-      if (result?.error) {
-        gitChanges = [];
-        renderGitChanges();
-        return;
-      }
-      gitChanges = Array.isArray(result?.changes) ? result.changes : [];
-      gitSelected = new Set(gitChanges.map((change) => change.path));
-      renderGitChanges();
-    } catch (error) {
-      gitChanges = [];
-      gitSelected = new Set();
-      renderGitChanges();
-    }
-    updateCommitButton();
-  };
-
-  const setGitRepoState = (isRepo) => {
-    if (!gitBodyEl || !gitEmptyEl) {
-      return;
-    }
-    gitBodyEl.hidden = !isRepo;
-    gitEmptyEl.hidden = isRepo;
-    if (isRepo) {
-      loadGitStatus();
-    } else {
-      gitChanges = [];
-      gitSelected = new Set();
-      renderGitChanges();
-      updateCommitButton();
-    }
-  };
-
   const openSolutionForItem = async (name) => {
     setActiveProjectItem(name);
-    const projectPath =
-      currentProjectPath || document.body.dataset.projectPath || "";
+    const projectPath = getProjectPath();
     if (!projectPath || !name || !window.ifactory?.solution?.open) {
       setActiveProjectItem("");
       return;
@@ -1065,7 +902,6 @@ const setupGithubOAuth = () => {
     try {
       const projects = await window.ifactory.recents.get();
       renderRecents(projects);
-      setGitRepoState(false);
     } catch (error) {
       console.error("Failed to load recent projects", error);
     }
@@ -1113,7 +949,6 @@ const setupGithubOAuth = () => {
       installPath.textContent = currentProjectPath || "Not set";
     }
     document.body.dataset.projectPath = currentProjectPath;
-    updateGitRepoHeader();
     if (!currentProjectPath) {
       // no-op for CLI-only view
     }
@@ -1186,7 +1021,6 @@ const setupGithubOAuth = () => {
         return result;
       }
       updateInstallPath(result.path);
-      setGitRepoState(Boolean(result?.isGitRepo));
       await loadProjectItems(result.path);
       setActiveProjectItem("");
       if (result.needsIPlug) {
@@ -1288,50 +1122,6 @@ const setupGithubOAuth = () => {
       setAiView("doxygen");
     });
   }
-  if (gitFilterInput) {
-    gitFilterInput.addEventListener("input", () => {
-      renderGitChanges();
-    });
-  }
-  if (gitSummaryInput) {
-    gitSummaryInput.addEventListener("input", () => {
-      updateCommitButton();
-    });
-  }
-  if (gitCommitButton) {
-    gitCommitButton.addEventListener("click", async () => {
-      if (!window.ifactory?.git?.commit) {
-        return;
-      }
-      const summary = gitSummaryInput?.value.trim() || "";
-      if (!summary || gitSelected.size === 0) {
-        updateCommitButton();
-        return;
-      }
-      const projectPath =
-        currentProjectPath || document.body.dataset.projectPath || "";
-      if (!projectPath) {
-        return;
-      }
-      const description = gitDescriptionInput?.value.trim() || "";
-      const result = await window.ifactory.git.commit({
-        path: projectPath,
-        summary,
-        description,
-        files: Array.from(gitSelected)
-      });
-      if (!result?.error) {
-        if (gitSummaryInput) {
-          gitSummaryInput.value = "";
-        }
-        if (gitDescriptionInput) {
-          gitDescriptionInput.value = "";
-        }
-        await loadGitStatus();
-      }
-      updateCommitButton();
-    });
-  }
   if (doxygenInstallButton) {
     doxygenInstallButton.addEventListener("click", async () => {
       if (!window.ifactory?.doxygen?.install) {
@@ -1365,8 +1155,7 @@ const setupGithubOAuth = () => {
   }
   if (openDesktopButton) {
     openDesktopButton.addEventListener("click", async () => {
-      const projectPath =
-        currentProjectPath || document.body.dataset.projectPath || "";
+      const projectPath = getProjectPath();
       if (!projectPath || !window.ifactory?.githubDesktop?.open) {
         return;
       }
@@ -1379,8 +1168,7 @@ const setupGithubOAuth = () => {
   }
   if (openCodeButton) {
     openCodeButton.addEventListener("click", () => {
-      const projectPath =
-        currentProjectPath || document.body.dataset.projectPath || "";
+      const projectPath = getProjectPath();
       if (!projectPath || !window.ifactory?.openExternal) {
         return;
       }
@@ -1412,8 +1200,7 @@ const setupGithubOAuth = () => {
       if (!pendingResourceFile || resourceAddButton.disabled) {
         return;
       }
-      const projectPath =
-        currentProjectPath || document.body.dataset.projectPath || "";
+      const projectPath = getProjectPath();
       const targetItem = pendingResourceTarget || activeProjectItem;
       if (!projectPath || !targetItem) {
         return;
@@ -1569,8 +1356,7 @@ const setupGithubOAuth = () => {
   }
   if (templateContinueButton) {
     templateContinueButton.addEventListener("click", async () => {
-      const projectPath =
-        currentProjectPath || document.body.dataset.projectPath || "";
+      const projectPath = getProjectPath();
       if (!selectedTemplate || !projectPath) {
         return;
       }
@@ -1632,7 +1418,6 @@ const setupGithubOAuth = () => {
     });
   }
 
-  updateGitRepoHeader();
   loadSetup();
   loadRecents();
 };
@@ -2289,7 +2074,7 @@ const setupInstallScreen = () => {
 document.addEventListener("DOMContentLoaded", () => {
   scheduleReveals();
   hydrateAppMeta();
-  setupGithubOAuth();
+  setupProjectManager();
   setupWindowControls();
   setupCreateForm();
   setupInstallScreen();
