@@ -24,11 +24,6 @@ const defaultSettings = {
       version: "",
       checkedAt: null,
     },
-    codex: {
-      installed: false,
-      version: "",
-      checkedAt: null,
-    },
     buildTools: {
       installed: false,
       path: "",
@@ -60,9 +55,6 @@ const mergeSettings = (settings) => {
   if (settings?.dependencies?.git) {
     Object.assign(merged.dependencies.git, settings.dependencies.git);
   }
-  if (settings?.dependencies?.codex) {
-    Object.assign(merged.dependencies.codex, settings.dependencies.codex);
-  }
   if (settings?.dependencies?.buildTools) {
     Object.assign(
       merged.dependencies.buildTools,
@@ -87,13 +79,20 @@ const loadSettings = () => {
   }
 };
 
-const loadPrompts = () => {
-  const raw = fs.readFileSync(path.join(__dirname, "prompts.json"), "utf8");
-  const parsed = JSON.parse(raw);
-  if (!parsed?.codex?.system || !Array.isArray(parsed.codex.system)) {
-    throw new Error("prompts.json is missing codex.system");
+const copyAgentInstructions = (projectPath) => {
+  if (!projectPath) {
+    return;
   }
-  return parsed;
+  const sourcePath = path.join(__dirname, "AGENTS.md");
+  const destPath = path.join(projectPath, "AGENTS.md");
+  if (!fs.existsSync(sourcePath) || fs.existsSync(destPath)) {
+    return;
+  }
+  try {
+    fs.copyFileSync(sourcePath, destPath);
+  } catch (error) {
+    // ignore copy failures
+  }
 };
 
 const getAgentPipePath = () => "\\\\.\\pipe\\ifactory-agent";
@@ -298,38 +297,6 @@ const startAgentServer = () => {
           } else {
             const macro = result.macroName || `${result.resourceName}_FN`;
             socket.write(`ok:${macro}\n`);
-          }
-          socket.end();
-          return;
-        } else if (cmd === "info") {
-          const topicValue = Array.isArray(arg)
-            ? arg.join(" ").trim().toLowerCase()
-            : arg.toLowerCase();
-          const topics = prompts?.codex?.info || prompts?.codex?.modes || {};
-          if (!topicValue) {
-            socket.write("error:missing_topic\n");
-            socket.end();
-            return;
-          }
-          const lines = Array.isArray(topics?.[topicValue])
-            ? topics[topicValue]
-            : null;
-          if (!lines) {
-            socket.write("error:unknown_topic\n");
-            socket.end();
-            return;
-          }
-          socket.write(`${lines.join("\n")}\n`);
-          socket.end();
-          return;
-        } else if (cmd === "topics") {
-          const topics = Object.keys(
-            prompts?.codex?.info || prompts?.codex?.modes || {},
-          );
-          if (topics.length === 0) {
-            socket.write("error:no_topics\n");
-          } else {
-            socket.write(`${topics.join("\n")}\n`);
           }
           socket.end();
           return;
@@ -1456,7 +1423,6 @@ let settings = null;
 let activeInstall = null;
 let activeBuild = null;
 let agentServer = null;
-let prompts = null;
 let currentProjectPath = "";
 
 const saveSettings = () => {
@@ -1643,82 +1609,6 @@ const checkGitInstalled = () => {
     installed: true,
     version: match ? match[1] : String(result.stdout || "").trim(),
   };
-};
-
-const checkCodexInstalled = () => {
-  const tryResult = (result) => {
-    if (result.error || result.status !== 0) {
-      return null;
-    }
-    const output = String(result.stdout || result.stderr || "").trim();
-    return {
-      installed: true,
-      version: output,
-    };
-  };
-
-  const direct = spawnSync("codex", ["--version"], {
-    encoding: "utf8",
-    windowsHide: true,
-  });
-  const directResult = tryResult(direct);
-  if (directResult) {
-    return directResult;
-  }
-
-  const cmdResult = spawnSync("cmd", ["/c", "codex", "--version"], {
-    encoding: "utf8",
-    windowsHide: true,
-  });
-  const cmdParsed = tryResult(cmdResult);
-  if (cmdParsed) {
-    return cmdParsed;
-  }
-
-  const whereResult = spawnSync("cmd", ["/c", "where", "codex"], {
-    encoding: "utf8",
-    windowsHide: true,
-  });
-  if (!whereResult.error && whereResult.status === 0) {
-    const candidates = String(whereResult.stdout || "")
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean);
-    for (const candidate of candidates) {
-      const lower = candidate.toLowerCase();
-      let result = null;
-      if (lower.endsWith(".cmd") || lower.endsWith(".bat")) {
-        result = spawnSync("cmd", ["/c", candidate, "--version"], {
-          encoding: "utf8",
-          windowsHide: true,
-        });
-      } else if (lower.endsWith(".ps1")) {
-        result = spawnSync(
-          "powershell",
-          [
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            candidate,
-            "--version",
-          ],
-          { encoding: "utf8", windowsHide: true },
-        );
-      } else {
-        result = spawnSync(candidate, ["--version"], {
-          encoding: "utf8",
-          windowsHide: true,
-        });
-      }
-      const parsed = tryResult(result);
-      if (parsed) {
-        return parsed;
-      }
-    }
-  }
-
-  return { installed: false, version: "" };
 };
 
 const getLatestDoxygenLink = async () => {
@@ -2351,71 +2241,6 @@ const checkBuildToolsInstalled = () => {
   return { installed: false, path: "" };
 };
 
-const getSessionsDir = (projectPath) => path.join(projectPath, "sessions");
-
-const getSessionPath = (projectPath) =>
-  path.join(getSessionsDir(projectPath), "default.json");
-
-const loadSession = (projectPath) => {
-  const sessionPath = getSessionPath(projectPath);
-  if (!fs.existsSync(sessionPath)) {
-    return {
-      id: "default",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      messages: [],
-    };
-  }
-  try {
-    const raw = fs.readFileSync(sessionPath, "utf8");
-    const parsed = JSON.parse(raw);
-    return {
-      id: parsed?.id || "default",
-      createdAt: parsed?.createdAt || new Date().toISOString(),
-      updatedAt: parsed?.updatedAt || new Date().toISOString(),
-      messages: Array.isArray(parsed?.messages) ? parsed.messages : [],
-    };
-  } catch (error) {
-    return {
-      id: "default",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      messages: [],
-    };
-  }
-};
-
-const saveSession = (projectPath, session) => {
-  const dir = getSessionsDir(projectPath);
-  fs.mkdirSync(dir, { recursive: true });
-  const payload = {
-    id: session.id || "default",
-    createdAt: session.createdAt || new Date().toISOString(),
-    updatedAt: session.updatedAt || new Date().toISOString(),
-    messages: Array.isArray(session.messages) ? session.messages : [],
-  };
-  fs.writeFileSync(
-    getSessionPath(projectPath),
-    JSON.stringify(payload, null, 2),
-  );
-  return payload;
-};
-
-const buildChatPrompt = (messages) => {
-  const systemLines = Array.isArray(prompts?.codex?.system)
-    ? prompts.codex.system
-    : [];
-  const system = systemLines.map((line) => `System: ${line}`).join("\n");
-  const transcript = messages
-    .map((message) => {
-      const role = message.role === "assistant" ? "Assistant" : "User";
-      return `${role}: ${message.content || ""}`.trim();
-    })
-    .join("\n\n");
-  const assistantPrefix = prompts?.codex?.assistant_prefix || "Assistant:";
-  return `${system}\n\n${transcript}\n\n${assistantPrefix}`;
-};
-
 const listProjectItems = (projectPath) => {
   if (!projectPath) {
     return { error: "missing_path" };
@@ -2503,203 +2328,6 @@ const listProjectItems = (projectPath) => {
 
   return { items };
 };
-
-const isCmdScript = (value) => {
-  const lower = value.toLowerCase();
-  return lower.endsWith(".cmd") || lower.endsWith(".bat");
-};
-
-const isPsScript = (value) => value.toLowerCase().endsWith(".ps1");
-
-const getExtendedPath = () => {
-  const home = process.env.USERPROFILE || "";
-  const appdata = process.env.APPDATA || "";
-  const localAppData = process.env.LOCALAPPDATA || "";
-  const pnpmHome = process.env.PNPM_HOME || "";
-  const yarnHome = process.env.YARN_HOME || "";
-  const bunInstall = process.env.BUN_INSTALL || "";
-  const currentPath = process.env.PATH || "";
-  const extraPaths = [
-    home ? path.join(home, ".codex", "bin") : "",
-    home ? path.join(home, ".claude", "bin") : "",
-    home ? path.join(home, ".cargo", "bin") : "",
-    home ? path.join(home, "AppData", "Roaming", "npm") : "",
-    home ? path.join(home, "AppData", "Local", "npm") : "",
-    home ? path.join(home, "AppData", "Roaming", "pnpm") : "",
-    home ? path.join(home, "AppData", "Local", "Yarn", "bin") : "",
-    home
-      ? path.join(
-          home,
-          "AppData",
-          "Local",
-          "Programs",
-          "Microsoft VS Code",
-          "bin",
-        )
-      : "",
-    home
-      ? path.join(home, "AppData", "Local", "Programs", "VSCodium", "bin")
-      : "",
-    home
-      ? path.join(
-          home,
-          "AppData",
-          "Local",
-          "Programs",
-          "Cursor",
-          "resources",
-          "app",
-          "bin",
-        )
-      : "",
-    home ? path.join(home, "AppData", "Local", "Microsoft", "WindowsApps") : "",
-    "C:\\Program Files\\nodejs",
-    "C:\\Program Files\\Git\\bin",
-    "C:\\Program Files\\Microsoft VS Code\\bin",
-    "C:\\Program Files (x86)\\Microsoft VS Code\\bin",
-  ];
-  if (appdata) {
-    extraPaths.push(path.join(appdata, "npm"));
-    extraPaths.push(path.join(appdata, "pnpm"));
-  }
-  if (localAppData) {
-    extraPaths.push(path.join(localAppData, "npm"));
-    extraPaths.push(path.join(localAppData, "Yarn", "bin"));
-  }
-  if (pnpmHome) {
-    extraPaths.push(pnpmHome);
-  }
-  if (yarnHome) {
-    extraPaths.push(yarnHome);
-  }
-  if (bunInstall) {
-    extraPaths.push(path.join(bunInstall, "bin"));
-  }
-  const filtered = extraPaths.filter((entry) => entry);
-  return `${filtered.join(";")};${currentPath}`;
-};
-
-const findCodexInPath = (name) => {
-  const result = spawnSync("cmd", ["/c", "where", name], {
-    encoding: "utf8",
-    windowsHide: true,
-  });
-  if (result.error || result.status !== 0) {
-    return "";
-  }
-  const line = String(result.stdout || "")
-    .split(/\r?\n/)[0]
-    .trim();
-  return line || "";
-};
-
-const resolveCodexCommand = () => {
-  const envPath = process.env.CODEX_CLI_PATH || "";
-  if (envPath && fs.existsSync(envPath)) {
-    return envPath;
-  }
-  const candidates = ["codex.cmd", "codex.ps1", "codex.exe", "codex"];
-  for (const candidate of candidates) {
-    const found = findCodexInPath(candidate);
-    if (found) {
-      return found;
-    }
-  }
-  const home = process.env.USERPROFILE || "";
-  if (home) {
-    const localCandidates = [
-      path.join(home, "AppData", "Roaming", "npm", "codex.cmd"),
-      path.join(home, "AppData", "Local", "npm", "codex.cmd"),
-      path.join(home, "AppData", "Roaming", "npm", "codex.exe"),
-      path.join(home, "AppData", "Local", "npm", "codex.exe"),
-      path.join(home, "AppData", "Roaming", "npm", "codex.ps1"),
-      path.join(home, "AppData", "Local", "npm", "codex.ps1"),
-    ];
-    for (const candidate of localCandidates) {
-      if (fs.existsSync(candidate)) {
-        return candidate;
-      }
-    }
-  }
-  return "";
-};
-
-const spawnCodex = (codexPath, args, options) => {
-  if (isCmdScript(codexPath)) {
-    return spawn("cmd", ["/C", codexPath, ...args], options);
-  }
-  if (isPsScript(codexPath)) {
-    return spawn(
-      "powershell",
-      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", codexPath, ...args],
-      options,
-    );
-  }
-  return spawn(codexPath, args, options);
-};
-
-const runCodexChat = ({ projectPath, prompt }) =>
-  new Promise((resolve, reject) => {
-    const codexPath = resolveCodexCommand();
-    if (!codexPath) {
-      return reject(new Error("Codex CLI not found"));
-    }
-    const tempPath = path.join(
-      os.tmpdir(),
-      `ifactory-codex-${Date.now()}-${Math.random().toString(16).slice(2)}.txt`,
-    );
-    const args = [
-      "exec",
-      "--cd",
-      projectPath,
-      "--sandbox",
-      "danger-full-access",
-      "--skip-git-repo-check",
-      "--color",
-      "never",
-      "--output-last-message",
-      tempPath,
-      "-",
-    ];
-    const env = {
-      ...process.env,
-      PATH: getExtendedPath(),
-    };
-    const child = spawnCodex(codexPath, args, {
-      cwd: projectPath,
-      windowsHide: true,
-      env,
-    });
-    let stderr = "";
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-    child.on("error", reject);
-    child.on("close", (code) => {
-      let output = "";
-      try {
-        output = fs.readFileSync(tempPath, "utf8").trim();
-      } catch (error) {
-        output = "";
-      }
-      fs.rmSync(tempPath, { force: true });
-      if (code !== 0 || !output) {
-        return reject(
-          new Error(
-            stderr ||
-              "Codex did not return a response. Ensure you are logged in.",
-          ),
-        );
-      }
-      resolve(output);
-    });
-    try {
-      child.stdin.write(prompt || "");
-      child.stdin.end();
-    } catch (error) {
-      reject(error);
-    }
-  });
 
 const getGithubDesktopCommand = () => {
   const result = spawnSync(
@@ -2862,42 +2490,6 @@ const registerIpc = () => {
       return { error: "commit_failed" };
     }
   });
-  ipcMain.handle("codex:check", () => {
-    const result = checkCodexInstalled();
-    settings.dependencies.codex = {
-      ...settings.dependencies.codex,
-      installed: result.installed,
-      version: result.version || "",
-      checkedAt: new Date().toISOString(),
-    };
-    saveSettings();
-    return settings.dependencies.codex;
-  });
-  ipcMain.handle("codex:chat", async (event, payload) => {
-    try {
-      const projectPath = payload?.path?.trim();
-      const message = payload?.message || "";
-      const history = Array.isArray(payload?.history) ? payload.history : [];
-      if (!projectPath) {
-        return { error: "missing_path" };
-      }
-      if (!message.trim()) {
-        return { error: "missing_message" };
-      }
-      const codexState = checkCodexInstalled();
-      if (!codexState.installed) {
-        return { error: "codex_missing" };
-      }
-      const maxHistory = history.slice(-20);
-      const session = loadSession(projectPath);
-      const promptMessages = maxHistory.length ? maxHistory : session.messages;
-      const prompt = buildChatPrompt(promptMessages);
-      const reply = await runCodexChat({ projectPath, prompt });
-      return { reply };
-    } catch (error) {
-      return { error: "codex_failed", details: error?.message || "" };
-    }
-  });
   ipcMain.handle("build:check", () => {
     const result = checkBuildToolsInstalled();
     settings.dependencies.buildTools = {
@@ -2934,55 +2526,6 @@ const registerIpc = () => {
       saveSettings();
     }
     return result;
-  });
-  ipcMain.handle("session:load", (event, payload) => {
-    try {
-      const projectPath = payload?.path?.trim();
-      if (!projectPath) {
-        return { error: "missing_path" };
-      }
-      if (!fs.existsSync(projectPath)) {
-        return { error: "path_not_found" };
-      }
-      const session = loadSession(projectPath);
-      return { session };
-    } catch (error) {
-      return { error: "session_load_failed" };
-    }
-  });
-  ipcMain.handle("session:append", (event, payload) => {
-    try {
-      const projectPath = payload?.path?.trim();
-      if (!projectPath) {
-        return { error: "missing_path" };
-      }
-      const message = payload?.message;
-      if (!message || !message.content) {
-        return { error: "missing_message" };
-      }
-      const role = message.role === "assistant" ? "assistant" : "user";
-      const session = loadSession(projectPath);
-      const next = {
-        role,
-        content: String(message.content),
-        createdAt: new Date().toISOString(),
-      };
-      if (message.error) {
-        next.error = true;
-      }
-      session.messages = Array.isArray(session.messages)
-        ? session.messages.concat(next)
-        : [next];
-      session.updatedAt = new Date().toISOString();
-      const saved = saveSession(projectPath, session);
-      return { session: saved };
-    } catch (error) {
-      return { error: "session_append_failed" };
-    }
-  });
-  ipcMain.handle("prompts:topics", () => {
-    const topics = prompts?.codex?.info || prompts?.codex?.modes || {};
-    return { topics: Object.keys(topics) };
   });
   ipcMain.handle("build:run", async (event, payload) => {
     if (activeBuild) {
@@ -3245,6 +2788,7 @@ const registerIpc = () => {
       }
 
       fs.mkdirSync(projectPath, { recursive: true });
+      copyAgentInstructions(projectPath);
 
       if (createRepo) {
         const gitignorePath = path.join(projectPath, ".gitignore");
@@ -4339,13 +3883,6 @@ const createWindow = () => {
 
 app.whenReady().then(() => {
   settings = loadSettings();
-  try {
-    prompts = loadPrompts();
-  } catch (error) {
-    console.error("Failed to load prompts.json", error);
-    app.exit(1);
-    return;
-  }
   startAgentServer();
   registerIpc();
   createWindow();

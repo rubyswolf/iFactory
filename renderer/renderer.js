@@ -87,16 +87,6 @@ const setupGithubOAuth = () => {
   const resourceFileLabel = document.querySelector("[data-resource-file]");
   const resourceErrorEl = document.querySelector("[data-resource-error]");
   const resourceRemoveToggle = document.querySelector("[data-resource-remove]");
-  const agentStatusEl = document.querySelector("[data-agent-status]");
-  const promptPanel = document.querySelector("[data-ai-panel=\"prompt\"]");
-  const promptDock = document.querySelector("[data-prompt-dock]");
-  const promptBar = promptDock?.querySelector(".prompt-bar");
-  const promptInput = document.querySelector("[data-ai-prompt]");
-  const promptSendButton = document.querySelector(".prompt-send");
-  const chatListEl = document.querySelector("[data-ai-chat-list]");
-  if (window.ifactory?.agent?.onPing) {
-    window.ifactory.agent.onPing(() => {});
-  }
   const gitRepoNameEl = document.querySelector("[data-git-repo-name]");
   const gitRepoPathEl = document.querySelector("[data-git-repo-path]");
   const gitBodyEl = document.querySelector("[data-git-body]");
@@ -162,7 +152,6 @@ const setupGithubOAuth = () => {
   let gitChecking = false;
   let templatesData = [];
   let selectedTemplate = "";
-  let codexInstalled = false;
   let buildToolsInstalled = false;
   let buildToolsChecked = false;
   let buildRunning = false;
@@ -170,54 +159,9 @@ const setupGithubOAuth = () => {
   let activeProjectItem = "";
   let projectItems = [];
   let gitChanges = [];
-  let refreshPromptInput = null;
-  let chatMessages = [];
-  let chatProjectPath = "";
-  let codexBusy = false;
   let gitSelected = new Set();
-  let initialChatScrollDone = false;
 
   const sanitizeTemplateName = (value) => value.replace(/[^a-zA-Z0-9]/g, "");
-  const scrollChatToBottom = (defer = true) => {
-    if (!chatListEl) {
-      return;
-    }
-    const doScroll = () => {
-      chatListEl.scrollTop = chatListEl.scrollHeight;
-    };
-    if (defer) {
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(doScroll);
-      });
-    } else {
-      doScroll();
-    }
-  };
-  const scheduleChatScroll = () => {
-    scrollChatToBottom(true);
-    window.setTimeout(() => {
-      scrollChatToBottom(false);
-    }, 120);
-  };
-  const scheduleInitialChatScroll = () => {
-    if (!chatListEl || initialChatScrollDone) {
-      return;
-    }
-    initialChatScrollDone = true;
-    const observer = new ResizeObserver(() => {
-      scrollChatToBottom(false);
-    });
-    observer.observe(chatListEl);
-    scheduleChatScroll();
-    window.setTimeout(() => {
-      scrollChatToBottom(false);
-    }, 300);
-    window.setTimeout(() => {
-      scrollChatToBottom(false);
-      observer.disconnect();
-    }, 900);
-  };
-
   const updateTemplateContinue = () => {
     if (!templateContinueButton) {
       return;
@@ -306,9 +250,7 @@ const setupGithubOAuth = () => {
     }
   };
 
-  const setAiNeedsAgent = (needsAgent) => {
-    document.body.classList.toggle("ai-needs-agent", needsAgent);
-  };
+  const updateAiPanels = () => {};
 
   const updateSidebarActive = () => {
     if (agentNavButton) {
@@ -340,21 +282,6 @@ const setupGithubOAuth = () => {
     document.body.dataset.aiView = view;
     setAi(true);
     updateSidebarActive();
-    if (view === "agent" && typeof refreshPromptInput === "function") {
-      refreshPromptInput();
-      if (promptInput) {
-        window.setTimeout(() => {
-          promptInput.focus();
-        }, 0);
-      }
-      const projectPath =
-        currentProjectPath || document.body.dataset.projectPath || "";
-      if (projectPath && projectPath !== chatProjectPath) {
-        loadChatSession(projectPath);
-      }
-      scheduleChatScroll();
-      scheduleInitialChatScroll();
-    }
     if (view === "get-started") {
       if (buildToolsInstalled) {
         goToRunScreen();
@@ -387,10 +314,6 @@ const setupGithubOAuth = () => {
     return match?.type || "plugin";
   };
 
-  const updateAiPanels = () => {
-    setAiNeedsAgent(!codexInstalled);
-  };
-
   const setGetStarted = (active) => {
     if (active) {
       setAiView("get-started");
@@ -399,12 +322,7 @@ const setupGithubOAuth = () => {
     }
   };
 
-  const updateAgentStatus = (message) => {
-    if (!agentStatusEl) {
-      return;
-    }
-    agentStatusEl.textContent = message;
-  };
+  const updateAgentStatus = () => {};
 
   const updateOpenSolutionButtons = () => {
     if (!openSolutionButtons.length) {
@@ -574,28 +492,6 @@ const setupGithubOAuth = () => {
     }
   };
 
-  const checkCodex = async () => {
-    if (!window.ifactory?.codex?.check) {
-      codexInstalled = false;
-      updateAiPanels();
-      updateAgentStatus("No agents found.");
-      return;
-    }
-    updateAgentStatus("Checking for agents.");
-    try {
-      const result = await window.ifactory.codex.check();
-      codexInstalled = Boolean(result?.installed);
-      updateAiPanels();
-      if (!codexInstalled) {
-        updateAgentStatus("No agents found.");
-      }
-    } catch (error) {
-      codexInstalled = false;
-      updateAiPanels();
-      updateAgentStatus("No agents found.");
-    }
-  };
-
   const setBuildPanels = () => {
     if (!buildPanelCheck) {
       return;
@@ -726,9 +622,6 @@ const setupGithubOAuth = () => {
   const showProjectEditor = async (view = "agent") => {
     setAiView(view);
     updateAiPanels();
-    if (view === "agent" && !codexInstalled) {
-      await checkCodex();
-    }
   };
 
   const renderRecents = (projects) => {
@@ -804,380 +697,6 @@ const setupGithubOAuth = () => {
     const name = parts[parts.length - 1] || currentProjectPath;
     gitRepoNameEl.textContent = name;
     gitRepoPathEl.textContent = currentProjectPath;
-  };
-
-  const runPromptSendTransition = () => {
-    if (!promptPanel || !promptSendButton || !promptDock) {
-      return;
-    }
-    if (promptPanel.classList.contains("is-sent")) {
-      return;
-    }
-    promptPanel.classList.add("is-sent");
-    promptDock.classList.add("is-sent");
-    window.setTimeout(() => {
-      promptPanel.classList.add("is-hidden");
-    }, 260);
-  };
-
-  const extractToolCalls = (text) => {
-    if (!text) {
-      return { clean: "", tools: [] };
-    }
-    const tools = [];
-    const cleaned = text.replace(/\[\[tool:([a-z0-9_-]+)\]\]/gi, (match, name) => {
-      tools.push(String(name).toLowerCase());
-      return "";
-    }).replace(/\n{3,}/g, "\n\n").trim();
-    return { clean: cleaned, tools };
-  };
-
-  const handleToolCalls = (tools) => {
-    if (!Array.isArray(tools) || tools.length === 0) {
-      return;
-    }
-    if (tools.includes("ping") && window.ifactory?.agent?.ping) {
-      try {
-        window.ifactory.agent.ping();
-      } catch (error) {
-        // ignore ping errors
-      }
-    }
-  };
-
-  const createChatBubble = (role, tone) => {
-    if (!chatListEl) {
-      return null;
-    }
-    const bubble = document.createElement("div");
-    bubble.className = "ai-chat-bubble";
-    if (role === "assistant") {
-      bubble.classList.add("ai-chat-bubble--assistant");
-    }
-    if (tone) {
-      bubble.classList.add(`ai-chat-bubble--${tone}`);
-    }
-    chatListEl.appendChild(bubble);
-    chatListEl.scrollTop = chatListEl.scrollHeight;
-    return bubble;
-  };
-
-  const createActivityBubble = () => {
-    const bubble = createChatBubble("assistant");
-    if (!bubble) {
-      return null;
-    }
-    bubble.classList.add("ai-chat-bubble--activity");
-
-    const title = document.createElement("div");
-    title.className = "ai-chat-activity__title";
-    title.textContent = "Working";
-
-    const makeRow = (labelText, valueText) => {
-      const row = document.createElement("div");
-      row.className = "ai-chat-activity__row";
-      const label = document.createElement("span");
-      label.className = "ai-chat-activity__label";
-      label.textContent = labelText;
-      const value = document.createElement("span");
-      value.className = "ai-chat-activity__value";
-      value.textContent = valueText;
-      row.append(label, value);
-      return { row, value };
-    };
-
-    const thoughts = makeRow("Thoughts", "Thinking...");
-    const commands = makeRow("Commands", "Waiting...");
-    const edits = makeRow("Edits", "None yet.");
-
-    bubble.append(title, thoughts.row, commands.row, edits.row);
-    bubble.dataset.activity = "live";
-    bubble._activity = {
-      thoughts: thoughts.value,
-      commands: commands.value,
-      edits: edits.value
-    };
-    return bubble;
-  };
-
-  const updateActivityBubble = (bubble, updates = {}) => {
-    if (!bubble || !bubble._activity) {
-      return;
-    }
-    const { thoughts, commands, edits } = updates;
-    if (typeof thoughts === "string") {
-      bubble._activity.thoughts.textContent = thoughts;
-    }
-    if (typeof commands === "string") {
-      bubble._activity.commands.textContent = commands;
-    }
-    if (typeof edits === "string") {
-      bubble._activity.edits.textContent = edits;
-    }
-  };
-
-  const clearActivityBubble = (bubble) => {
-    if (!bubble) {
-      return;
-    }
-    bubble.classList.add("is-complete");
-    window.setTimeout(() => {
-      if (bubble.parentElement) {
-        bubble.remove();
-      }
-    }, 260);
-  };
-
-  const renderAssistantMarkdown = (bubble, text) => {
-    if (!bubble) {
-      return;
-    }
-    bubble.innerHTML = "";
-    const blocks = String(text || "").split(/```/);
-    const appendInlineContent = (parent, value) => {
-      const parts = String(value || "")
-        .split(/(`[^`]+`)/g)
-        .filter(Boolean);
-      parts.forEach((part) => {
-        const inlineMatch = part.match(/^`([^`]+)`$/);
-        if (inlineMatch) {
-          const code = document.createElement("code");
-          code.className = "inline-code";
-          code.textContent = inlineMatch[1];
-          parent.appendChild(code);
-        } else {
-          parent.appendChild(document.createTextNode(part));
-        }
-      });
-    };
-    const appendParagraph = (lines) => {
-      if (!lines.length) {
-        return;
-      }
-      const p = document.createElement("p");
-      appendInlineContent(p, lines.join(" ").trim());
-      bubble.appendChild(p);
-    };
-    const renderTextBlock = (segment) => {
-      const lines = segment.split(/\r?\n/);
-      let buffer = [];
-      let i = 0;
-      while (i < lines.length) {
-        const line = lines[i];
-        if (!line.trim()) {
-          appendParagraph(buffer);
-          buffer = [];
-          i += 1;
-          continue;
-        }
-        const ulMatch = line.match(/^\s*[-*+]\s+(.*)$/);
-        if (ulMatch) {
-          appendParagraph(buffer);
-          buffer = [];
-          const ul = document.createElement("ul");
-          while (i < lines.length) {
-            const match = lines[i].match(/^\s*[-*+]\s+(.*)$/);
-            if (!match) {
-              break;
-            }
-            const li = document.createElement("li");
-            appendInlineContent(li, match[1]);
-            ul.appendChild(li);
-            i += 1;
-          }
-          bubble.appendChild(ul);
-          continue;
-        }
-        const olMatch = line.match(/^\s*\d+[.)]\s+(.*)$/);
-        if (olMatch) {
-          appendParagraph(buffer);
-          buffer = [];
-          const ol = document.createElement("ol");
-          while (i < lines.length) {
-            const match = lines[i].match(/^\s*\d+[.)]\s+(.*)$/);
-            if (!match) {
-              break;
-            }
-            const li = document.createElement("li");
-            appendInlineContent(li, match[1]);
-            ol.appendChild(li);
-            i += 1;
-          }
-          bubble.appendChild(ol);
-          continue;
-        }
-        buffer.push(line.trim());
-        i += 1;
-      }
-      appendParagraph(buffer);
-    };
-
-    blocks.forEach((block, index) => {
-      if (index % 2 === 1) {
-        const lines = block.replace(/^\n/, "").split(/\r?\n/);
-        const hasLang =
-          lines.length > 1 && /^[a-z0-9_-]+$/i.test(lines[0].trim());
-        const codeText = hasLang ? lines.slice(1).join("\n") : block;
-        const pre = document.createElement("pre");
-        const code = document.createElement("code");
-        code.textContent = codeText.replace(/^\n/, "");
-        pre.appendChild(code);
-        bubble.appendChild(pre);
-      } else {
-        renderTextBlock(block);
-      }
-    });
-  };
-
-  const persistChatMessage = async (message, save = true) => {
-    chatMessages.push(message);
-    if (save && window.ifactory?.session?.append && chatProjectPath) {
-      try {
-        await window.ifactory.session.append({
-          path: chatProjectPath,
-          message
-        });
-      } catch (error) {
-        // ignore persistence errors
-      }
-    }
-  };
-
-  const appendChatMessage = async (text, role = "user", { save = true, tone } = {}) => {
-    if (!chatListEl || !text) {
-      return;
-    }
-    const bubble = createChatBubble(role, tone);
-    if (!bubble) {
-      return;
-    }
-    if (role === "assistant" && tone !== "error") {
-      renderAssistantMarkdown(bubble, text);
-    } else {
-      bubble.textContent = text;
-    }
-    const message = {
-      role,
-      content: text,
-      createdAt: new Date().toISOString()
-    };
-    if (tone === "error") {
-      message.error = true;
-    }
-    await persistChatMessage(message, save);
-  };
-
-  const streamAssistantMessage = (text) =>
-    new Promise((resolve) => {
-      if (!text) {
-        resolve();
-        return;
-      }
-      const bubble = createChatBubble("assistant");
-      if (!bubble) {
-        resolve();
-        return;
-      }
-      bubble.classList.add("is-streaming");
-      let index = 0;
-      const step = 2;
-      const tick = () => {
-        index = Math.min(text.length, index + step);
-        bubble.textContent = text.slice(0, index);
-        chatListEl.scrollTop = chatListEl.scrollHeight;
-        if (index < text.length) {
-          window.requestAnimationFrame(tick);
-        } else {
-          bubble.classList.remove("is-streaming");
-          renderAssistantMarkdown(bubble, text);
-          persistChatMessage(
-            {
-              role: "assistant",
-              content: text,
-              createdAt: new Date().toISOString()
-            },
-            true
-          ).finally(resolve);
-        }
-      };
-      tick();
-    });
-
-  const renderChatHistory = (messages) => {
-    if (!chatListEl) {
-      return;
-    }
-    chatListEl.innerHTML = "";
-    chatMessages = Array.isArray(messages) ? messages : [];
-    let lastBubble = null;
-    chatMessages.forEach((message) => {
-      const bubble = document.createElement("div");
-      bubble.className = "ai-chat-bubble";
-      if (message.role === "assistant") {
-        bubble.classList.add("ai-chat-bubble--assistant");
-      }
-      if (message.error) {
-        bubble.classList.add("ai-chat-bubble--error");
-      }
-      if (message.role === "assistant" && !message.error) {
-        renderAssistantMarkdown(bubble, message.content || "");
-      } else {
-        bubble.textContent = message.content || "";
-      }
-      chatListEl.appendChild(bubble);
-      lastBubble = bubble;
-    });
-    if (lastBubble && typeof lastBubble.scrollIntoView === "function") {
-      lastBubble.scrollIntoView({ block: "end" });
-    } else {
-      chatListEl.scrollTop = chatListEl.scrollHeight;
-    }
-  };
-
-  const loadChatSession = async (projectPath) => {
-    if (!window.ifactory?.session?.load || !projectPath) {
-      return;
-    }
-    try {
-      const result = await window.ifactory.session.load({ path: projectPath });
-      if (result?.error) {
-        return;
-      }
-      chatProjectPath = projectPath;
-      const sessionMessages = result?.session?.messages || [];
-    renderChatHistory(sessionMessages);
-    scheduleChatScroll();
-    if (promptPanel && promptDock) {
-      if (sessionMessages.length > 0) {
-        promptPanel.classList.add("is-sent");
-        promptPanel.classList.add("is-hidden");
-        promptDock.classList.add("is-sent");
-        scheduleChatScroll();
-      } else {
-        promptPanel.classList.remove("is-sent", "is-hidden");
-        promptDock.classList.remove("is-sent");
-      }
-    }
-    } catch (error) {
-      // ignore load errors
-    }
-  };
-
-  const ensureChatProjectPath = () => {
-    const projectPath =
-      currentProjectPath || document.body.dataset.projectPath || "";
-    if (projectPath) {
-      chatProjectPath = projectPath;
-    }
-    return projectPath;
-  };
-
-  const setCodexBusy = (busy) => {
-    codexBusy = busy;
-    if (promptSendButton) {
-      const value = promptInput?.value.trim() || "";
-      promptSendButton.disabled = busy || !value;
-    }
   };
 
   const getGitStatusInfo = (status) => {
@@ -1607,8 +1126,7 @@ const setupGithubOAuth = () => {
     document.body.dataset.projectPath = currentProjectPath;
     updateGitRepoHeader();
     if (!currentProjectPath) {
-      chatProjectPath = "";
-      renderChatHistory([]);
+      // no-op for CLI-only view
     }
   };
 
@@ -1739,7 +1257,6 @@ const setupGithubOAuth = () => {
     try {
       const settings = await window.ifactory.settings.get();
       const gitState = settings?.dependencies?.git;
-      const codexState = settings?.dependencies?.codex;
       const buildState = settings?.dependencies?.buildTools;
       const needsCheck = !gitState?.installed && !gitState?.skipped;
       if (needsCheck) {
@@ -1752,11 +1269,9 @@ const setupGithubOAuth = () => {
         applyGitState(gitState);
       }
       applyGithubState(settings);
-      codexInstalled = Boolean(codexState?.installed);
       buildToolsInstalled = Boolean(buildState?.installed);
       buildToolsChecked = Boolean(buildState?.checkedAt);
       setBuildPanels();
-      updateAiPanels();
       if (needsCheck) {
         await checkGitInstallation();
       }
@@ -2022,110 +1537,6 @@ const setupGithubOAuth = () => {
         console.error("Failed to open GitHub Desktop", error);
       }
     });
-  }
-  const sendPrompt = async (text) => {
-    ensureChatProjectPath();
-    setCodexBusy(true);
-    await appendChatMessage(text, "user");
-    runPromptSendTransition();
-    const activityBubble = createActivityBubble();
-    updateActivityBubble(activityBubble, {
-      thoughts: "Drafting a response...",
-      commands: "Running Codex CLI...",
-      edits: "No edits yet."
-    });
-    const projectPath = ensureChatProjectPath();
-    const history = chatMessages.slice(-20).map((message) => ({
-      role: message.role,
-      content: message.content
-    }));
-    if (!window.ifactory?.codex?.chat || !projectPath) {
-      clearActivityBubble(activityBubble);
-      await appendChatMessage(
-        "Codex is not available. Install Codex CLI to continue.",
-        "assistant",
-        { tone: "error" }
-      );
-      setCodexBusy(false);
-      return;
-    }
-    const result = await window.ifactory.codex.chat({
-      path: projectPath,
-      message: text,
-      history
-    });
-    clearActivityBubble(activityBubble);
-    if (result?.reply) {
-      const parsed = extractToolCalls(result.reply);
-      handleToolCalls(parsed.tools);
-      if (parsed.clean) {
-        await streamAssistantMessage(parsed.clean);
-      }
-    } else {
-      await appendChatMessage(
-        result?.error === "codex_missing"
-          ? "Codex CLI was not found. Install it to continue."
-          : result?.details
-            ? result.details
-            : "Unable to reach Codex right now.",
-        "assistant",
-        { tone: "error" }
-      );
-    }
-    setCodexBusy(false);
-  };
-
-  if (promptSendButton) {
-    promptSendButton.addEventListener("click", () => {
-      if (promptInput && !promptInput.value.trim()) {
-        return;
-      }
-      if (promptInput) {
-        const text = promptInput.value.trim();
-        promptInput.value = "";
-        sendPrompt(text);
-      }
-    });
-  }
-  if (promptInput && promptSendButton) {
-    const updatePromptSendState = () => {
-      promptSendButton.disabled = codexBusy || !promptInput.value.trim();
-    };
-    const updatePromptHeight = () => {
-      const style = window.getComputedStyle(promptInput);
-      const lineHeight = Number.parseFloat(style.lineHeight) || 24;
-      const maxHeight = lineHeight * 8;
-      promptInput.style.height = "auto";
-      const nextHeight = Math.min(promptInput.scrollHeight, maxHeight);
-      promptInput.style.height = `${Math.max(nextHeight, lineHeight)}px`;
-      promptInput.style.overflowY =
-        promptInput.scrollHeight > maxHeight ? "auto" : "hidden";
-      if (promptBar) {
-        promptBar.classList.toggle(
-          "is-multiline",
-          promptInput.scrollHeight > lineHeight * 1.2
-        );
-      }
-    };
-    promptInput.addEventListener("input", updatePromptSendState);
-    promptInput.addEventListener("input", updatePromptHeight);
-    promptInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" && !event.shiftKey) {
-        event.preventDefault();
-        if (!promptSendButton.disabled) {
-          const text = promptInput.value.trim();
-          promptInput.value = "";
-          updatePromptSendState();
-          sendPrompt(text);
-        }
-      }
-    });
-    updatePromptSendState();
-    updatePromptHeight();
-    refreshPromptInput = () => {
-      updatePromptSendState();
-      updatePromptHeight();
-    };
   }
   if (buildRunButton) {
     buildRunButton.addEventListener("click", async () => {

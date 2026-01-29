@@ -17,23 +17,6 @@ contextBridge.exposeInMainWorld("ifactory", {
     status: (payload) => ipcRenderer.invoke("git:status", payload),
     commit: (payload) => ipcRenderer.invoke("git:commit", payload)
   },
-  codex: {
-    check: () => ipcRenderer.invoke("codex:check"),
-    chat: (payload) => ipcRenderer.invoke("codex:chat", payload)
-  },
-  agent: {
-    ping: () => {
-      return ipcRenderer.invoke("agent:ping");
-    },
-    onPing: (callback) => {
-      if (typeof callback !== "function") {
-        return () => {};
-      }
-      const listener = () => callback();
-      ipcRenderer.on("agent:ping", listener);
-      return () => ipcRenderer.removeListener("agent:ping", listener);
-    }
-  },
   build: {
     check: () => ipcRenderer.invoke("build:check"),
     run: (payload) => ipcRenderer.invoke("build:run", payload),
@@ -117,12 +100,8 @@ contextBridge.exposeInMainWorld("ifactory", {
   solution: {
     open: (payload) => ipcRenderer.invoke("solution:open", payload)
   },
-  session: {
-    load: (payload) => ipcRenderer.invoke("session:load", payload),
-    append: (payload) => ipcRenderer.invoke("session:append", payload)
-  },
-  prompts: {
-    topics: () => ipcRenderer.invoke("prompts:topics")
+  agent: {
+    ping: () => ipcRenderer.invoke("agent:ping")
   },
   templates: {
     list: (payload) => ipcRenderer.invoke("templates:list", payload),

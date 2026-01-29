@@ -393,8 +393,8 @@
             <aside class="ai-sidebar" aria-label="Sidebar">
               <div class="ai-sidebar-top">
                 <button class="ai-nav-item" type="button" data-ai-nav="agent">
-                  <img src="../icons/agent.svg" alt="Agent" />
-                  <span class="ai-nav-label">Agent</span>
+                  <img src="../icons/agent.svg" alt="CLI" />
+                  <span class="ai-nav-label">CLI</span>
                 </button>
                 <button class="ai-nav-item" type="button" data-ai-nav="git">
                   <img src="../icons/git.svg" alt="Git" />
@@ -431,54 +431,28 @@
             </aside>
             <div class="ai-main">
               <div class="ai-view" data-ai-view="agent">
-                <div class="ai-chat" data-ai-chat>
-                  <div class="ai-chat-list" data-ai-chat-list></div>
-                </div>
-                <section class="panel agent-panel reveal" data-ai-panel="agent">
-                  <div class="eyebrow">Connect your agent</div>
-                  <h2>Connect an agent.</h2>
-                  <p class="card-meta" data-agent-status>
-                    Checking for agents.
+                <section class="panel agent-panel reveal">
+                  <div class="eyebrow">CLI active</div>
+                  <h2>Use your agent in another app.</h2>
+                  <p class="card-meta">
+                    Open the project folder in Codex or another agent and use the
+                    iFactory CLI for actions inside this workspace.
                   </p>
                   <div class="agent-instructions">
-                    <div class="instruction-title">Install Codex CLI</div>
+                    <div class="instruction-title">Next steps</div>
                     <ol class="instruction-list">
+                      <li>Open this project folder in your agent.</li>
                       <li>
-                        Download Codex CLI from openai.com or your team portal.
+                        Use `ifact` to list templates, create plugins, and add
+                        resources.
                       </li>
-                      <li>Run the installer and complete setup.</li>
-                      <li>Return here to connect your agent.</li>
+                      <li>
+                        `AGENTS.md` is copied into new projects with the system
+                        prompt.
+                      </li>
                     </ol>
                   </div>
                 </section>
-                <section class="panel ai-panel reveal" data-ai-panel="prompt">
-                  <div class="eyebrow">AI prompt</div>
-                  <h2>Describe what you want to build.</h2>
-                  <p class="card-meta">
-                    Share the idea for your plugin or tool and we will shape
-                    the plan.
-                  </p>
-                </section>
-                <div class="prompt-dock" data-prompt-dock>
-                  <div class="prompt-bar">
-                    <button
-                      class="prompt-addon"
-                      type="button"
-                      aria-label="Add context"
-                    >
-                      +
-                    </button>
-                    <textarea
-                      class="prompt-input"
-                      placeholder="Describe your plugin or tool"
-                      data-ai-prompt
-                      rows="1"
-                    ></textarea>
-                    <button class="prompt-send" type="button" disabled>
-                      Send
-                    </button>
-                  </div>
-                </div>
               </div>
               <div class="ai-view" data-ai-view="templates">
                 <section class="panel templates-panel reveal">
