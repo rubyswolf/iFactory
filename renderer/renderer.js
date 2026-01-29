@@ -386,7 +386,7 @@ const setupGithubOAuth = () => {
       }
       if (isPluginSidebarTarget(event)) {
         event.preventDefault();
-        event.dataTransfer.dropEffect = "copy";
+        event.dataTransfer.dropEffect = event.shiftKey ? "move" : "copy";
       }
       if (isPointInsideSidebar(event)) {
         setSidebarDragHover(true);
@@ -504,7 +504,8 @@ const setupGithubOAuth = () => {
     fileName,
     errorMessage,
     supported,
-    targetName
+    targetName,
+    removeOriginal
   }) => {
     if (!resourceDialog) {
       return;
@@ -523,7 +524,7 @@ const setupGithubOAuth = () => {
       resourceNameInput.value = "";
     }
     if (resourceRemoveToggle) {
-      resourceRemoveToggle.checked = false;
+      resourceRemoveToggle.checked = Boolean(removeOriginal);
     }
     renderResourceError();
     updateResourceAddState();
@@ -815,7 +816,7 @@ const setupGithubOAuth = () => {
           return;
         }
         event.preventDefault();
-        event.dataTransfer.dropEffect = "copy";
+        event.dataTransfer.dropEffect = event.shiftKey ? "move" : "copy";
         button.classList.add("is-drop-target");
         setSidebarDragHover(true, true);
       });
@@ -844,7 +845,8 @@ const setupGithubOAuth = () => {
             fileName: "",
             supported: false,
             errorMessage: "Drop one file at a time.",
-            targetName: item.name
+            targetName: item.name,
+            removeOriginal: event.shiftKey
           });
           return;
         }
@@ -855,7 +857,8 @@ const setupGithubOAuth = () => {
           fileName: file.name || "",
           supported,
           errorMessage: supported ? "" : "Resource type not supported.",
-          targetName: item.name
+          targetName: item.name,
+          removeOriginal: event.shiftKey
         });
       });
     }
