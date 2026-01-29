@@ -73,7 +73,6 @@ const setupGithubOAuth = () => {
   const createErrorEl = document.querySelector("[data-create-error]");
   const homeButtons = document.querySelectorAll("[data-action-home]");
   const agentNavButton = document.querySelector("[data-ai-nav=\"agent\"]");
-  const gitNavButton = document.querySelector("[data-ai-nav=\"git\"]");
   const doxygenNavButton = document.querySelector("[data-ai-nav=\"doxygen\"]");
   const createNavButton = document.querySelector("[data-ai-create]");
   const projectItemsEl = document.querySelector("[data-project-items]");
@@ -256,9 +255,6 @@ const setupGithubOAuth = () => {
     if (agentNavButton) {
       agentNavButton.classList.toggle("is-active", aiView === "agent");
     }
-    if (gitNavButton) {
-      gitNavButton.classList.toggle("is-active", aiView === "git");
-    }
     if (doxygenNavButton) {
       doxygenNavButton.classList.toggle("is-active", aiView === "doxygen");
     }
@@ -289,9 +285,6 @@ const setupGithubOAuth = () => {
         setBuildPanels();
         checkBuildTools();
       }
-    }
-    if (view === "git") {
-      loadGitStatus();
     }
     if (view === "doxygen") {
       checkDoxygen();
@@ -1437,11 +1430,6 @@ const setupGithubOAuth = () => {
   if (agentNavButton) {
     agentNavButton.addEventListener("click", async () => {
       await showProjectEditor("agent");
-    });
-  }
-  if (gitNavButton) {
-    gitNavButton.addEventListener("click", () => {
-      setAiView("git");
     });
   }
   if (doxygenNavButton) {

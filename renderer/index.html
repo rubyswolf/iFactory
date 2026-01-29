@@ -396,9 +396,9 @@
                   <img src="../icons/agent.svg" alt="CLI" />
                   <span class="ai-nav-label">CLI</span>
                 </button>
-                <button class="ai-nav-item" type="button" data-ai-nav="git">
-                  <img src="../icons/git.svg" alt="Git" />
-                  <span class="ai-nav-label">Git</span>
+                <button class="ai-nav-item" type="button" data-open-github-desktop>
+                  <img src="../icons/github.svg" alt="Desktop" />
+                  <span class="ai-nav-label">Desktop</span>
                 </button>
                 <button class="ai-nav-item" type="button" data-ai-nav="doxygen">
                   <img src="../icons/doxygen.svg" alt="Doxygen" />
@@ -494,88 +494,6 @@
                     >
                       Continue
                     </button>
-                  </div>
-                </section>
-              </div>
-              <div class="ai-view" data-ai-view="git">
-                <section class="panel git-panel reveal">
-                  <div class="git-toolbar">
-                    <div class="git-toolbar-block">
-                      <div class="git-label">Repository</div>
-                      <div class="git-current">
-                        <span class="git-select-title" data-git-repo-name>
-                          No repository
-                        </span>
-                        <span class="git-select-meta" data-git-repo-path>
-                          Open a project to see its repository
-                        </span>
-                      </div>
-                    </div>
-                    <div class="git-toolbar-block">
-                      <div class="git-label">Branch</div>
-                      <button class="git-select" type="button">
-                        main
-                      </button>
-                    </div>
-                    <div class="git-toolbar-actions">
-                      <button class="ghost git-toolbar-action" type="button">
-                        Fetch origin
-                      </button>
-                      <button
-                        class="ghost git-toolbar-action git-desktop"
-                        type="button"
-                        data-open-github-desktop
-                      >
-                        <img src="../icons/github.svg" alt="" />
-                        <span>Open in Desktop</span>
-                      </button>
-                    </div>
-                  </div>
-                  <div class="git-empty" data-git-empty hidden>
-                    This project is not a Git repository yet.
-                  </div>
-                  <div class="git-body" data-git-body>
-                    <div class="git-column git-changes">
-                      <div class="git-column-header">
-                        <span>Changes</span>
-                        <span class="git-pill" data-git-count>0</span>
-                      </div>
-                      <div class="git-filter">
-                        <input
-                          class="git-filter-input"
-                          type="text"
-                          placeholder="Filter"
-                          data-git-filter
-                        />
-                      </div>
-                      <div class="git-file-scroll" data-git-changes></div>
-                      <div class="git-file-empty" data-git-changes-empty hidden>
-                        No local changes yet.
-                      </div>
-                    </div>
-                    <div class="git-column git-commit">
-                      <div class="git-column-header">
-                        <span>Commit</span>
-                        <span class="git-branch-pill">main</span>
-                      </div>
-                      <input
-                        class="git-input"
-                        type="text"
-                        placeholder="Summary"
-                        data-git-summary
-                      />
-                      <textarea
-                        class="git-textarea"
-                        placeholder="Description"
-                        data-git-description
-                      ></textarea>
-                      <button class="cta git-commit-button" type="button" disabled>
-                        Commit to main
-                      </button>
-                      <p class="git-hint">
-                        Select files to include in this commit.
-                      </p>
-                    </div>
                   </div>
                 </section>
               </div>
