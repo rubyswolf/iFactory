@@ -296,7 +296,8 @@ const startAgentServer = () => {
           if (result.error) {
             socket.write(`error:${result.error}\n`);
           } else {
-            socket.write(`ok:${result.resourceName}\n`);
+            const macro = result.macroName || `${result.resourceName}_FN`;
+            socket.write(`ok:${macro}\n`);
           }
           socket.end();
           return;
@@ -1410,7 +1411,11 @@ const addResourceToPlugin = ({
     }
   }
 
-  return { fileName, resourceName: normalized.name };
+  return {
+    fileName,
+    resourceName: normalized.name,
+    macroName: `${normalized.name}_FN`,
+  };
 };
 
 const resolveTemplateFolder = (projectPath, input) => {
