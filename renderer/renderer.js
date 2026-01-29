@@ -76,9 +76,6 @@ const setupGithubOAuth = () => {
   const doxygenNavButton = document.querySelector("[data-ai-nav=\"doxygen\"]");
   const createNavButton = document.querySelector("[data-ai-create]");
   const projectItemsEl = document.querySelector("[data-project-items]");
-  const openSolutionButtons = document.querySelectorAll("[data-open-solution]");
-  const runView = document.querySelector('.ai-view[data-ai-view="run"]');
-  const dropOverlay = document.querySelector("[data-drop-overlay]");
   const resourceDialog = document.querySelector("[data-resource-dialog]");
   const resourceNameInput = document.querySelector("[data-resource-name]");
   const resourceAddButton = document.querySelector("[data-resource-add]");
@@ -104,17 +101,6 @@ const setupGithubOAuth = () => {
   const doxygenInstallButton = document.querySelector("[data-doxygen-install]");
   const doxygenReadyEl = document.querySelector("[data-doxygen-ready]");
   const doxygenInstructions = document.querySelector("[data-doxygen-instructions]");
-  const buildStatusEl = document.querySelector("[data-build-status]");
-  const buildCheckButton = document.querySelector("[data-build-check]");
-  const buildOpenButton = document.querySelector("[data-build-open]");
-  const buildPanelCheck = document.querySelector(
-    "[data-build-panel=\"check\"]"
-  );
-  const buildRunButton = document.querySelector("[data-build-run]");
-  const buildRunIcon = document.querySelector("[data-run-icon]");
-  const buildRunLabel = document.querySelector("[data-run-label]");
-  const buildConsole = document.querySelector("[data-build-console]");
-  const buildOutputEl = document.querySelector("[data-build-output]");
   const templateTitleEl = document.querySelector("[data-template-title]");
   const templateStatusEl = document.querySelector("[data-template-status]");
   const templateSearchInput = document.querySelector("[data-template-search]");
@@ -151,9 +137,6 @@ const setupGithubOAuth = () => {
   let gitChecking = false;
   let templatesData = [];
   let selectedTemplate = "";
-  let buildToolsInstalled = false;
-  let buildToolsChecked = false;
-  let buildRunning = false;
   let aiView = "agent";
   let activeProjectItem = "";
   let projectItems = [];
@@ -265,10 +248,7 @@ const setupGithubOAuth = () => {
       const items = projectItemsEl.querySelectorAll("[data-project-item]");
       items.forEach((button) => {
         const match = button.dataset.projectItem === activeProjectItem;
-        button.classList.toggle(
-          "is-active",
-          (aiView === "get-started" || aiView === "run") && match
-        );
+        button.classList.toggle("is-active", match);
       });
     }
   };
@@ -278,61 +258,18 @@ const setupGithubOAuth = () => {
     document.body.dataset.aiView = view;
     setAi(true);
     updateSidebarActive();
-    if (view === "get-started") {
-      if (buildToolsInstalled) {
-        goToRunScreen();
-      } else {
-        setBuildPanels();
-        checkBuildTools();
-      }
-    }
     if (view === "doxygen") {
       checkDoxygen();
     }
-    updateOpenSolutionButtons();
-    if (view !== "run") {
-      updateDropOverlay(false);
-      closeResourceDialog();
-    }
+    closeResourceDialog();
   };
 
   const setActiveProjectItem = (name) => {
     activeProjectItem = name || "";
     updateSidebarActive();
-    updateOpenSolutionButtons();
-  };
-
-  const getActiveProjectItemType = () => {
-    const match = projectItems.find((item) => item.name === activeProjectItem);
-    return match?.type || "plugin";
-  };
-
-  const setGetStarted = (active) => {
-    if (active) {
-      setAiView("get-started");
-    } else if (aiView === "get-started" && document.body.classList.contains("is-ai")) {
-      setAiView("agent");
-    }
   };
 
   const updateAgentStatus = () => {};
-
-  const updateOpenSolutionButtons = () => {
-    if (!openSolutionButtons.length) {
-      return;
-    }
-    const isVisibleView =
-      document.body.dataset.aiView === "get-started" ||
-      document.body.dataset.aiView === "run";
-    const isAvailable = Boolean(activeProjectItem) && isVisibleView;
-    openSolutionButtons.forEach((button) => {
-      if (!button) {
-        return;
-      }
-      button.hidden = !isAvailable;
-      button.disabled = !activeProjectItem;
-    });
-  };
 
   let doxygenInstalled = false;
   let doxygenChecking = false;
@@ -377,16 +314,23 @@ const setupGithubOAuth = () => {
   };
 
   let pendingResourceFile = "";
+  let pendingResourceTarget = "";
   let resourceDialogError = "";
   let resourceNameError = "";
   let resourceTypeSupported = false;
 
-  const updateDropOverlay = (active) => {
-    if (!dropOverlay) {
-      return;
+  const isFileDrag = (event) =>
+    Array.from(event.dataTransfer?.types || []).includes("Files");
+  const getExtension = (fileName) => {
+    const index = fileName.lastIndexOf(".");
+    if (index === -1) {
+      return "";
     }
-    dropOverlay.hidden = !active;
-    dropOverlay.classList.toggle("is-active", active);
+    return fileName.slice(index).toLowerCase();
+  };
+  const isSupportedResource = (fileName) => {
+    const ext = getExtension(fileName);
+    return ext === ".svg" || ext === ".png" || ext === ".ttf";
   };
 
   const normalizeResourceInput = (value) => {
@@ -441,6 +385,7 @@ const setupGithubOAuth = () => {
     resourceDialog.classList.remove("is-active");
     resourceDialog.hidden = true;
     pendingResourceFile = "";
+    pendingResourceTarget = "";
     resourceDialogError = "";
     resourceNameError = "";
     resourceTypeSupported = false;
@@ -457,11 +402,18 @@ const setupGithubOAuth = () => {
     updateResourceAddState();
   };
 
-  const openResourceDialog = ({ filePath, fileName, errorMessage, supported }) => {
+  const openResourceDialog = ({
+    filePath,
+    fileName,
+    errorMessage,
+    supported,
+    targetName
+  }) => {
     if (!resourceDialog) {
       return;
     }
     pendingResourceFile = filePath || "";
+    pendingResourceTarget = targetName || "";
     resourceDialogError = errorMessage || "";
     resourceNameError = "";
     resourceTypeSupported = Boolean(supported);
@@ -483,133 +435,6 @@ const setupGithubOAuth = () => {
     if (resourceNameInput) {
       window.setTimeout(() => resourceNameInput.focus(), 0);
     }
-  };
-
-  const setBuildPanels = () => {
-    if (!buildPanelCheck) {
-      return;
-    }
-    buildPanelCheck.hidden = false;
-  };
-
-  const goToRunScreen = () => {
-    setAiView("run");
-  };
-
-  const updateBuildStatus = (message) => {
-    if (!buildStatusEl) {
-      return;
-    }
-    buildStatusEl.textContent = message;
-  };
-
-  const setBuildRunning = (running) => {
-    buildRunning = running;
-    if (buildRunButton) {
-      buildRunButton.classList.toggle("is-running", running);
-    }
-    if (buildRunIcon) {
-      buildRunIcon.src = running ? "../icons/stop.svg" : "../icons/run.svg";
-    }
-    if (buildRunLabel) {
-      buildRunLabel.textContent = running ? "Stop" : "Run";
-    }
-  };
-
-  const appendBuildOutput = (text) => {
-    if (!buildOutputEl || !buildConsole) {
-      return;
-    }
-    buildConsole.hidden = false;
-    buildOutputEl.textContent += text;
-    buildConsole.scrollTop = buildConsole.scrollHeight;
-  };
-
-  const resetBuildOutput = () => {
-    if (!buildOutputEl || !buildConsole) {
-      return;
-    }
-    buildOutputEl.textContent = "";
-    buildConsole.hidden = true;
-  };
-
-  const waitFrame = () =>
-    new Promise((resolve) => window.requestAnimationFrame(resolve));
-
-  const checkBuildTools = async () => {
-    if (!window.ifactory?.build?.check) {
-      buildToolsInstalled = false;
-      buildToolsChecked = true;
-      setBuildPanels();
-      updateBuildStatus("Build tools not found.");
-      return;
-    }
-    updateBuildStatus("Checking build tools.");
-    if (buildCheckButton) {
-      buildCheckButton.disabled = true;
-    }
-    try {
-      const result = await window.ifactory.build.check();
-      buildToolsInstalled = Boolean(result?.installed);
-      buildToolsChecked = true;
-      if (buildToolsInstalled) {
-        goToRunScreen();
-      } else {
-        setBuildPanels();
-        updateBuildStatus("Build tools not found.");
-      }
-    } catch (error) {
-      buildToolsInstalled = false;
-      buildToolsChecked = true;
-      setBuildPanels();
-      updateBuildStatus("Build tools not found.");
-    } finally {
-      if (buildCheckButton) {
-        buildCheckButton.disabled = false;
-      }
-    }
-  };
-
-  const ensureBuildTools = async () => {
-    if (buildToolsInstalled) {
-      setBuildPanels();
-      return;
-    }
-    await checkBuildTools();
-  };
-
-  const startBuildRun = async () => {
-    if (!window.ifactory?.build?.run) {
-      return;
-    }
-    const projectPath = currentProjectPath || document.body.dataset.projectPath || "";
-    if (!projectPath || !activeProjectItem) {
-      appendBuildOutput("Select a plugin to run.\n");
-      return;
-    }
-    const itemType = getActiveProjectItemType();
-    resetBuildOutput();
-    setBuildRunning(true);
-    await waitFrame();
-    buildConsole.hidden = false;
-    const result = await window.ifactory.build.run({
-      projectPath,
-      pluginName: activeProjectItem,
-      itemType,
-      configuration: "Debug",
-      platform: "x64"
-    });
-    if (result?.error) {
-      appendBuildOutput(`Error: ${result.error}\n`);
-      setBuildRunning(false);
-    }
-  };
-
-  const stopBuildRun = async () => {
-    if (!window.ifactory?.build?.stop) {
-      return;
-    }
-    await window.ifactory.build.stop();
   };
 
   const showProjectEditor = async (view = "agent") => {
@@ -823,10 +648,27 @@ const setupGithubOAuth = () => {
     }
   };
 
-  const openPluginScreen = async (name) => {
+  const openSolutionForItem = async (name) => {
     setActiveProjectItem(name);
-    setAiView("get-started");
-    await ensureBuildTools();
+    const projectPath =
+      currentProjectPath || document.body.dataset.projectPath || "";
+    if (!projectPath || !name || !window.ifactory?.solution?.open) {
+      setActiveProjectItem("");
+      return;
+    }
+    try {
+      const result = await window.ifactory.solution.open({
+        projectPath,
+        pluginName: name
+      });
+      if (result?.error) {
+        console.error("Failed to open solution", result);
+      }
+      setActiveProjectItem("");
+    } catch (error) {
+      console.error("Failed to open solution", error);
+      setActiveProjectItem("");
+    }
   };
 
   const buildProjectItemButton = (item) => {
@@ -850,8 +692,72 @@ const setupGithubOAuth = () => {
     button.appendChild(label);
 
     button.addEventListener("click", async () => {
-      await openPluginScreen(item.name);
+      await openSolutionForItem(item.name);
     });
+
+    if (item.type === "plugin") {
+      let dragDepth = 0;
+      const resetDragState = () => {
+        dragDepth = 0;
+        button.classList.remove("is-drop-target");
+      };
+
+      button.addEventListener("dragenter", (event) => {
+        if (!isFileDrag(event)) {
+          return;
+        }
+        event.preventDefault();
+        dragDepth += 1;
+        button.classList.add("is-drop-target");
+      });
+
+      button.addEventListener("dragover", (event) => {
+        if (!isFileDrag(event)) {
+          return;
+        }
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+        button.classList.add("is-drop-target");
+      });
+
+      button.addEventListener("dragleave", (event) => {
+        if (!isFileDrag(event)) {
+          return;
+        }
+        dragDepth = Math.max(0, dragDepth - 1);
+        if (dragDepth === 0) {
+          button.classList.remove("is-drop-target");
+        }
+      });
+
+      button.addEventListener("drop", (event) => {
+        if (!isFileDrag(event)) {
+          return;
+        }
+        event.preventDefault();
+        resetDragState();
+        const files = Array.from(event.dataTransfer?.files || []);
+        if (files.length !== 1) {
+          openResourceDialog({
+            filePath: "",
+            fileName: "",
+            supported: false,
+            errorMessage: "Drop one file at a time.",
+            targetName: item.name
+          });
+          return;
+        }
+        const file = files[0];
+        const supported = isSupportedResource(file.name);
+        openResourceDialog({
+          filePath: file.path || "",
+          fileName: file.name || "",
+          supported,
+          errorMessage: supported ? "" : "Resource type not supported.",
+          targetName: item.name
+        });
+      });
+    }
 
     return button;
   };
@@ -1214,7 +1120,6 @@ const setupGithubOAuth = () => {
     setCreating(false);
     setInstalling(false);
     setTemplates(false);
-    setGetStarted(false);
     setAi(false);
     setAiNeedsAgent(false);
     document.body.removeAttribute("data-ai-view");
@@ -1250,7 +1155,6 @@ const setupGithubOAuth = () => {
     try {
       const settings = await window.ifactory.settings.get();
       const gitState = settings?.dependencies?.git;
-      const buildState = settings?.dependencies?.buildTools;
       const needsCheck = !gitState?.installed && !gitState?.skipped;
       if (needsCheck) {
         setGitChecking(true);
@@ -1262,9 +1166,6 @@ const setupGithubOAuth = () => {
         applyGitState(gitState);
       }
       applyGithubState(settings);
-      buildToolsInstalled = Boolean(buildState?.installed);
-      buildToolsChecked = Boolean(buildState?.checkedAt);
-      setBuildPanels();
       if (needsCheck) {
         await checkGitInstallation();
       }
@@ -1409,7 +1310,6 @@ const setupGithubOAuth = () => {
       setSetupComplete(true);
       setCreating(false);
       setTemplates(false);
-      setGetStarted(false);
       setAi(false);
       setAiNeedsAgent(false);
       document.body.removeAttribute("data-ai-view");
@@ -1526,55 +1426,6 @@ const setupGithubOAuth = () => {
       }
     });
   }
-  if (buildRunButton) {
-    buildRunButton.addEventListener("click", async () => {
-      if (buildRunning) {
-        await stopBuildRun();
-      } else {
-        await startBuildRun();
-      }
-    });
-  }
-  if (buildCheckButton) {
-    buildCheckButton.addEventListener("click", () => {
-      checkBuildTools();
-    });
-  }
-  if (buildOpenButton) {
-    buildOpenButton.addEventListener("click", () => {
-      if (!window.ifactory?.openExternal) {
-        return;
-      }
-      window.ifactory.openExternal(
-        "https://visualstudio.microsoft.com/visual-cpp-build-tools/"
-      );
-    });
-  }
-  if (openSolutionButtons.length) {
-    openSolutionButtons.forEach((button) => {
-      button.addEventListener("click", async () => {
-        const projectPath =
-          currentProjectPath || document.body.dataset.projectPath || "";
-        if (!projectPath || !activeProjectItem) {
-          return;
-        }
-        if (!window.ifactory?.solution?.open) {
-          return;
-        }
-        try {
-          const result = await window.ifactory.solution.open({
-            projectPath,
-            pluginName: activeProjectItem
-          });
-          if (result?.error) {
-            console.error("Failed to open solution", result);
-          }
-        } catch (error) {
-          console.error("Failed to open solution", error);
-        }
-      });
-    });
-  }
   if (resourceNameInput) {
     resourceNameInput.addEventListener("input", () => {
       updateResourceAddState();
@@ -1600,7 +1451,8 @@ const setupGithubOAuth = () => {
       }
       const projectPath =
         currentProjectPath || document.body.dataset.projectPath || "";
-      if (!projectPath || !activeProjectItem) {
+      const targetItem = pendingResourceTarget || activeProjectItem;
+      if (!projectPath || !targetItem) {
         return;
       }
       if (!window.ifactory?.resource?.add) {
@@ -1609,7 +1461,7 @@ const setupGithubOAuth = () => {
       try {
         const result = await window.ifactory.resource.add({
           projectPath,
-          pluginName: activeProjectItem,
+          pluginName: targetItem,
           filePath: pendingResourceFile,
           resourceName: resourceNameInput?.value || "",
           removeOriginal: Boolean(resourceRemoveToggle?.checked)
@@ -1638,77 +1490,6 @@ const setupGithubOAuth = () => {
         renderResourceError();
         updateResourceAddState();
       }
-    });
-  }
-  if (runView) {
-    let dragDepth = 0;
-    const isFileDrag = (event) =>
-      Array.from(event.dataTransfer?.types || []).includes("Files");
-    const canDrop = () =>
-      document.body.dataset.aiView === "run" &&
-      getActiveProjectItemType() === "plugin";
-    const getExtension = (fileName) => {
-      const index = fileName.lastIndexOf(".");
-      if (index === -1) {
-        return "";
-      }
-      return fileName.slice(index).toLowerCase();
-    };
-    const isSupportedResource = (fileName) => {
-      const ext = getExtension(fileName);
-      return ext === ".svg" || ext === ".png" || ext === ".ttf";
-    };
-
-    runView.addEventListener("dragenter", (event) => {
-      if (!canDrop() || !isFileDrag(event)) {
-        return;
-      }
-      event.preventDefault();
-      dragDepth += 1;
-      updateDropOverlay(true);
-    });
-    runView.addEventListener("dragover", (event) => {
-      if (!canDrop() || !isFileDrag(event)) {
-        return;
-      }
-      event.preventDefault();
-      event.dataTransfer.dropEffect = "copy";
-      updateDropOverlay(true);
-    });
-    runView.addEventListener("dragleave", (event) => {
-      if (!canDrop() || !isFileDrag(event)) {
-        return;
-      }
-      dragDepth = Math.max(0, dragDepth - 1);
-      if (dragDepth === 0) {
-        updateDropOverlay(false);
-      }
-    });
-    runView.addEventListener("drop", (event) => {
-      if (!canDrop() || !isFileDrag(event)) {
-        return;
-      }
-      event.preventDefault();
-      dragDepth = 0;
-      updateDropOverlay(false);
-      const files = Array.from(event.dataTransfer?.files || []);
-      if (files.length !== 1) {
-        openResourceDialog({
-          filePath: "",
-          fileName: "",
-          supported: false,
-          errorMessage: "Drop one file at a time."
-        });
-        return;
-      }
-      const file = files[0];
-      const supported = isSupportedResource(file.name);
-      openResourceDialog({
-        filePath: file.path || "",
-        fileName: file.name || "",
-        supported,
-        errorMessage: supported ? "" : "Resource type not supported."
-      });
     });
   }
   if (openProjectButton) {
@@ -1870,7 +1651,6 @@ const setupGithubOAuth = () => {
       if (!pluginName || !window.ifactory?.templates?.copy) {
         return;
       }
-      setGetStarted(false);
       setTemplates(false);
       setInstalling(true);
       installApi.setHeader?.("Creating plugin", "Creating plugin");
@@ -1895,7 +1675,7 @@ const setupGithubOAuth = () => {
       }
       installApi.updateProgress?.(1, "Finished");
       await loadProjectItems(projectPath);
-      await openPluginScreen(pluginName);
+      await openSolutionForItem(pluginName);
       } catch (error) {
         installApi.setStatus?.("Unable to create the plugin.", "error");
       } finally {
@@ -1921,41 +1701,6 @@ const setupGithubOAuth = () => {
         return;
       }
       await loadProjectItems(currentProjectPath);
-    });
-  }
-
-  if (window.ifactory?.build?.onOutput) {
-    window.ifactory.build.onOutput((payload) => {
-      if (!payload) {
-        return;
-      }
-      if (payload.text) {
-        appendBuildOutput(payload.text);
-      }
-      if (payload.error) {
-        appendBuildOutput(`Error: ${payload.error}\n`);
-      }
-    });
-  }
-  if (window.ifactory?.build?.onState) {
-    window.ifactory.build.onState((payload) => {
-      const state = payload?.state;
-      if (!state) {
-        return;
-      }
-      if (state === "building" || state === "running") {
-        setBuildRunning(true);
-        if (payload?.message) {
-          appendBuildOutput(`${payload.message}\n`);
-        }
-        return;
-      }
-      if (payload?.message) {
-        appendBuildOutput(`${payload.message}\n`);
-      }
-      if (state === "stopped" || state === "error" || state === "complete") {
-        setBuildRunning(false);
-      }
     });
   }
 

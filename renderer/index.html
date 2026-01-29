@@ -48,11 +48,6 @@
               Back
             </button>
           </div>
-          <div class="titlebar-group titlebar-group--get-started">
-            <button class="ghost" data-action-home type="button">
-              Back to home
-            </button>
-          </div>
           <div class="titlebar-group titlebar-group--ai">
             <button class="ghost" data-action-home type="button">
               Back to home
@@ -522,90 +517,31 @@
                   </div>
                 </section>
               </div>
-              <div class="ai-view" data-ai-view="get-started">
-                <section class="panel get-started-panel reveal">
-                  <button class="panel-action open-vs" type="button" data-open-solution>
-                    <img src="../icons/vs.svg" alt="" />
-                    <span>Open in Visual Studio</span>
-                  </button>
-                  <div class="eyebrow">Build tools</div>
-                  <div class="build-tools-panel" data-build-panel="check">
-                    <h2>Check your build tools.</h2>
-                    <p class="card-meta" data-build-status>
-                      Checking build tools.
-                    </p>
-                    <div class="agent-instructions">
-                      <div class="instruction-title">
-                        Install Visual Studio Build Tools
-                      </div>
-                      <ol class="instruction-list">
-                        <li>Download Visual Studio Build Tools.</li>
-                        <li>Install the C++ build tools workload.</li>
-                        <li>Return here and check again.</li>
-                      </ol>
-                    </div>
-                    <div class="connect-actions">
-                      <button class="cta" type="button" data-build-check>
-                        Check again
-                      </button>
-                      <button class="ghost" type="button" data-build-open>
-                        Get build tools
-                      </button>
-                    </div>
-                  </div>
-                </section>
-              </div>
-              <div class="ai-view" data-ai-view="run">
-                <section class="panel get-started-panel reveal">
-                  <button class="panel-action open-vs" type="button" data-open-solution>
-                    <img src="../icons/vs.svg" alt="" />
-                    <span>Open in Visual Studio</span>
-                  </button>
-                  <div class="eyebrow">Build &amp; run</div>
-                  <h2>Build &amp; run.</h2>
-                  <p class="card-meta">
-                    Preview the app target build directly from iFactory.
-                  </p>
-                  <button class="cta run-button" type="button" data-build-run>
-                    <img src="../icons/run.svg" alt="" data-run-icon />
-                    <span data-run-label>Run</span>
-                  </button>
-                  <div class="build-console" data-build-console hidden>
-                    <pre data-build-output></pre>
-                  </div>
-                  <div class="drop-overlay" data-drop-overlay hidden>
-                    <div class="drop-overlay__inner">
-                      <div class="eyebrow">Add resource</div>
-                      <h2>Drop to add the resource to the plugin.</h2>
-                    </div>
-                  </div>
-                </section>
-                <div class="resource-dialog" data-resource-dialog hidden>
-                  <div class="resource-dialog__card">
-                    <div class="eyebrow">Add resource</div>
-                    <h2>Add a resource to the plugin.</h2>
-                    <p class="card-meta" data-resource-file></p>
-                      <label class="field">
-                        <span>Resource name</span>
-                        <input
-                          type="text"
-                          placeholder="RESOURCE_NAME"
-                          data-resource-name
-                        />
-                      </label>
-                      <label class="checkbox-field resource-remove">
-                        <input type="checkbox" data-resource-remove />
-                        <span>Remove original</span>
-                      </label>
-                      <p class="field-note resource-error" data-resource-error hidden></p>
-                    <div class="connect-actions">
-                      <button class="ghost" type="button" data-resource-cancel>
-                        Cancel
-                      </button>
-                      <button class="cta" type="button" data-resource-add disabled>
-                        Add
-                      </button>
-                    </div>
+              <div class="resource-dialog" data-resource-dialog hidden>
+                <div class="resource-dialog__card">
+                  <div class="eyebrow">Add resource</div>
+                  <h2>Add a resource to the plugin.</h2>
+                  <p class="card-meta" data-resource-file></p>
+                    <label class="field">
+                      <span>Resource name</span>
+                      <input
+                        type="text"
+                        placeholder="RESOURCE_NAME"
+                        data-resource-name
+                      />
+                    </label>
+                    <label class="checkbox-field resource-remove">
+                      <input type="checkbox" data-resource-remove />
+                      <span>Remove original</span>
+                    </label>
+                    <p class="field-note resource-error" data-resource-error hidden></p>
+                  <div class="connect-actions">
+                    <button class="ghost" type="button" data-resource-cancel>
+                      Cancel
+                    </button>
+                    <button class="cta" type="button" data-resource-add disabled>
+                      Add
+                    </button>
                   </div>
                 </div>
               </div>

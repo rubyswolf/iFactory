@@ -515,6 +515,11 @@ body.is-ai .ai-shell {
   color: #f7ffd9;
 }
 
+.ai-nav-item.is-drop-target {
+  background: rgba(179, 255, 0, 0.24);
+  color: #f7ffd9;
+}
+
 .ai-nav-item--create {
   margin-bottom: 4px;
 }
@@ -710,9 +715,7 @@ body.is-ai[data-ai-view="agent"] .ai-chat {
 body.is-ai[data-ai-view="agent"] .ai-view[data-ai-view="agent"],
 body.is-ai[data-ai-view="templates"] .ai-view[data-ai-view="templates"],
 body.is-ai[data-ai-view="git"] .ai-view[data-ai-view="git"],
-body.is-ai[data-ai-view="doxygen"] .ai-view[data-ai-view="doxygen"],
-body.is-ai[data-ai-view="get-started"] .ai-view[data-ai-view="get-started"],
-body.is-ai[data-ai-view="run"] .ai-view[data-ai-view="run"] {
+body.is-ai[data-ai-view="doxygen"] .ai-view[data-ai-view="doxygen"] {
   display: flex;
 }
 
@@ -1753,7 +1756,7 @@ body.is-template-selected .template-list {
   display: none;
 }
 
-body.is-setup-complete:not(.is-creating):not(.is-installing):not(.is-installing-run):not(.is-ready):not(.is-templates):not(.is-get-started):not(.is-agent):not(.is-ai)
+body.is-setup-complete:not(.is-creating):not(.is-installing):not(.is-installing-run):not(.is-ready):not(.is-templates):not(.is-agent):not(.is-ai)
   .titlebar-group--home {
   display: flex;
 }
@@ -1773,14 +1776,6 @@ body.is-ready .titlebar-group--ready {
 
 body.is-templates .titlebar-group--templates {
   display: flex;
-}
-
-body.is-get-started .titlebar-group--get-started {
-  display: flex;
-}
-
-body.is-agent .titlebar-group--get-started {
-  display: none;
 }
 
 body.is-ai .titlebar-group--ai {
