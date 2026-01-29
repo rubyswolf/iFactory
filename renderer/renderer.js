@@ -60,6 +60,7 @@ const setupGithubOAuth = () => {
   const doxygenNavButton = document.querySelector("[data-ai-nav=\"doxygen\"]");
   const createNavButton = document.querySelector("[data-ai-create]");
   const projectItemsEl = document.querySelector("[data-project-items]");
+  const aiSidebar = document.querySelector(".ai-sidebar");
   const resourceDialog = document.querySelector("[data-resource-dialog]");
   const resourceNameInput = document.querySelector("[data-resource-name]");
   const resourceAddButton = document.querySelector("[data-resource-add]");
@@ -1025,6 +1026,10 @@ const setupGithubOAuth = () => {
         gitStatusEl.textContent = "Not Installed";
       }
     }
+    if (createRepoToggle) {
+      createRepoToggle.checked = gitInstalled;
+      createRepoToggle.disabled = !gitInstalled;
+    }
     updateSetupState();
   };
 
@@ -1606,6 +1611,43 @@ const setupCreateForm = () => {
 
   if (createFolderToggle) {
     createFolderToggle.addEventListener("change", updateSuffix);
+  }
+
+  if (aiSidebar) {
+    let sidebarDragDepth = 0;
+    const setSidebarDragHover = (active) => {
+      aiSidebar.classList.toggle("is-drag-hover", active);
+    };
+    aiSidebar.addEventListener("dragenter", (event) => {
+      if (!isFileDrag(event)) {
+        return;
+      }
+      sidebarDragDepth += 1;
+      setSidebarDragHover(true);
+    });
+    aiSidebar.addEventListener("dragover", (event) => {
+      if (!isFileDrag(event)) {
+        return;
+      }
+      event.preventDefault();
+      setSidebarDragHover(true);
+    });
+    aiSidebar.addEventListener("dragleave", (event) => {
+      if (!isFileDrag(event)) {
+        return;
+      }
+      sidebarDragDepth = Math.max(0, sidebarDragDepth - 1);
+      if (sidebarDragDepth === 0) {
+        setSidebarDragHover(false);
+      }
+    });
+    aiSidebar.addEventListener("drop", (event) => {
+      if (!isFileDrag(event)) {
+        return;
+      }
+      sidebarDragDepth = 0;
+      setSidebarDragHover(false);
+    });
   }
 
   locationInput.addEventListener("input", handleLocationInput);

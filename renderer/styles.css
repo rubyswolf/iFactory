@@ -194,6 +194,17 @@ body.is-setup-complete:not(.is-creating):not(.is-installing) .page-home {
   box-shadow: 0 24px 48px rgba(5, 8, 14, 0.4);
 }
 
+.home-panel.reveal {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.home-panel.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .home-grid {
   width: 100%;
 }
@@ -281,7 +292,7 @@ body.is-setup-complete:not(.is-creating):not(.is-installing) .page-home {
 }
 
 .create-panel {
-  grid-column: span 7;
+  grid-column: 4 / span 6;
 }
 
 .form-grid {
@@ -585,11 +596,13 @@ body.is-ai .ai-shell {
   transition: opacity 0.14s ease, max-width 0.14s ease;
 }
 
-.ai-sidebar:hover .ai-nav-item {
+.ai-sidebar:hover .ai-nav-item,
+.ai-sidebar.is-drag-hover .ai-nav-item {
   gap: 12px;
 }
 
-.ai-sidebar:hover .ai-nav-label {
+.ai-sidebar:hover .ai-nav-label,
+.ai-sidebar.is-drag-hover .ai-nav-label {
   opacity: 1;
   max-width: 200px;
 }
@@ -2006,6 +2019,14 @@ body.is-ai .titlebar-group--ai {
   box-shadow: 0 20px 40px rgba(4, 7, 12, 0.55);
   display: grid;
   gap: 14px;
+}
+
+.resource-dialog__card h2 {
+  margin: 0;
+}
+
+.resource-dialog__card .eyebrow {
+  margin-bottom: 4px;
 }
 
 .resource-dialog__card .resource-remove {

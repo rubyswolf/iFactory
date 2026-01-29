@@ -17,7 +17,7 @@
   "ui resources": [
     "The available resources are listed at the bottom of config.h of the plugin as macros for the file names of resources.",
     "To add a resource to a plugin you can use `ifact resource add <plugin folder name> <absolute resource path> <resource name in uppercase snake case>`; it will automatically include the resource and add a macro entry like '#define ROBOTO_FN \"Roboto-Regular.ttf\"' (_FN suffix added automatically).",
-    "Resources will normally be provided by the user, if the user has not provided the resources they want, let them know they can add resources to the plugin by selecting the plugin in the sidebar and dragging and dropping a file onto the build and run menu or that you can add resources if they provide the path to the resources.",
+    "Resources will normally be provided by the user, if the user has not provided the resources they want, let them know they can add resources to a plugin by dragging and dropping a file onto the plugin's sidebar icon or that you can add resources if they provide the path to them.",
     "Fonts are loaded like `pGraphics->LoadFont(\"Roboto-Regular\", ROBOTO_FN)` where the first parameter is the ID.",
     "SVGs are loaded as `const ISVG example = pGraphics->LoadSVG(EXAMPLE_FN)`.",
     "Bitmaps can contian multiple textures stacked side by side as a sprite sheet which is either top to bottom or left to right.",
