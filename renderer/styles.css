@@ -114,6 +114,10 @@ body {
   position: relative;
   z-index: 2;
   padding: 40px 48px 56px;
+  min-height: 100vh;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .page {
@@ -166,6 +170,16 @@ body.is-ai .titlebar-global {
 
 body.is-ai .app {
   padding: 0;
+}
+
+body.is-setup-complete:not(.is-creating):not(.is-installing) .page-home {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.home-grid {
+  width: 100%;
 }
 .home-actions {
   display: flex;
@@ -228,6 +242,20 @@ body.is-ai .app {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
   gap: 22px;
+  align-items: stretch;
+}
+
+.home-card {
+  grid-column: span 4;
+}
+
+.home-recent {
+  grid-column: span 6;
+}
+
+.home-open,
+.home-create {
+  grid-column: span 3;
 }
 
 .create-grid {
@@ -1656,16 +1684,15 @@ body.is-template-selected .template-list {
 }
 
 .home-recent {
-  grid-column: span 7;
+  grid-column: span 6;
 }
 
 .home-create {
-  grid-column: span 5;
+  grid-column: span 3;
 }
 
-.home-open,
-.home-clone {
-  grid-column: span 6;
+.home-open {
+  grid-column: span 3;
 }
 
 .recent-list {
@@ -1754,11 +1781,6 @@ body.is-template-selected .template-list {
 
 .titlebar-group {
   display: none;
-}
-
-body.is-setup-complete:not(.is-creating):not(.is-installing):not(.is-installing-run):not(.is-ready):not(.is-templates):not(.is-agent):not(.is-ai)
-  .titlebar-group--home {
-  display: flex;
 }
 
 body.is-setup-complete.is-creating .titlebar-group--create {
@@ -2252,8 +2274,7 @@ body.is-ai .titlebar-group--ai {
 
   .home-recent,
   .home-create,
-  .home-open,
-  .home-clone {
+  .home-open {
     grid-column: 1 / -1;
   }
 
