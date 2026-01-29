@@ -178,6 +178,22 @@ body.is-setup-complete:not(.is-creating):not(.is-installing) .page-home {
   flex: 1;
 }
 
+.home-shell {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.home-panel {
+  width: min(1320px, 100%);
+  padding: 26px;
+  border-radius: 28px;
+  background: rgba(10, 16, 26, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 48px rgba(5, 8, 14, 0.4);
+}
+
 .home-grid {
   width: 100%;
 }
