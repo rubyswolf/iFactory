@@ -35,36 +35,21 @@ const hydrateAppMeta = async () => {
 };
 
 const setupGithubOAuth = () => {
-  if (
-    !window.ifactory?.settings ||
-    !window.ifactory?.github ||
-    !window.ifactory?.git
-  ) {
+  if (!window.ifactory?.settings || !window.ifactory?.git) {
     return;
   }
 
-  const skipKey = "ifactory.github.skip";
-  const statusEl = document.querySelector("[data-github-status]");
-  const connectButton = document.querySelector("[data-github-connect]");
-  const skipButton = document.querySelector("[data-github-skip]");
-  const flowEl = document.querySelector("[data-github-flow]");
-  const codeEl = document.querySelector("[data-github-code]");
-  const copyButton = document.querySelector("[data-github-copy]");
-  const openButton = document.querySelector("[data-github-open]");
   const resetButton = document.querySelector("[data-setup-reset]");
   const gitSection = document.querySelector("[data-git-section]");
-  const githubSection = document.querySelector("[data-github-section]");
   const gitStatusEl = document.querySelector("[data-git-status]");
   const gitCheckButton = document.querySelector("[data-git-check]");
   const gitSkipButton = document.querySelector("[data-git-skip]");
   const gitInstructions = document.querySelector("[data-git-instructions]");
   const gitOpenButton = document.querySelector("[data-git-open]");
   const createButton = document.querySelector("[data-action-create]");
-  const cloneButton = document.querySelector("[data-action-clone]");
   const openProjectButton = document.querySelector("[data-action-open]");
   const backButtons = document.querySelectorAll("[data-action-back]");
   const createRepoToggle = document.querySelector("[data-create-repo]");
-  const privateRepoToggle = document.querySelector("[data-create-private]");
   const createSubmitButton = document.querySelector("[data-create-submit]");
   const createNameInput = document.querySelector("[data-create-name]");
   const createLocationInput = document.querySelector("[data-create-location]");
@@ -112,13 +97,8 @@ const setupGithubOAuth = () => {
   const recentListEl = document.querySelector("[data-recent-list]");
 
   if (
-    !statusEl ||
-    !connectButton ||
-    !flowEl ||
-    !codeEl ||
     !resetButton ||
     !gitSection ||
-    !githubSection ||
     !gitStatusEl ||
     !gitCheckButton ||
     !gitSkipButton ||
@@ -128,9 +108,6 @@ const setupGithubOAuth = () => {
     return;
   }
 
-  let pollTimer = null;
-  let verificationUri = "https://github.com/login/device";
-  let githubConnected = false;
   let currentProjectPath = "";
   let gitInstalled = false;
   let gitSkipped = false;
@@ -967,10 +944,6 @@ const setupGithubOAuth = () => {
     }
   };
 
-  const setFlowVisible = (visible) => {
-    flowEl.hidden = !visible;
-  };
-
   const setSetupComplete = (complete) => {
     document.body.classList.toggle("is-setup-complete", complete);
     if (!complete) {
@@ -978,16 +951,6 @@ const setupGithubOAuth = () => {
       document.body.classList.remove("is-installing");
       document.body.classList.remove("is-ai");
       document.body.removeAttribute("data-ai-view");
-    }
-  };
-
-  const isSkipped = () => window.localStorage.getItem(skipKey) === "1";
-
-  const setSkipped = (value) => {
-    if (value) {
-      window.localStorage.setItem(skipKey, "1");
-    } else {
-      window.localStorage.removeItem(skipKey);
     }
   };
 
@@ -1038,7 +1001,7 @@ const setupGithubOAuth = () => {
       setSetupComplete(false);
       return;
     }
-    setSetupComplete(githubConnected || isSkipped());
+    setSetupComplete(true);
   };
 
   const setGitChecking = (checking) => {
@@ -1053,7 +1016,6 @@ const setupGithubOAuth = () => {
     gitInstalled = Boolean(git?.installed);
     gitSkipped = Boolean(git?.skipped);
     gitSection.hidden = gitInstalled || gitSkipped;
-    githubSection.hidden = !gitInstalled;
     gitInstructions.hidden = gitInstalled || gitSkipped || gitChecking;
     if (!gitChecking) {
       if (gitInstalled) {
@@ -1115,7 +1077,6 @@ const setupGithubOAuth = () => {
   };
 
   const goToSetup = () => {
-    setSkipped(false);
     setSetupComplete(false);
     setCreating(false);
     setInstalling(false);
@@ -1124,34 +1085,10 @@ const setupGithubOAuth = () => {
     setAiNeedsAgent(false);
     document.body.removeAttribute("data-ai-view");
     activeProjectItem = "";
-    setFlowVisible(false);
     updateSetupState();
   };
 
-  const applyGithubState = (settings) => {
-    const github = settings?.integrations?.github;
-    if (!github) {
-      return;
-    }
-
-    githubConnected = Boolean(github.connected || github.tokenStored);
-    statusEl.textContent = "Not connected";
-    setFlowVisible(false);
-    if (githubConnected) {
-      setSkipped(false);
-    }
-    updateSetupState();
-    setCreating(false);
-    setInstalling(false);
-    if (createRepoToggle) {
-      createRepoToggle.checked = githubConnected;
-    }
-    if (privateRepoToggle) {
-      privateRepoToggle.disabled = !createRepoToggle?.checked;
-    }
-  };
-
-  const loadGithub = async () => {
+  const loadSetup = async () => {
     try {
       const settings = await window.ifactory.settings.get();
       const gitState = settings?.dependencies?.git;
@@ -1159,114 +1096,16 @@ const setupGithubOAuth = () => {
       if (needsCheck) {
         setGitChecking(true);
         gitSection.hidden = false;
-        githubSection.hidden = true;
         gitInstructions.hidden = true;
         gitStatusEl.textContent = "Checking Installation";
       } else {
         applyGitState(gitState);
       }
-      applyGithubState(settings);
       if (needsCheck) {
         await checkGitInstallation();
       }
     } catch (error) {
-      console.error("Failed to load GitHub settings", error);
-      statusEl.textContent = "GitHub unavailable";
-    }
-  };
-
-  const startPolling = (deviceCode, intervalSeconds) => {
-    const intervalMs = Math.max(5, Number(intervalSeconds) || 5) * 1000;
-    if (pollTimer) {
-      window.clearInterval(pollTimer);
-    }
-
-    pollTimer = window.setInterval(async () => {
-      try {
-        const result = await window.ifactory.github.pollDeviceFlow(deviceCode);
-        if (result?.error) {
-          if (result.error === "authorization_pending") {
-            return;
-          }
-          if (result.error === "slow_down") {
-            window.clearInterval(pollTimer);
-            startPolling(deviceCode, intervalSeconds + 5);
-            return;
-          }
-          if (result.error === "expired_token") {
-            statusEl.textContent = "Authorization expired";
-            setFlowVisible(false);
-            window.clearInterval(pollTimer);
-            pollTimer = null;
-            return;
-          }
-          statusEl.textContent = "Auth failed";
-          setFlowVisible(false);
-          window.clearInterval(pollTimer);
-          pollTimer = null;
-          return;
-        }
-
-        applyGithubState(result);
-        window.clearInterval(pollTimer);
-        pollTimer = null;
-      } catch (error) {
-        console.error("Failed to poll GitHub device flow", error);
-      }
-    }, intervalMs);
-  };
-
-  const startFlow = async () => {
-    try {
-      const data = await window.ifactory.github.startDeviceFlow([
-        "repo",
-        "read:user"
-      ]);
-      codeEl.textContent = data.user_code || "----";
-      verificationUri =
-        data.verification_uri_complete || data.verification_uri || verificationUri;
-      statusEl.textContent = "Awaiting authorization";
-      setFlowVisible(true);
-      startPolling(data.device_code, data.interval);
-    } catch (error) {
-      console.error("Failed to start GitHub device flow", error);
-      statusEl.textContent = "GitHub auth failed";
-    }
-  };
-
-  const copyCode = async () => {
-    try {
-      if (!navigator.clipboard) {
-        return;
-      }
-      await navigator.clipboard.writeText(codeEl.textContent);
-    } catch (error) {
-      console.error("Failed to copy GitHub code", error);
-    }
-  };
-
-  const openGitHub = async () => {
-    try {
-      if (!window.ifactory.openExternal) {
-        return;
-      }
-      await window.ifactory.openExternal(verificationUri);
-    } catch (error) {
-      console.error("Failed to open GitHub device login", error);
-    }
-  };
-
-  const disconnect = async () => {
-    try {
-      if (pollTimer) {
-        window.clearInterval(pollTimer);
-        pollTimer = null;
-      }
-      const settings = await window.ifactory.github.disconnect();
-      setSkipped(false);
-      applyGithubState(settings);
-    } catch (error) {
-      console.error("Failed to disconnect GitHub", error);
+      console.error("Failed to load Git settings", error);
     }
   };
 
@@ -1293,28 +1132,13 @@ const setupGithubOAuth = () => {
     }
   };
 
-  connectButton.addEventListener("click", startFlow);
-  resetButton.addEventListener("click", disconnect);
+  resetButton.addEventListener("click", async () => {
+    goToSetup();
+    await checkGitInstallation();
+  });
   gitCheckButton.addEventListener("click", checkGitInstallation);
   gitSkipButton.addEventListener("click", skipGit);
   gitOpenButton.addEventListener("click", openGitInstaller);
-  if (copyButton) {
-    copyButton.addEventListener("click", copyCode);
-  }
-  if (openButton) {
-    openButton.addEventListener("click", openGitHub);
-  }
-  if (skipButton) {
-    skipButton.addEventListener("click", () => {
-      setSkipped(true);
-      setSetupComplete(true);
-      setCreating(false);
-      setTemplates(false);
-      setAi(false);
-      setAiNeedsAgent(false);
-      document.body.removeAttribute("data-ai-view");
-    });
-  }
   if (createButton) {
     createButton.addEventListener("click", () => {
       setCreating(true);
@@ -1508,13 +1332,6 @@ const setupGithubOAuth = () => {
       }
     });
   }
-  if (cloneButton) {
-    cloneButton.addEventListener("click", () => {
-      if (!githubConnected) {
-        goToSetup();
-      }
-    });
-  }
   if (createSubmitButton) {
     createSubmitButton.addEventListener("click", async () => {
       if (!window.ifactory?.project) {
@@ -1528,46 +1345,29 @@ const setupGithubOAuth = () => {
       const basePath = createLocationInput?.value.trim() || "";
       const createFolder = createFolderToggle?.checked !== false;
       const createRepo = createRepoToggle?.checked === true;
-      const privateRepo = privateRepoToggle?.checked !== false;
-
-      if (createRepo && !githubConnected) {
-        goToSetup();
-        return;
-      }
 
       try {
         const result = await window.ifactory.project.create({
           name,
           basePath,
           createFolder,
-          createRepo,
-          privateRepo
+          createRepo
         });
         if (result?.error) {
           const message =
             result.error === "folder_exists"
               ? "That folder already exists. Choose a new name or location."
-              : result.error === "github_not_connected"
-                ? "Connect GitHub before creating a repository."
-                : result.error === "git_required"
-                  ? "Install Git before creating a repository."
-                  : result.error === "missing_fields"
-                    ? "Enter a project name and location first."
-                    : "Unable to create the project. Check your settings and try again.";
+              : result.error === "git_required"
+                ? "Install Git before creating a repository."
+                : result.error === "missing_fields"
+                  ? "Enter a project name and location first."
+                  : "Unable to create the project. Check your settings and try again.";
           if (createErrorEl) {
             createErrorEl.textContent = message;
             createErrorEl.hidden = false;
           }
           console.error("Failed to create project", result.error);
           return;
-        }
-        if (result?.repoWarning && createErrorEl) {
-          const warning =
-            result.repoWarning === "repo_exists"
-              ? "A GitHub repo with that name already exists. The workspace was created locally."
-              : "GitHub repo could not be created. The workspace was created locally.";
-          createErrorEl.textContent = warning;
-          createErrorEl.hidden = false;
         }
         updateInstallPath(result.path);
         setInstalling(true);
@@ -1584,17 +1384,6 @@ const setupGithubOAuth = () => {
     createLocationInput.addEventListener("input", updateCreateSubmit);
   }
   updateCreateSubmit();
-  if (createRepoToggle) {
-    createRepoToggle.addEventListener("change", () => {
-      if (createRepoToggle.checked && !githubConnected) {
-        createRepoToggle.checked = false;
-        goToSetup();
-      }
-      if (privateRepoToggle) {
-        privateRepoToggle.disabled = !createRepoToggle.checked;
-      }
-    });
-  }
   backButtons.forEach((button) => {
     button.addEventListener("click", () => {
       if (createErrorEl) {
@@ -1705,7 +1494,7 @@ const setupGithubOAuth = () => {
   }
 
   updateGitRepoHeader();
-  loadGithub();
+  loadSetup();
   loadRecents();
 };
 
@@ -1836,7 +1625,7 @@ const setupCreateForm = () => {
 };
 
 const setupInstallScreen = () => {
-  if (!window.ifactory?.github || !window.ifactory?.iplug) {
+  if (!window.ifactory?.iplug) {
     return;
   }
 
@@ -1846,7 +1635,6 @@ const setupInstallScreen = () => {
   const forkSection = document.querySelector("[data-iplug-forks]");
   const listEl = document.querySelector("[data-iplug-list]");
   const searchInput = document.querySelector("[data-iplug-search]");
-  const noteEl = document.querySelector("[data-iplug-note]");
   const branchListEl = document.querySelector("[data-iplug-branch-list]");
   const branchSection = document.querySelector("[data-iplug-branch-section]");
   const branchSearchWrap = document.querySelector("[data-iplug-branch-search]");
@@ -2041,14 +1829,7 @@ const setupInstallScreen = () => {
     return "";
   };
 
-  const buildBadge = (label, className) => {
-    const badge = document.createElement("span");
-    badge.className = `fork-badge${className ? ` ${className}` : ""}`;
-    badge.textContent = label;
-    return badge;
-  };
-
-  const buildForkItem = (repo, isUser) => {
+  const buildForkItem = (repo) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "fork-item";
@@ -2065,20 +1846,8 @@ const setupInstallScreen = () => {
     meta.className = "fork-meta";
     meta.textContent = repo.description || "No description available.";
 
-    const badges = document.createElement("div");
-    badges.className = "fork-badges";
-    if (isUser) {
-      badges.appendChild(buildBadge("Yours"));
-    }
-    if (repo.private) {
-      badges.appendChild(buildBadge("Private", "is-private"));
-    }
-
     button.appendChild(title);
     button.appendChild(meta);
-    if (badges.children.length > 0) {
-      button.appendChild(badges);
-    }
 
     button.addEventListener("click", () => {
       selectedFork = repo.full_name || "";
@@ -2206,12 +1975,11 @@ const setupInstallScreen = () => {
       return text.includes(query);
     };
 
-    const userForks = forksData.userForks.filter(filter);
     const forks = forksData.forks.filter(filter);
 
     listEl.innerHTML = "";
 
-    if (userForks.length === 0 && forks.length === 0) {
+    if (forks.length === 0) {
       const empty = document.createElement("div");
       empty.className = "fork-empty";
       empty.textContent = "No forks match your search.";
@@ -2219,25 +1987,9 @@ const setupInstallScreen = () => {
       return;
     }
 
-    if (userForks.length > 0) {
-      const label = document.createElement("div");
-      label.className = "fork-group-label";
-      label.textContent = "Your forks";
-      listEl.appendChild(label);
-      userForks.forEach((repo) => {
-        listEl.appendChild(buildForkItem(repo, true));
-      });
-    }
-
-    if (forks.length > 0) {
-      const label = document.createElement("div");
-      label.className = "fork-group-label";
-      label.textContent = "Community forks";
-      listEl.appendChild(label);
-      forks.forEach((repo) => {
-        listEl.appendChild(buildForkItem(repo, false));
-      });
-    }
+    forks.forEach((repo) => {
+      listEl.appendChild(buildForkItem(repo));
+    });
   };
 
   const loadForks = async () => {
@@ -2258,22 +2010,10 @@ const setupInstallScreen = () => {
         listEl.textContent = "Unable to load forks right now.";
         return;
       }
-      let forks = Array.isArray(result.forks) ? result.forks : [];
-      let userForks = Array.isArray(result.userForks) ? result.userForks : [];
-      const username = (result.username || "").toLowerCase();
-      if (username && userForks.length === 0 && forks.length > 0) {
-        const isUserFork = (repo) =>
-          repo?.owner?.login?.toLowerCase() === username;
-        userForks = forks.filter(isUserFork);
-        forks = forks.filter((repo) => !isUserFork(repo));
-      }
+      const forks = Array.isArray(result.forks) ? result.forks : [];
       forksData = {
-        forks,
-        userForks
+        forks
       };
-      if (noteEl) {
-        noteEl.hidden = Boolean(result.connected);
-      }
       renderForks();
     } catch (error) {
       listEl.textContent = "Unable to load forks right now.";
@@ -2332,17 +2072,15 @@ const setupInstallScreen = () => {
       });
       if (result?.error) {
         const message =
-          result.error === "github_required"
-            ? "Private repository detected. Connect GitHub to continue."
-            : result.error === "git_required"
-              ? "Git is required to add iPlug2 as a submodule."
+          result.error === "git_required"
+            ? "Git is required to add iPlug2 as a submodule."
             : result.error === "cancelled"
               ? "Installation cancelled."
-            : result.error === "already_exists"
-              ? "iPlug2 already exists in this project."
-              : result.details
-                ? `Installation failed: ${result.details}`
-                : "Installation failed. Check your settings and try again.";
+              : result.error === "already_exists"
+                ? "iPlug2 already exists in this project."
+                : result.details
+                  ? `Installation failed: ${result.details}`
+                  : "Installation failed. Check your settings and try again.";
         setInstallStatus(message, result.error === "cancelled" ? "" : "error");
         return;
       }

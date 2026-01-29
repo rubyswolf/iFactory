@@ -62,7 +62,7 @@
             <div class="eyebrow">Get started</div>
             <h1>Forge studio-ready audio plugins in minutes.</h1>
             <p data-app-description>
-              Build plugins with the iPlug2 framework, Codex and GitHub all in
+              Build plugins with the iPlug2 framework, Codex and Git all in
               one integrated environment
             </p>
             <div class="setup-stack">
@@ -71,7 +71,7 @@
                   <div>
                     <div class="connect-title">Install Git</div>
                     <div class="connect-meta">
-                      Install dependencies faster and integrate with GitHub.
+                      Install dependencies faster and work with version control.
                     </div>
                   </div>
                   <span class="connect-status" data-git-status>
@@ -96,46 +96,6 @@
                   <button class="ghost" data-git-skip type="button">
                     Skip for now
                   </button>
-                </div>
-              </div>
-
-              <div class="connect connect-github" data-github-section hidden>
-                <div class="connect-header">
-                  <div>
-                    <div class="connect-title">Connect to GitHub</div>
-                    <div class="connect-meta">
-                      Synchronize projects across devices, manage version history
-                      and more.
-                    </div>
-                  </div>
-                  <span class="connect-status" data-github-status>
-                    Not connected
-                  </span>
-                </div>
-                <div class="connect-actions">
-                  <button class="cta" data-github-connect type="button">
-                    Connect with OAuth
-                  </button>
-                  <button class="ghost" data-github-skip type="button">
-                    Skip for now
-                  </button>
-                </div>
-                <div class="oauth-flow" data-github-flow hidden>
-                  <div class="oauth-step">
-                    <div class="step-content">
-                      <h3>Authorize</h3>
-                      <p>Copy the code and enter it at GitHub device login.</p>
-                      <div class="oauth-code-row">
-                        <span class="oauth-code" data-github-code>----</span>
-                        <button class="secondary" data-github-copy type="button">
-                          Copy Code
-                        </button>
-                        <button class="ghost" data-github-open type="button">
-                          Open GitHub
-                        </button>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -204,15 +164,6 @@
             </p>
             <button class="secondary" data-action-open>Open project</button>
           </section>
-
-          <section class="panel home-card home-clone reveal">
-            <div class="eyebrow">Clone</div>
-            <h2>Bring in a repo.</h2>
-            <p class="card-meta">
-              Clone from GitHub to sync your projects across machines.
-            </p>
-            <button class="secondary" data-action-clone>Clone project</button>
-          </section>
         </main>
       </div>
 
@@ -223,7 +174,7 @@
             <h2>Start a new workspace.</h2>
             <p class="card-meta">
               Give your project a name, choose a folder, and optionally create a
-              GitHub repository.
+              Git repository.
             </p>
             <div class="form-grid">
               <label class="field">
@@ -258,11 +209,7 @@
               </label>
               <label class="checkbox-field">
                 <input type="checkbox" data-create-repo />
-                <span>Create GitHub Repository</span>
-              </label>
-              <label class="checkbox-field">
-                <input type="checkbox" data-create-private checked />
-                <span>Private Repository</span>
+                <span>Initialize Git repository</span>
               </label>
             </div>
             <div class="create-actions">
@@ -313,9 +260,6 @@
                 />
               </div>
               <div class="fork-list" data-iplug-list></div>
-              <div class="fork-note" data-iplug-note hidden>
-                Connect GitHub to see your private forks.
-              </div>
             </div>
             <div class="branch-section" data-iplug-branch-section hidden>
               <div class="branch-toggle" role="tablist">

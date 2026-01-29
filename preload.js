@@ -3,9 +3,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("ifactory", {
   getMeta: () => ipcRenderer.invoke("app:getMeta"),
   settings: {
-    get: () => ipcRenderer.invoke("settings:get"),
-    updateGitHub: (values) =>
-      ipcRenderer.invoke("settings:update", { scope: "github", values })
+    get: () => ipcRenderer.invoke("settings:get")
   },
   recents: {
     get: () => ipcRenderer.invoke("recents:get"),
@@ -65,11 +63,6 @@ contextBridge.exposeInMainWorld("ifactory", {
     }
   },
   github: {
-    startDeviceFlow: (scopes) =>
-      ipcRenderer.invoke("github:deviceStart", { scopes }),
-    pollDeviceFlow: (deviceCode) =>
-      ipcRenderer.invoke("github:devicePoll", { deviceCode }),
-    disconnect: () => ipcRenderer.invoke("github:disconnect"),
     listIPlugForks: () => ipcRenderer.invoke("github:listIPlugForks"),
     listRepoBranches: (fullName) =>
       ipcRenderer.invoke("github:listRepoBranches", { fullName })
