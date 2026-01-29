@@ -526,6 +526,10 @@ body.is-ai .ai-shell {
   width: 132px;
 }
 
+.ai-sidebar.is-drag-hover {
+  width: 132px;
+}
+
 .ai-sidebar-top,
 .ai-sidebar-center,
 .ai-sidebar-bottom {

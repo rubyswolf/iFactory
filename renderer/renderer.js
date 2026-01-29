@@ -119,6 +119,7 @@ const setupGithubOAuth = () => {
   let projectItems = [];
   let gitChanges = [];
   let gitSelected = new Set();
+  let sidebarHoverLock = false;
 
   const sanitizeTemplateName = (value) => value.replace(/[^a-zA-Z0-9]/g, "");
   const updateTemplateContinue = () => {
@@ -309,6 +310,105 @@ const setupGithubOAuth = () => {
     const ext = getExtension(fileName);
     return ext === ".svg" || ext === ".png" || ext === ".ttf";
   };
+
+  const setSidebarDragHover = (active, lockOverride) => {
+    if (!aiSidebar) {
+      return;
+    }
+    if (typeof lockOverride === "boolean") {
+      sidebarHoverLock = lockOverride;
+    }
+    if (!active && sidebarHoverLock) {
+      return;
+    }
+    aiSidebar.classList.toggle("is-drag-hover", active);
+    if (!active) {
+      sidebarHoverLock = false;
+    }
+  };
+
+  if (aiSidebar) {
+    let sidebarDragDepth = 0;
+    const isPointInsideSidebar = (event) => {
+      const rect = aiSidebar.getBoundingClientRect();
+      const x = event.clientX;
+      const y = event.clientY;
+      return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+    };
+
+    aiSidebar.addEventListener("dragenter", (event) => {
+      if (!isFileDrag(event)) {
+        return;
+      }
+      sidebarDragDepth += 1;
+      setSidebarDragHover(true);
+    });
+    aiSidebar.addEventListener("dragover", (event) => {
+      if (!isFileDrag(event)) {
+        return;
+      }
+      event.preventDefault();
+      setSidebarDragHover(true);
+    });
+    aiSidebar.addEventListener("dragleave", (event) => {
+      if (!isFileDrag(event)) {
+        return;
+      }
+      sidebarDragDepth = Math.max(0, sidebarDragDepth - 1);
+      if (sidebarDragDepth === 0 && !isPointInsideSidebar(event)) {
+        setSidebarDragHover(false);
+      }
+    });
+    aiSidebar.addEventListener("drop", (event) => {
+      if (!isFileDrag(event)) {
+        return;
+      }
+      sidebarDragDepth = 0;
+      setSidebarDragHover(false);
+    });
+
+    document.addEventListener("dragover", (event) => {
+      if (!isFileDrag(event)) {
+        return;
+      }
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+      if (isPointInsideSidebar(event)) {
+        setSidebarDragHover(true);
+      } else if (sidebarDragDepth === 0) {
+        setSidebarDragHover(false);
+      }
+    });
+
+    document.addEventListener("dragleave", (event) => {
+      if (!isFileDrag(event)) {
+        return;
+      }
+      if (sidebarDragDepth === 0 && !isPointInsideSidebar(event)) {
+        setSidebarDragHover(false);
+      }
+    });
+
+    document.addEventListener("dragenter", (event) => {
+      if (!isFileDrag(event)) {
+        return;
+      }
+      event.preventDefault();
+      if (isPointInsideSidebar(event)) {
+        setSidebarDragHover(true);
+      }
+    });
+
+    document.addEventListener("drop", (event) => {
+      if (!isFileDrag(event)) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      sidebarDragDepth = 0;
+      setSidebarDragHover(false);
+    });
+  }
 
   const normalizeResourceInput = (value) => {
     const raw = value || "";
@@ -677,6 +777,7 @@ const setupGithubOAuth = () => {
       const resetDragState = () => {
         dragDepth = 0;
         button.classList.remove("is-drop-target");
+        setSidebarDragHover(false, false);
       };
 
       button.addEventListener("dragenter", (event) => {
@@ -686,6 +787,7 @@ const setupGithubOAuth = () => {
         event.preventDefault();
         dragDepth += 1;
         button.classList.add("is-drop-target");
+        setSidebarDragHover(true, true);
       });
 
       button.addEventListener("dragover", (event) => {
@@ -695,6 +797,7 @@ const setupGithubOAuth = () => {
         event.preventDefault();
         event.dataTransfer.dropEffect = "copy";
         button.classList.add("is-drop-target");
+        setSidebarDragHover(true, true);
       });
 
       button.addEventListener("dragleave", (event) => {
@@ -704,6 +807,7 @@ const setupGithubOAuth = () => {
         dragDepth = Math.max(0, dragDepth - 1);
         if (dragDepth === 0) {
           button.classList.remove("is-drop-target");
+          setSidebarDragHover(false, false);
         }
       });
 
@@ -1611,43 +1715,6 @@ const setupCreateForm = () => {
 
   if (createFolderToggle) {
     createFolderToggle.addEventListener("change", updateSuffix);
-  }
-
-  if (aiSidebar) {
-    let sidebarDragDepth = 0;
-    const setSidebarDragHover = (active) => {
-      aiSidebar.classList.toggle("is-drag-hover", active);
-    };
-    aiSidebar.addEventListener("dragenter", (event) => {
-      if (!isFileDrag(event)) {
-        return;
-      }
-      sidebarDragDepth += 1;
-      setSidebarDragHover(true);
-    });
-    aiSidebar.addEventListener("dragover", (event) => {
-      if (!isFileDrag(event)) {
-        return;
-      }
-      event.preventDefault();
-      setSidebarDragHover(true);
-    });
-    aiSidebar.addEventListener("dragleave", (event) => {
-      if (!isFileDrag(event)) {
-        return;
-      }
-      sidebarDragDepth = Math.max(0, sidebarDragDepth - 1);
-      if (sidebarDragDepth === 0) {
-        setSidebarDragHover(false);
-      }
-    });
-    aiSidebar.addEventListener("drop", (event) => {
-      if (!isFileDrag(event)) {
-        return;
-      }
-      sidebarDragDepth = 0;
-      setSidebarDragHover(false);
-    });
   }
 
   locationInput.addEventListener("input", handleLocationInput);
