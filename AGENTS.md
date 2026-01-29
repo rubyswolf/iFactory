@@ -7,6 +7,7 @@ iPlug2 uses Doxygen, you can use `ifact doxy find iPlug2 "<regex query>" <option
 The find options are --type <kind>, --limit <N>, --name-only (don't query description text) and --no-desc (don't display descriptions in results to save context in big searches)
 Use `ifact doxy lookup iPlug2 <symbol> (feature)` to learn more about anything.
 Leave feature blank for a summary, it will show queryable features such as "constructors", "methods" and "fields".
+Symbol names for lookup support standard syntax like "Class::Method".
 Use `ifact info <topic>` to print additional topic notes on demand.
 Available info topics (lowercase name):
 manage: Equips you to control the project as a whole, creating and managing plugins and tools, use as a starting point.

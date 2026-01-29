@@ -65,6 +65,10 @@
   "ui controls tests": [
     "TestAnimationControl, TestArcControl, TestBezierControl, TestBlendControl, TestColorControl, TestCursorControl, TestCustomShaderControl, TestDirBrowseControl, TestDragAndDropControl, TestDrawContextControl, TestDropShadowControl, TestFlexBoxControl, TestFontControl, TestGesturesControl, GFXLabelControl, TestGradientControl, TestImageControl, TestKeyboardControl, TestLayerControl, TestMaskControl, TestMPSControl, TestMultiPathControl, TestMTControl, TestPolyControl, TestShadowGradientControl, TestSizeControl, TestSVGControl, TestTextControl, TestTextOrientationControl, TestTextSizeControl"
   ],
+  "ui controls custom": [
+    "When creating a custom control you need to make a class that extends IControl included as \"IControl.h\" and use namespace iplug and use namespace igraphics.",
+    "Override the draw method for control rendering which takes `IGraphics& g`."
+  ],
   "dsp": [
     "Audio runs in `void <Your Plugin>::ProcessBlock(sample** inputs, sample** outputs, int nFrames)` where `sample` is a typedef for double/float depending on the project config.",
     "Useful helpers include `NInChansConnected()` `NOutChansConnected()` and `GetSampleRate()`.",
