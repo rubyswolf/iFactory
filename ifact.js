@@ -1,12 +1,10 @@
 #!/usr/bin/env node
 "use strict";
 
-const net = require("net");
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
-
-const pipeName = "\\\\.\\pipe\\ifactory-agent";
+const core = require("./lib/ifact-core");
 
 const usage = (topics = []) => {
   const topicList = Array.isArray(topics) && topics.length
@@ -36,6 +34,7 @@ const usage = (topics = []) => {
 
 const command = (process.argv[2] || "").toLowerCase();
 const args = process.argv.slice(3);
+
 const printSystemPrompt = () => {
   const agentsPath = path.resolve(__dirname, "AGENTS.md");
   if (!fs.existsSync(agentsPath)) {
@@ -82,11 +81,24 @@ const playLocalPingSound = () => {
   try {
     spawn("powershell", ["-NoProfile", "-Command", command], {
       windowsHide: true,
-      stdio: "ignore"
+      stdio: "ignore",
     });
   } catch (error) {
     // ignore failures
   }
+};
+
+const requireProjectPath = () => {
+  const projectPath = process.cwd();
+  const check = core.ensureIPlug2Installed(projectPath);
+  if (check?.error) {
+    console.error(
+      check.message ||
+        "iPlug2 is not installed in this folder, please create a project with iFactory and use its folder as the working directory",
+    );
+    process.exit(1);
+  }
+  return projectPath;
 };
 
 const run = async () => {
@@ -121,144 +133,245 @@ const run = async () => {
     playLocalPingSound();
     process.exit(0);
   }
-
-  const socket = net.createConnection(pipeName, () => {
-    if (command === "create") {
-      const template = args[0];
-      const name = args[1];
-      if (!template) {
-        usage(topicList);
-        process.exit(1);
-      }
-      if (name && /\s/.test(name)) {
-        console.error("Name must not include spaces.");
-        process.exit(1);
-      }
-      socket.write(
-        name ? `${command} ${template} ${name}\n` : `${command} ${template}\n`,
-      );
-      return;
+  if (command === "templates") {
+    const projectPath = requireProjectPath();
+    const result = core.listTemplatesForProject(projectPath);
+    if (result.error) {
+      console.error(`error:${result.error}`);
+      process.exit(1);
     }
-    if (command === "resource") {
-      const move = args.includes("-m") || args.includes("--move");
-      const filtered = args.filter((arg) => arg !== "-m" && arg !== "--move");
-      const action = (filtered[0] || "").toLowerCase();
-      if (action !== "add") {
-        usage(topicList);
-        process.exit(1);
-      }
-      const plugin = filtered[1];
-      const filePath = filtered[2];
-      const name = filtered.slice(3).join(" ").trim();
-      if (!plugin || !filePath || !name) {
-        usage(topicList);
-        process.exit(1);
-      }
-      if (/[^a-zA-Z0-9 _]/.test(name)) {
-        console.error("Name may only include letters, numbers, spaces, or underscores.");
-        process.exit(1);
-      }
-      socket.write(
-        `resource\tadd\t${plugin}\t${filePath}\t${name}\t${move ? "move" : "copy"}\n`,
-      );
-      return;
+    const templates = result.templates || [];
+    if (!templates.length) {
+      console.log("No templates found.");
+      process.exit(0);
     }
-    if (command === "list") {
-      socket.write("list\n");
-      return;
-    }
-    if (command === "doxy") {
-      const action = (args[0] || "").toLowerCase();
-      const target = args[1] || "";
-      if (action !== "generate" && action !== "find" && action !== "lookup") {
-        usage(topicList);
-        process.exit(1);
-      }
-      if (!target) {
-        usage(topicList);
-        process.exit(1);
-      }
-      if (action === "find") {
-        let limit = "";
-        let type = "";
-        let noDesc = false;
-        let nameOnly = false;
-        const queryParts = [];
-        const rawArgs = args.slice(2);
-        for (let i = 0; i < rawArgs.length; i += 1) {
-          const value = rawArgs[i];
-          if (value === "--limit") {
-            limit = rawArgs[i + 1] || "";
-            i += 1;
-            continue;
-          }
-          if (value === "--type") {
-            type = rawArgs[i + 1] || "";
-            i += 1;
-            continue;
-          }
-          if (value === "--no-desc") {
-            noDesc = true;
-            continue;
-          }
-          if (value === "--name-only") {
-            nameOnly = true;
-            continue;
-          }
-          queryParts.push(value);
-        }
-        const query = queryParts.join(" ").trim();
-        if (!query) {
-          usage(topicList);
-          process.exit(1);
-        }
-        socket.write(
-          `doxy\tfind\t${target}\t${query}\t${limit}\t${type}\t${noDesc ? "1" : "0"}\t${nameOnly ? "1" : "0"}\n`,
-        );
-        return;
-      }
-      if (action === "lookup") {
-        const symbol = args[2] || "";
-        const feature = args[3] || "";
-        if (!symbol) {
-          usage(topicList);
-          process.exit(1);
-        }
-        socket.write(`doxy\tlookup\t${target}\t${symbol}\t${feature}\n`);
-        return;
-      }
-      socket.write(`doxy ${action} ${target}\n`);
-      return;
-    }
-    socket.write(`${command}\n`);
-  });
-
-  socket.setEncoding("utf8");
-
-  socket.on("data", (data) => {
-    const message = data.toString().trim();
-    if (message && message !== "ok") {
-      if (message.startsWith("error:")) {
-        console.error(message);
-        process.exitCode = 1;
-      } else if (message.startsWith("ok:")) {
-        console.log(message.slice(3));
-      } else {
-        console.log(message);
-      }
-    }
-  });
-
-  socket.on("error", (error) => {
-    console.error(
-      "Unable to connect to iFactory, please ask the user to start iFactory and open the project.",
+    const lines = templates.map((template) =>
+      template.description
+        ? `${template.folder}: ${template.description}`
+        : `${template.folder}`,
     );
-    process.exitCode = 1;
-  });
+    console.log(lines.join("\n"));
+    process.exit(0);
+  }
+  if (command === "list") {
+    const projectPath = requireProjectPath();
+    const listResult = core.listProjectItems(projectPath);
+    if (listResult.error) {
+      console.error(`error:${listResult.error}`);
+      process.exit(1);
+    }
+    const items = listResult.items || [];
+    if (!items.length) {
+      console.log("No items found, maybe you should create something.");
+      process.exit(0);
+    }
+    const lines = items.map((item) => {
+      const label = item.type === "tool" ? "Tool" : "Plugin";
+      return `${label}: ${item.name}`;
+    });
+    console.log(lines.join("\n"));
+    process.exit(0);
+  }
+  if (command === "create") {
+    const templateInput = args[0];
+    const name = args[1] || templateInput;
+    if (!templateInput) {
+      usage(topicList);
+      process.exit(1);
+    }
+    if (name && /\s/.test(name)) {
+      console.error("Name must not include spaces.");
+      process.exit(1);
+    }
+    const projectPath = requireProjectPath();
+    const resolved = core.resolveTemplateFolder(projectPath, templateInput);
+    if (resolved.error) {
+      console.error(`error:${resolved.error}`);
+      process.exit(1);
+    }
+    const result = core.createPluginFromTemplate({
+      projectPath,
+      templateFolder: resolved.folder,
+      name,
+    });
+    if (result.error) {
+      console.error(`error:${result.error}`);
+      process.exit(1);
+    }
+    if (result.path) {
+      console.log(result.path);
+    }
+    process.exit(0);
+  }
+  if (command === "resource") {
+    const move = args.includes("-m") || args.includes("--move");
+    const filtered = args.filter((arg) => arg !== "-m" && arg !== "--move");
+    const action = (filtered[0] || "").toLowerCase();
+    if (action !== "add") {
+      usage(topicList);
+      process.exit(1);
+    }
+    const plugin = filtered[1];
+    const filePath = filtered[2];
+    const name = filtered.slice(3).join(" ").trim();
+    if (!plugin || !filePath || !name) {
+      usage(topicList);
+      process.exit(1);
+    }
+    if (/[^a-zA-Z0-9 _]/.test(name)) {
+      console.error("Name may only include letters, numbers, spaces, or underscores.");
+      process.exit(1);
+    }
+    const projectPath = requireProjectPath();
+    const result = core.addResourceToPlugin({
+      projectPath,
+      pluginName: plugin,
+      filePath,
+      resourceName: name,
+      removeOriginal: move,
+    });
+    if (result.error) {
+      console.error(`error:${result.error}`);
+      process.exit(1);
+    }
+    const macro = result.macroName || `${result.resourceName}_FN`;
+    console.log(macro);
+    process.exit(0);
+  }
+  if (command === "doxy") {
+    const action = (args[0] || "").toLowerCase();
+    const target = args[1] || "";
+    if (action !== "generate" && action !== "find" && action !== "lookup") {
+      usage(topicList);
+      process.exit(1);
+    }
+    if (!target) {
+      usage(topicList);
+      process.exit(1);
+    }
+    const projectPath = requireProjectPath();
+    if (action === "generate") {
+      const result = await core.runDoxygenGenerate(projectPath, target);
+      if (result?.error) {
+        if (result.error === "doxygen_missing") {
+          console.error(
+            "Doxygen is not installed, please let the user know to install it using the Doxygen tab in the sidebar.",
+          );
+        } else {
+          console.error(`error:${result.error}`);
+        }
+        process.exit(1);
+      }
+      if (result?.outputDir) {
+        console.log(result.outputDir);
+      } else {
+        console.log("ok");
+      }
+      process.exit(0);
+    }
+    if (action === "find") {
+      let limit = "";
+      let type = "";
+      let noDesc = false;
+      let nameOnly = false;
+      const queryParts = [];
+      const rawArgs = args.slice(2);
+      for (let i = 0; i < rawArgs.length; i += 1) {
+        const value = rawArgs[i];
+        if (value === "--limit") {
+          limit = rawArgs[i + 1] || "";
+          i += 1;
+          continue;
+        }
+        if (value === "--type") {
+          type = rawArgs[i + 1] || "";
+          i += 1;
+          continue;
+        }
+        if (value === "--no-desc") {
+          noDesc = true;
+          continue;
+        }
+        if (value === "--name-only") {
+          nameOnly = true;
+          continue;
+        }
+        queryParts.push(value);
+      }
+      const query = queryParts.join(" ").trim();
+      if (!query) {
+        usage(topicList);
+        process.exit(1);
+      }
+      const result = await core.runDoxygenFind(
+        projectPath,
+        target,
+        query,
+        limit,
+        type,
+        noDesc ? "1" : "0",
+        nameOnly ? "1" : "0",
+      );
+      if (result?.error) {
+        if (result.error === "db_missing") {
+          console.error(
+            "Doxygen database not found. Ask the user for permission to run `ifact doxy generate <target>` first; let them know it may take some time.",
+          );
+        } else if (result.error === "unknown_type") {
+          console.error("error:unknown_type");
+        } else {
+          console.error(`error:${result.error}`);
+        }
+        process.exit(1);
+      }
+      const results = result.results || [];
+      if (!results.length) {
+        console.log("No results found.");
+        process.exit(0);
+      }
+      const lines = results.map((item) =>
+        item.description
+          ? `${item.kind}: ${item.name} - ${item.description}`
+          : `${item.kind}: ${item.name}`,
+      );
+      console.log(lines.join("\n"));
+      process.exit(0);
+    }
+    if (action === "lookup") {
+      const symbol = args[2] || "";
+      const feature = args[3] || "";
+      if (!symbol) {
+        usage(topicList);
+        process.exit(1);
+      }
+      const result = await core.runDoxygenLookup(
+        projectPath,
+        target,
+        symbol,
+        feature,
+      );
+      if (result?.error) {
+        if (result.error === "db_missing") {
+          console.error(
+            "Doxygen database not found. Ask the user for permission to run `ifact doxy generate <target>` first; let them know it may take some time.",
+          );
+        } else if (result.error === "unknown_feature") {
+          console.error("error:Unknown lookup feature.");
+        } else {
+          console.error(`error:${result.error}`);
+        }
+        process.exit(1);
+      }
+      if (result?.lines?.length) {
+        console.log(result.lines.join("\n"));
+      }
+      process.exit(0);
+    }
+  }
 
-  socket.on("close", () => {
-    process.exit(process.exitCode || 0);
-  });
+  usage(topicList);
+  process.exit(1);
 };
 
 run();
+

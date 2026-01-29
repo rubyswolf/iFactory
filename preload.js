@@ -100,9 +100,6 @@ contextBridge.exposeInMainWorld("ifactory", {
   solution: {
     open: (payload) => ipcRenderer.invoke("solution:open", payload)
   },
-  agent: {
-    ping: () => ipcRenderer.invoke("agent:ping")
-  },
   templates: {
     list: (payload) => ipcRenderer.invoke("templates:list", payload),
     copy: (payload) => ipcRenderer.invoke("templates:copy", payload)
