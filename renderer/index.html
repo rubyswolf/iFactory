@@ -24,8 +24,8 @@
         </div>
         <div class="titlebar-actions">
           <div class="titlebar-group titlebar-group--home">
-            <button class="ghost" data-setup-reset type="button">
-              Reset setup
+            <button class="ghost" data-action-home type="button">
+              Back to home
             </button>
           </div>
           <div class="titlebar-group titlebar-group--create">
@@ -371,6 +371,10 @@
             <div class="ai-main">
               <div class="ai-view" data-ai-view="agent">
                 <section class="panel agent-panel reveal">
+                  <button class="panel-action panel-action--muted" type="button" data-open-code>
+                    <img src="../icons/code.svg" alt="" />
+                    <span>Open in VS Code</span>
+                  </button>
                   <div class="eyebrow">CLI active</div>
                   <h2>Use your agent in another app.</h2>
                   <p class="card-meta">
@@ -382,12 +386,8 @@
                     <ol class="instruction-list">
                       <li>Open this project folder in your agent.</li>
                       <li>
-                        Use `ifact` to list templates, create plugins, and add
-                        resources.
-                      </li>
-                      <li>
-                        `AGENTS.md` is copied into new projects with the system
-                        prompt.
+                        Get your agent to create plugins by reading the
+                        provided AGENTS.md and using the iFactory CLI.
                       </li>
                     </ol>
                   </div>

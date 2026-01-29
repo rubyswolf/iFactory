@@ -1894,6 +1894,17 @@ body.is-ai .titlebar-group--ai {
   transform: translateY(-1px);
 }
 
+.panel-action--muted {
+  background: rgba(30, 37, 49, 0.82);
+  border-color: rgba(67, 73, 87, 0.9);
+  color: var(--muted);
+}
+
+.panel-action--muted:hover {
+  border-color: rgba(179, 255, 0, 0.35);
+  color: var(--text);
+}
+
 .panel-action:disabled {
   opacity: 0.45;
   cursor: not-allowed;

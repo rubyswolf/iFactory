@@ -39,7 +39,6 @@ const setupGithubOAuth = () => {
     return;
   }
 
-  const resetButton = document.querySelector("[data-setup-reset]");
   const gitSection = document.querySelector("[data-git-section]");
   const gitStatusEl = document.querySelector("[data-git-status]");
   const gitCheckButton = document.querySelector("[data-git-check]");
@@ -82,6 +81,7 @@ const setupGithubOAuth = () => {
   const openDesktopButton = document.querySelector(
     "[data-open-github-desktop]"
   );
+  const openCodeButton = document.querySelector("[data-open-code]");
   const doxygenStatusEl = document.querySelector("[data-doxygen-status]");
   const doxygenInstallButton = document.querySelector("[data-doxygen-install]");
   const doxygenReadyEl = document.querySelector("[data-doxygen-ready]");
@@ -97,7 +97,6 @@ const setupGithubOAuth = () => {
   const recentListEl = document.querySelector("[data-recent-list]");
 
   if (
-    !resetButton ||
     !gitSection ||
     !gitStatusEl ||
     !gitCheckButton ||
@@ -1132,10 +1131,6 @@ const setupGithubOAuth = () => {
     }
   };
 
-  resetButton.addEventListener("click", async () => {
-    goToSetup();
-    await checkGitInstallation();
-  });
   gitCheckButton.addEventListener("click", checkGitInstallation);
   gitSkipButton.addEventListener("click", skipGit);
   gitOpenButton.addEventListener("click", openGitInstaller);
@@ -1248,6 +1243,18 @@ const setupGithubOAuth = () => {
       } catch (error) {
         console.error("Failed to open GitHub Desktop", error);
       }
+    });
+  }
+  if (openCodeButton) {
+    openCodeButton.addEventListener("click", () => {
+      const projectPath =
+        currentProjectPath || document.body.dataset.projectPath || "";
+      if (!projectPath || !window.ifactory?.openExternal) {
+        return;
+      }
+      const normalized = projectPath.replace(/\\/g, "/");
+      const uri = `vscode://file/${encodeURI(normalized)}`;
+      window.ifactory.openExternal(uri);
     });
   }
   if (resourceNameInput) {
