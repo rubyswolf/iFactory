@@ -577,6 +577,7 @@ body.is-ai .ai-shell {
 .ai-nav-item.is-drop-target {
   background: rgba(179, 255, 0, 0.24);
   color: #f7ffd9;
+  cursor: copy;
 }
 
 .ai-nav-item--create {

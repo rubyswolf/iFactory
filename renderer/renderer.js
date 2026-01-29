@@ -335,6 +335,17 @@ const setupGithubOAuth = () => {
       const y = event.clientY;
       return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
     };
+    const isPluginSidebarTarget = (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return false;
+      }
+      const item = target.closest("[data-project-item]");
+      if (!item) {
+        return false;
+      }
+      return item.dataset.itemType === "plugin";
+    };
 
     aiSidebar.addEventListener("dragenter", (event) => {
       if (!isFileDrag(event)) {
@@ -347,7 +358,9 @@ const setupGithubOAuth = () => {
       if (!isFileDrag(event)) {
         return;
       }
-      event.preventDefault();
+      if (isPluginSidebarTarget(event)) {
+        event.preventDefault();
+      }
       setSidebarDragHover(true);
     });
     aiSidebar.addEventListener("dragleave", (event) => {
@@ -371,8 +384,10 @@ const setupGithubOAuth = () => {
       if (!isFileDrag(event)) {
         return;
       }
-      event.preventDefault();
-      event.dataTransfer.dropEffect = "copy";
+      if (isPluginSidebarTarget(event)) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+      }
       if (isPointInsideSidebar(event)) {
         setSidebarDragHover(true);
       } else if (sidebarDragDepth === 0) {
@@ -393,7 +408,9 @@ const setupGithubOAuth = () => {
       if (!isFileDrag(event)) {
         return;
       }
-      event.preventDefault();
+      if (isPluginSidebarTarget(event)) {
+        event.preventDefault();
+      }
       if (isPointInsideSidebar(event)) {
         setSidebarDragHover(true);
       }
@@ -403,7 +420,10 @@ const setupGithubOAuth = () => {
       if (!isFileDrag(event)) {
         return;
       }
-      event.preventDefault();
+      if (isPluginSidebarTarget(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
       event.stopPropagation();
       sidebarDragDepth = 0;
       setSidebarDragHover(false);
