@@ -23,16 +23,7 @@ contextBridge.exposeInMainWorld("ifactory", {
   },
   agent: {
     ping: () => {
-      try {
-        const windir = (process?.env?.WINDIR) || "C:\\Windows";
-        const soundPath = `${windir}\\Media\\Windows Hardware Fail.wav`;
-        const fileUrl = `file:///${soundPath.replace(/\\/g, "/")}`;
-        const audio = new Audio(fileUrl);
-        audio.volume = 1;
-        return audio.play();
-      } catch (error) {
-        return Promise.reject(error);
-      }
+      return ipcRenderer.invoke("agent:ping");
     },
     onPing: (callback) => {
       if (typeof callback !== "function") {

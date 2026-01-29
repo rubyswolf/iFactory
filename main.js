@@ -98,7 +98,18 @@ const loadPrompts = () => {
 
 const getAgentPipePath = () => "\\\\.\\pipe\\ifactory-agent";
 
+const playAgentPingSound = () => {
+  const windir = process.env.WINDIR || "C:\\Windows";
+  const soundPath = path.join(windir, "Media", "Windows Hardware Fail.wav");
+  const command = `(New-Object Media.SoundPlayer '${soundPath.replace(/'/g, "''")}').PlaySync()`;
+  spawn("powershell", ["-NoProfile", "-Command", command], {
+    windowsHide: true,
+    stdio: "ignore",
+  });
+};
+
 const broadcastAgentPing = () => {
+  playAgentPingSound();
   const windows = BrowserWindow.getAllWindows();
   windows.forEach((win) => {
     if (win && !win.isDestroyed()) {
@@ -356,6 +367,8 @@ const startAgentServer = () => {
           let type = "";
           let noDesc = "";
           let nameOnly = "";
+          let symbol = "";
+          let feature = "";
           if (Array.isArray(arg)) {
             const tokens = arg.map((item) =>
               item === undefined ? "" : String(item),
@@ -367,6 +380,8 @@ const startAgentServer = () => {
             type = tokens[4] || "";
             noDesc = tokens[5] || "";
             nameOnly = tokens[6] || "";
+            symbol = tokens[2] || "";
+            feature = tokens[3] || "";
           } else {
             const tokens = arg.split(/\s+/).filter(Boolean);
             action = (tokens[0] || "").toLowerCase();
@@ -376,8 +391,10 @@ const startAgentServer = () => {
             type = tokens[4] || "";
             noDesc = tokens[5] || "";
             nameOnly = tokens[6] || "";
+            symbol = tokens[2] || "";
+            feature = tokens[3] || "";
           }
-          if (action !== "generate" && action !== "find") {
+          if (action !== "generate" && action !== "find" && action !== "lookup") {
             socket.write("error:unknown_command\n");
             socket.end();
             return;
@@ -388,16 +405,18 @@ const startAgentServer = () => {
             return;
           }
           const handler =
-            action === "find" ? runDoxygenFind : runDoxygenGenerate;
-          handler(
-            currentProjectPath,
-            target,
-            query,
-            limit,
-            type,
-            noDesc,
-            nameOnly,
-          )
+            action === "find"
+              ? runDoxygenFind
+              : action === "lookup"
+                ? runDoxygenLookup
+                : runDoxygenGenerate;
+          const args =
+            action === "find"
+              ? [currentProjectPath, target, query, limit, type, noDesc, nameOnly]
+              : action === "lookup"
+                ? [currentProjectPath, target, symbol, feature]
+                : [currentProjectPath, target];
+          handler(...args)
             .then((result) => {
               if (result?.error) {
                 if (result.error === "doxygen_missing") {
@@ -408,6 +427,8 @@ const startAgentServer = () => {
                   socket.write(
                     "error:Doxygen database not found. Ask the user for permission to run `ifact doxy generate <target>` first; let them know it may take some time.\n",
                   );
+                } else if (result.error === "unknown_feature") {
+                  socket.write("error:Unknown lookup feature.\n");
                 } else {
                   socket.write(`error:${result.error}\n`);
                 }
@@ -423,6 +444,8 @@ const startAgentServer = () => {
                   });
                   socket.write(`${lines.join("\n")}\n`);
                 }
+              } else if (result?.lines) {
+                socket.write(`${result.lines.join("\n")}\n`);
               } else if (result?.outputDir) {
                 socket.write(`ok:${result.outputDir}\n`);
               } else {
@@ -1805,10 +1828,7 @@ const runDoxygenGenerate = async (projectPath, target) => {
   }
   const outputDir = path.join(projectPath, "doxygen", "iPlug2");
   fs.mkdirSync(outputDir, { recursive: true });
-  const { tempPath, tempDir } = createPatchedDoxyfile(
-    doxyfilePath,
-    outputDir,
-  );
+  const { tempPath, tempDir } = createPatchedDoxyfile(doxyfilePath, outputDir);
   try {
     const result = spawnSync(installState.path, [tempPath], {
       cwd: path.dirname(doxyfilePath),
@@ -1818,10 +1838,11 @@ const runDoxygenGenerate = async (projectPath, target) => {
     if (result.error || result.status !== 0) {
       return {
         error: "doxygen_failed",
-        details:
-          String(result.stderr || result.stdout || result.error?.message || "")
-            .trim()
-            .slice(0, 400),
+        details: String(
+          result.stderr || result.stdout || result.error?.message || "",
+        )
+          .trim()
+          .slice(0, 400),
       };
     }
     try {
@@ -1882,13 +1903,19 @@ const runDoxygenFind = async (
   const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : 10;
   const maxLimit = 100;
   const cappedLimit = Math.min(limit, maxLimit);
-  const normalizedType = String(typeInput || "").trim().toLowerCase();
+  const normalizedType = String(typeInput || "")
+    .trim()
+    .toLowerCase();
   const noDesc =
     String(noDescInput || "").trim() === "1" ||
-    String(noDescInput || "").trim().toLowerCase() === "true";
+    String(noDescInput || "")
+      .trim()
+      .toLowerCase() === "true";
   const nameOnly =
     String(nameOnlyInput || "").trim() === "1" ||
-    String(nameOnlyInput || "").trim().toLowerCase() === "true";
+    String(nameOnlyInput || "")
+      .trim()
+      .toLowerCase() === "true";
   const typeAliases = {
     class: ["class", "struct", "union", "interface"],
     struct: ["struct"],
@@ -2026,6 +2053,239 @@ const runDoxygenFind = async (
     return { results };
   } catch (error) {
     return { error: "find_failed", details: error?.message || "" };
+  }
+};
+
+const runDoxygenLookup = async (projectPath, target, symbol, featureInput) => {
+  if (!projectPath) {
+    return { error: "missing_path" };
+  }
+  const normalizedTarget = String(target || "").toLowerCase();
+  if (!normalizedTarget) {
+    return { error: "missing_target" };
+  }
+  const symbolQuery = String(symbol || "").trim();
+  if (!symbolQuery) {
+    return { error: "missing_symbol" };
+  }
+  const outputDir = path.join(projectPath, "doxygen", normalizedTarget);
+  const sqliteFolder = path.join(outputDir, "doxygen.sqlite3");
+  const sqliteDbPath = path.join(sqliteFolder, "doxygen_sqlite3.db");
+  if (!fs.existsSync(sqliteDbPath)) {
+    return { error: "db_missing" };
+  }
+  const feature = String(featureInput || "").trim().toLowerCase();
+  const cleanDescription = (value) => {
+    if (!value) {
+      return "";
+    }
+    return String(value)
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+  const truncate = (value, max = 220) => {
+    if (!value) {
+      return "";
+    }
+    if (value.length <= max) {
+      return value;
+    }
+    return `${value.slice(0, max - 1).trim()}...`;
+  };
+  const splitScope = (value) => {
+    const idx = value.lastIndexOf("::");
+    if (idx === -1) {
+      return { scope: "", name: value };
+    }
+    return {
+      scope: value.slice(0, idx),
+      name: value.slice(idx + 2),
+    };
+  };
+  try {
+    const sqlite3 = require("better-sqlite3");
+    const db = sqlite3(sqliteDbPath, { readonly: true });
+    const symbolParts = splitScope(symbolQuery);
+    const compound = db
+      .prepare(
+        "SELECT name, kind, briefdescription, detaileddescription, file_id, line FROM compounddef WHERE name = ?",
+      )
+      .get(symbolQuery);
+    if (compound) {
+      const brief = truncate(
+        cleanDescription(
+          compound.briefdescription || compound.detaileddescription || "",
+        ),
+      );
+      const fileRow = compound.file_id
+        ? db
+            .prepare("SELECT name FROM path WHERE rowid = ?")
+            .get(compound.file_id)
+        : null;
+      const location = fileRow?.name
+        ? `${fileRow.name}${compound.line ? `:${compound.line}` : ""}`
+        : "";
+      const className = compound.name.split("::").slice(-1)[0];
+      if (!feature) {
+        const counts = db
+          .prepare(
+            "SELECT kind, COUNT(*) as count FROM memberdef WHERE scope = ? GROUP BY kind",
+          )
+          .all(compound.name);
+        const countByKind = Object.fromEntries(
+          counts.map((row) => [row.kind, row.count]),
+        );
+        const constructors = db
+          .prepare(
+            "SELECT COUNT(*) as count FROM memberdef WHERE scope = ? AND kind = 'function' AND name = ?",
+          )
+          .get(compound.name, className)?.count;
+        const methods =
+          (countByKind.function || 0) - (constructors || 0);
+        const lines = [
+          `${compound.kind}: ${compound.name}`,
+          brief ? `summary: ${brief}` : "",
+          location ? `location: ${location}` : "",
+          constructors ? `constructors: ${constructors}` : "constructors: 0",
+          `methods: ${methods < 0 ? 0 : methods}`,
+        ];
+        if (countByKind.variable !== undefined) {
+          lines.push(`fields: ${countByKind.variable}`);
+        }
+        if (countByKind.property !== undefined) {
+          lines.push(`properties: ${countByKind.property}`);
+        }
+        if (countByKind.enum !== undefined) {
+          lines.push(`enums: ${countByKind.enum}`);
+        }
+        if (countByKind.typedef !== undefined) {
+          lines.push(`typedefs: ${countByKind.typedef}`);
+        }
+        db.close();
+        return { lines: lines.filter(Boolean) };
+      }
+      const listLimit = 60;
+      if (feature === "constructors") {
+        const rows = db
+          .prepare(
+            "SELECT name, argsstring FROM memberdef WHERE scope = ? AND kind = 'function' AND name = ? ORDER BY name LIMIT ?",
+          )
+          .all(compound.name, className, listLimit);
+        db.close();
+        return {
+          lines: rows.map(
+            (row) => `${row.name}${row.argsstring || ""}`,
+          ),
+        };
+      }
+      if (feature === "methods") {
+        const rows = db
+          .prepare(
+            "SELECT name, type, argsstring FROM memberdef WHERE scope = ? AND kind = 'function' AND name != ? ORDER BY name LIMIT ?",
+          )
+          .all(compound.name, className, listLimit);
+        db.close();
+        return {
+          lines: rows.map((row) => {
+            const sig = `${row.name}${row.argsstring || ""}`;
+            return row.type ? `${row.type} ${sig}` : sig;
+          }),
+        };
+      }
+      if (feature === "fields") {
+        const rows = db
+          .prepare(
+            "SELECT name, type FROM memberdef WHERE scope = ? AND kind = 'variable' ORDER BY name LIMIT ?",
+          )
+          .all(compound.name, listLimit);
+        db.close();
+        return {
+          lines: rows.map((row) =>
+            row.type ? `${row.type} ${row.name}` : row.name,
+          ),
+        };
+      }
+      if (feature === "properties") {
+        const rows = db
+          .prepare(
+            "SELECT name, type FROM memberdef WHERE scope = ? AND kind = 'property' ORDER BY name LIMIT ?",
+          )
+          .all(compound.name, listLimit);
+        db.close();
+        return {
+          lines: rows.map((row) =>
+            row.type ? `${row.type} ${row.name}` : row.name,
+          ),
+        };
+      }
+      if (feature === "enums") {
+        const rows = db
+          .prepare(
+            "SELECT name FROM memberdef WHERE scope = ? AND kind = 'enum' ORDER BY name LIMIT ?",
+          )
+          .all(compound.name, listLimit);
+        db.close();
+        return { lines: rows.map((row) => row.name) };
+      }
+      if (feature === "typedefs") {
+        const rows = db
+          .prepare(
+            "SELECT name, type FROM memberdef WHERE scope = ? AND kind = 'typedef' ORDER BY name LIMIT ?",
+          )
+          .all(compound.name, listLimit);
+        db.close();
+        return {
+          lines: rows.map((row) =>
+            row.type ? `${row.type} ${row.name}` : row.name,
+          ),
+        };
+      }
+      db.close();
+      return { error: "unknown_feature" };
+    }
+    const member = symbolParts.scope
+      ? db
+          .prepare(
+            "SELECT name, scope, kind, type, argsstring, briefdescription, detaileddescription, file_id, line FROM memberdef WHERE scope = ? AND name = ?",
+          )
+          .get(symbolParts.scope, symbolParts.name)
+      : db
+          .prepare(
+            "SELECT name, scope, kind, type, argsstring, briefdescription, detaileddescription, file_id, line FROM memberdef WHERE name = ?",
+          )
+          .get(symbolParts.name);
+    if (!member) {
+      db.close();
+      return { lines: ["No results found."] };
+    }
+    const brief = truncate(
+      cleanDescription(
+        member.briefdescription || member.detaileddescription || "",
+      ),
+    );
+    const fileRow = member.file_id
+      ? db
+          .prepare("SELECT name FROM path WHERE rowid = ?")
+          .get(member.file_id)
+      : null;
+    const location = fileRow?.name
+      ? `${fileRow.name}${member.line ? `:${member.line}` : ""}`
+      : "";
+    const signature = member.argsstring
+      ? `${member.name}${member.argsstring}`
+      : member.name;
+    db.close();
+    const lines = [
+      `${member.kind}: ${member.scope ? `${member.scope}::` : ""}${member.name}`,
+      member.type ? `type: ${member.type}` : "",
+      member.argsstring ? `signature: ${signature}` : "",
+      brief ? `summary: ${brief}` : "",
+      location ? `location: ${location}` : "",
+    ];
+    return { lines: lines.filter(Boolean) };
+  } catch (error) {
+    return { error: "lookup_failed", details: error?.message || "" };
   }
 };
 
@@ -2487,6 +2747,10 @@ const registerIpc = () => {
     description: pkg.description || "",
   }));
   ipcMain.handle("settings:get", () => sanitizeSettings(settings));
+  ipcMain.handle("agent:ping", () => {
+    playAgentPingSound();
+    return { ok: true };
+  });
   ipcMain.handle("recents:get", () =>
     Array.isArray(settings.recentProjects) ? settings.recentProjects : [],
   );

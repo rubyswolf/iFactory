@@ -95,11 +95,7 @@ const setupGithubOAuth = () => {
   const promptSendButton = document.querySelector(".prompt-send");
   const chatListEl = document.querySelector("[data-ai-chat-list]");
   if (window.ifactory?.agent?.onPing) {
-    window.ifactory.agent.onPing(() => {
-      if (window.ifactory?.agent?.ping) {
-        window.ifactory.agent.ping();
-      }
-    });
+    window.ifactory.agent.onPing(() => {});
   }
   const gitRepoNameEl = document.querySelector("[data-git-repo-name]");
   const gitRepoPathEl = document.querySelector("[data-git-repo-path]");

@@ -29,6 +29,7 @@ const usage = (topics = []) => {
   console.log(
     "  ifact doxy find <target> <query> [--limit N] [--type kind] [--no-desc] [--name-only]",
   );
+  console.log("  ifact doxy lookup <target> <symbol> [feature]");
   console.log(`  ifact info <${topicList}>`);
 };
 
@@ -146,7 +147,7 @@ const socket = net.createConnection(pipeName, () => {
   if (command === "doxy") {
     const action = (args[0] || "").toLowerCase();
     const target = args[1] || "";
-    if (action !== "generate" && action !== "find") {
+    if (action !== "generate" && action !== "find" && action !== "lookup") {
       usage(topicList);
       process.exit(1);
     }
@@ -191,6 +192,16 @@ const socket = net.createConnection(pipeName, () => {
       socket.write(
         `doxy\tfind\t${target}\t${query}\t${limit}\t${type}\t${noDesc ? "1" : "0"}\t${nameOnly ? "1" : "0"}\n`,
       );
+      return;
+    }
+    if (action === "lookup") {
+      const symbol = args[2] || "";
+      const feature = args[3] || "";
+      if (!symbol) {
+        usage(topicList);
+        process.exit(1);
+      }
+      socket.write(`doxy\tlookup\t${target}\t${symbol}\t${feature}\n`);
       return;
     }
     socket.write(`doxy ${action} ${target}\n`);
