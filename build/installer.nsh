@@ -9,6 +9,7 @@ ${UnStrStr}
   FileWrite $0 "@echo off$\r$\n"
   FileWrite $0 "$\"$INSTDIR\\cli\\ifact.exe$\" %*$\r$\n"
   FileClose $0
+  WriteUninstaller "$INSTDIR\Uninstall.exe"
 
   ReadRegStr $1 HKCU "Environment" "Path"
   StrCpy $2 "$INSTDIR\cli"
