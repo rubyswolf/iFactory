@@ -1,37 +1,13 @@
-!include "LogicLib.nsh"
-!include "StrFunc.nsh"
-
-${UnStrStr}
-${UnStrRep}
+!include "EnvVarUpdate.nsh"
 
 !macro customInstall
-  FileOpen $0 "$INSTDIR\ifact.cmd" "w"
-  FileWrite $0 "@echo off$\r$\n"
-  FileWrite $0 "$\"$INSTDIR\\cli\\ifact.exe$\" %*$\r$\n"
-  FileClose $0
-  ReadRegStr $1 HKCU "Environment" "Path"
-  StrCpy $2 "$INSTDIR\cli"
-  ${If} $1 == ""
-    StrCpy $4 "$2"
-  ${Else}
-    StrCpy $4 "$1;$2"
-  ${EndIf}
-  WriteRegExpandStr HKCU "Environment" "Path" $4
-  SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
+  # Add the cli directory to the USER Path
+  # "A" = Append, "HKCU" = Current User
+  ${EnvVarUpdate} $0 "PATH" "A" "HKCU" "$INSTDIR\cli"
 !macroend
 
 !macro customUnInstall
-  Delete "$INSTDIR\ifact.cmd"
-  ReadRegStr $1 HKCU "Environment" "Path"
-  StrCpy $2 "$INSTDIR\cli"
-  ${UnStrRep} $1 $1 "$2;" ""
-  ${UnStrRep} $1 $1 ";$2" ""
-  ${UnStrRep} $1 $1 "$2" ""
-  ${UnStrStr} $3 $1 ";;"
-  ${DoWhile} $3 != ""
-    ${UnStrRep} $1 $1 ";;" ";"
-    ${UnStrStr} $3 $1 ";;"
-  ${Loop}
-  WriteRegExpandStr HKCU "Environment" "Path" $1
-  SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
+  # Remove the cli directory from the USER Path
+  # "R" = Remove, "HKCU" = Current User
+  ${un.EnvVarUpdate} $0 "PATH" "R" "HKCU" "$INSTDIR\cli"
 !macroend
