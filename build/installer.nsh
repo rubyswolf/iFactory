@@ -8,7 +8,7 @@ ${UnStrStr}
 !macro customInstall
   FileOpen $0 "$INSTDIR\ifact.cmd" "w"
   FileWrite $0 "@echo off$\r$\n"
-  FileWrite $0 "\"$INSTDIR\cli\ifact.exe\" %*$\r$\n"
+  FileWrite $0 "$\"$INSTDIR\\cli\\ifact.exe$\" %*$\r$\n"
   FileClose $0
 
   ReadRegStr $1 HKCU "Environment" "Path"
