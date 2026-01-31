@@ -2,6 +2,11 @@
 !include "StrFunc.nsh"
 !include "WordFunc.nsh"
 
+${StrRep}
+${StrStr}
+${UnStrRep}
+${UnStrStr}
+
 !macro customInstall
   FileOpen $0 "$INSTDIR\ifact.cmd" "w"
   FileWrite $0 "@echo off$\r$\n"
@@ -32,13 +37,13 @@
   Delete "$INSTDIR\ifact.cmd"
   ReadRegStr $1 HKCU "Environment" "Path"
   StrCpy $2 "$INSTDIR\cli"
-  ${un.StrRep} $1 $1 "$2;" ""
-  ${un.StrRep} $1 $1 ";$2" ""
-  ${un.StrRep} $1 $1 "$2" ""
-  ${un.StrStr} $3 $1 ";;"
+  ${UnStrRep} $1 $1 "$2;" ""
+  ${UnStrRep} $1 $1 ";$2" ""
+  ${UnStrRep} $1 $1 "$2" ""
+  ${UnStrStr} $3 $1 ";;"
   ${DoWhile} $3 != ""
-    ${un.StrRep} $1 $1 ";;" ";"
-    ${un.StrStr} $3 $1 ";;"
+    ${UnStrRep} $1 $1 ";;" ";"
+    ${UnStrStr} $3 $1 ";;"
   ${Loop}
   WriteRegExpandStr HKCU "Environment" "Path" $1
   SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
