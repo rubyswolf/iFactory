@@ -1,11 +1,28 @@
 {
   "name": "ifactory",
   "productName": "iFactory",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Build plugins with the iPlug2 framework, Codex and GitHub all in one integrated environment",
   "author": "Dart Spark",
   "license": "UNLICENSED",
   "main": "main.js",
+  "build": {
+    "appId": "com.dartspark.ifactory",
+    "productName": "iFactory",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!**/dist/**",
+      "!**/.git/**",
+      "!**/node_modules/**"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icons/logo.ico"
+    }
+  },
   "scripts": {
     "start": "electron ."
   },
