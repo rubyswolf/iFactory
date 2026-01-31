@@ -6,23 +6,34 @@ const rootDir = path.resolve(__dirname, "..");
 const cliOutDir = path.join(rootDir, "build", "cli");
 fs.mkdirSync(cliOutDir, { recursive: true });
 
+const pkgEntry = path.join(rootDir, "node_modules", "pkg", "lib-es5", "bin.js");
 const pkgLocal = path.join(
   rootDir,
   "node_modules",
   ".bin",
   process.platform === "win32" ? "pkg.cmd" : "pkg",
 );
-const pkgBin = fs.existsSync(pkgLocal)
-  ? pkgLocal
-  : (process.platform === "win32" ? "npx.cmd" : "npx");
+const pkgBin = fs.existsSync(pkgEntry)
+  ? process.execPath
+  : fs.existsSync(pkgLocal)
+    ? pkgLocal
+    : process.platform === "win32"
+      ? "npx.cmd"
+      : "npx";
 const outputPath = path.join(cliOutDir, process.platform === "win32" ? "ifact.exe" : "ifact");
 const entryPath = path.join(rootDir, "ifact.js");
 
-const pkgArgs =
-  pkgBin.toLowerCase().includes("npx")
-    ? ["pkg", "-t", process.env.IFACT_PKG_TARGET || "node18-win-x64", "-o", outputPath, entryPath]
-    : ["-t", process.env.IFACT_PKG_TARGET || "node18-win-x64", "-o", outputPath, entryPath];
-const result = spawnSync(pkgBin, pkgArgs, { stdio: "inherit" });
+const target = process.env.IFACT_PKG_TARGET || "node18-win-x64";
+const baseArgs = ["-t", target, "-o", outputPath, entryPath];
+const pkgArgs = pkgBin === process.execPath
+  ? [pkgEntry, ...baseArgs]
+  : pkgBin.toLowerCase().includes("npx")
+    ? ["pkg", ...baseArgs]
+    : baseArgs;
+const result = spawnSync(pkgBin, pkgArgs, {
+  stdio: "inherit",
+  windowsHide: true,
+});
 if (result.error) {
   console.error(result.error);
 }
