@@ -83,7 +83,7 @@
     "To get access to a parameter you call `GetParam(int paramIdx)` which you follow by -> to access its methods.",
     "There are a set of Init methods which name and set up how the parameter displays in the DAW.",
     "All continuous initializers are presets for the main initializer `void IParam::InitDouble(const char* name, double defaultVal, double minVal, double maxVal, double step, const char* label, int flags, const char* group, const Shape& shape, EParamUnit unit, DisplayFunc displayFunc)`.",
-    "The continuous initializers are InitSeconds, InitMilliseconds, InitGain (dB), InitPercentage and InitAngleDegrees. They all take (const char *name, double defaultVal, double minVal, double maxVal, int flags, const char *group).",
+    "The continuous initializers are InitSeconds, InitMilliseconds, InitGain (dB), InitPercentage and InitAngleDegrees. They all take (const char *name, double defaultVal, double minVal, double maxVal, double step (only present for InitSeconds, InitFrequency and InitGain), int flags, const char *group).",
     "The main discrete initializer is `void IParam::InitInt(const char* name, int defaultVal, int minVal, int maxVal, const char* label, int flags, const char* group)`.",
     "Specific values can have their label changed via `void SetDisplayText(double value, const char* str)` e.g. -70dB could display \"-inf\"",
     "Then there is `void IParam::InitEnum(const char* name, int defaultVal, int nEnums, const char* label, int flags, const char* group, const char* listItems, ...)` which is a preset of int which uses SetDisplayText for every value.",

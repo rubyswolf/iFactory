@@ -85,8 +85,15 @@ const playLocalPingSound = () => {
   const windir = process.env.WINDIR || "C:\\Windows";
   const soundPath = path.join(windir, "Media", "Windows Hardware Fail.wav");
   const command = `(New-Object Media.SoundPlayer '${soundPath.replace(/'/g, "''")}').PlaySync()`;
+  const powershellPath = path.join(
+    windir,
+    "System32",
+    "WindowsPowerShell",
+    "v1.0",
+    "powershell.exe",
+  );
   try {
-    spawn("powershell", ["-NoProfile", "-Command", command], {
+    spawnSync(powershellPath, ["-NoProfile", "-Command", command], {
       windowsHide: true,
       stdio: "ignore",
     });
