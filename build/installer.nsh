@@ -2,8 +2,6 @@
 !include "StrFunc.nsh"
 !include "WordFunc.nsh"
 
-${StrRep}
-${StrStr}
 ${UnStrRep}
 ${UnStrStr}
 
@@ -20,16 +18,10 @@ ${UnStrStr}
   ${Else}
     StrCpy $4 "$1;$2"
   ${EndIf}
-  StrCpy $5 "$4"
-  ${StrStr} $6 $5 ";;"
-  ${DoWhile} $6 != ""
-    ${StrRep} $5 $5 ";;" ";"
-    ${StrStr} $6 $5 ";;"
-  ${Loop}
-  Push $5
+  Push $4
   Call PathUnique
-  Pop $5
-  WriteRegExpandStr HKCU "Environment" "Path" $5
+  Pop $4
+  WriteRegExpandStr HKCU "Environment" "Path" $4
   SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
 !macroend
 
