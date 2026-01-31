@@ -144,10 +144,7 @@ Function ${UN}EnvVarUpdate
     DetailPrint "ERROR: PathString is blank"
     Goto EnvVarUpdate_Restore_Vars
   ${EndIf}
-
-;;khc - here check if length is going to be greater then max string length (1024 on default NSIS, 8k on extended version)
-;;      and abort if so - also abort if original path empty - may mean
-;;      it was too long as well- write message to say set it by hand 
+ 
   Push $6
   Push $7
   Push $8
@@ -157,7 +154,7 @@ Function ${UN}EnvVarUpdate
   ${If} $5 == ""
   ${OrIf} $8 >= ${NSIS_MAX_STRLEN}
     SetErrors
-    DetailPrint "Current $1 length ($6) too long to modify in NSIS; set manually if needed. Missed entry was: '$4'"
+    DetailPrint "Current $1 length ($6) too long to modify in NSIS; set manually if needed"
     Pop $8
     Pop $7
     Pop $6
@@ -166,7 +163,6 @@ Function ${UN}EnvVarUpdate
   Pop $8
   Pop $7
   Pop $6
-;;khc 
 
   ; Make sure we've got some work to do
   ${If} $5 == ""
