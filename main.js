@@ -1120,6 +1120,7 @@ const registerIpc = () => {
             "mkcert*",
             ".claude/settings.local.json",
             "__pycache__",
+            "doxygen/",
           ];
           fs.writeFileSync(gitignorePath, gitignoreLines.join(os.EOL));
         }
