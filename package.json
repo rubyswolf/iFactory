@@ -1,7 +1,7 @@
 {
   "name": "ifactory",
   "productName": "iFactory",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Build plugins with the iPlug2 framework, Codex and GitHub all in one integrated environment",
   "author": "Dart Spark",
   "license": "UNLICENSED",
@@ -21,17 +21,29 @@
     "win": {
       "target": "nsis",
       "icon": "icons/logo.ico"
-    }
+    },
+    "extraFiles": [
+      {
+        "from": "build/cli",
+        "to": "cli"
+      }
+    ],
+    "nsis": {
+      "include": "build/installer.nsh"
+    },
+    "beforeBuild": "scripts/before-build.js"
   },
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build:cli": "node scripts/build-cli.js"
   },
   "bin": {
     "ifact": "ifact.js"
   },
   "devDependencies": {
     "electron": "^29.1.0",
-    "electron-rebuild": "^3.2.9"
+    "electron-rebuild": "^3.2.9",
+    "pkg": "^5.8.1"
   },
   "dependencies": {
     "better-sqlite3": "^12.6.2",

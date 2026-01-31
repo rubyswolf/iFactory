@@ -35,11 +35,15 @@ const usage = (topics = []) => {
   console.log(`  ifact info <${topicList}>`);
 };
 
-const command = (process.argv[2] || "").toLowerCase();
-const args = process.argv.slice(3);
+const getCliDir = () => {
+  if (process.pkg) {
+    return path.dirname(process.execPath);
+  }
+  return __dirname;
+};
 
 const printSystemPrompt = () => {
-  const agentsPath = path.resolve(__dirname, "AGENTS.md");
+  const agentsPath = path.resolve(getCliDir(), "AGENTS.md");
   if (!fs.existsSync(agentsPath)) {
     return false;
   }
@@ -62,7 +66,7 @@ const printSystemPrompt = () => {
 };
 
 const loadInfoTopics = () => {
-  const infoPath = path.resolve(__dirname, "info.json");
+  const infoPath = path.resolve(getCliDir(), "info.json");
   if (!fs.existsSync(infoPath)) {
     return {};
   }
@@ -104,7 +108,9 @@ const requireProjectPath = () => {
   return projectPath;
 };
 
-const run = async () => {
+const run = async (argv = process.argv) => {
+  const command = (argv[2] || "").toLowerCase();
+  const args = argv.slice(3);
   const infoTopics = loadInfoTopics();
   const topicList = Object.keys(infoTopics || {});
   if (!command) {
@@ -410,5 +416,9 @@ const run = async () => {
   process.exit(1);
 };
 
-run();
+if (require.main === module) {
+  run();
+}
+
+module.exports = { run };
 

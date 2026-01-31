@@ -7,6 +7,8 @@ const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 const pkg = require("./package.json");
 const core = require("./lib/ifact-core");
 
+const isCliMode = process.argv.includes("--ifact");
+
 const {
   getDepsConfig,
   getDepsBuildPath,
@@ -30,6 +32,13 @@ const {
   runDoxygenLookup,
   createPluginFromTemplate,
 } = core;
+
+if (isCliMode) {
+  const { run } = require("./ifact");
+  const startIndex = process.argv.indexOf("--ifact");
+  const cliArgs = startIndex >= 0 ? process.argv.slice(startIndex + 1) : [];
+  run(["node", "ifact", ...cliArgs]);
+}
 
 const defaultSettings = {
   integrations: {
@@ -2085,20 +2094,22 @@ const createWindow = () => {
   window.loadFile(path.join(__dirname, "renderer", "index.html"));
 };
 
-app.whenReady().then(() => {
-  settings = loadSettings();
-  registerIpc();
-  createWindow();
+if (!isCliMode) {
+  app.whenReady().then(() => {
+    settings = loadSettings();
+    registerIpc();
+    createWindow();
 
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+      }
+    });
+  });
+
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") {
+      app.quit();
     }
   });
-});
-
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
+}
