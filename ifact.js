@@ -18,12 +18,15 @@ const usage = (topics = []) => {
   console.log("  list       List plugins and tools in the current project");
   console.log("  create     Create a plugin from a template");
   console.log("  resource   Add a resource to a plugin");
+  console.log("  graphics   Detect the graphics backend for the project");
   console.log("  info       Print additional topic notes");
   console.log("  doxy       Generate Doxygen XML for the current project");
   console.log("");
   console.log("Usage:");
   console.log("  ifact create <template> [name]");
   console.log("  ifact resource add <plugin> <path> <resource name> [-m]");
+  console.log("  ifact graphics get <plugin>");
+  console.log("  ifact graphics set <plugin> <SKIA|NANOVG>");
   console.log("  ifact doxy generate iPlug2");
   console.log(
     "  ifact doxy find <target> <query> [--limit N] [--type kind] [--no-desc] [--name-only]",
@@ -236,6 +239,40 @@ const run = async () => {
     }
     const macro = result.macroName || `${result.resourceName}_FN`;
     console.log(macro);
+    process.exit(0);
+  }
+  if (command === "graphics") {
+    const action = (args[0] || "").toLowerCase();
+    if (action !== "get" && action !== "set") {
+      usage(topicList);
+      process.exit(1);
+    }
+    const plugin = args[1] || "";
+    if (!plugin) {
+      usage(topicList);
+      process.exit(1);
+    }
+    const projectPath = requireProjectPath();
+    if (action === "get") {
+      const result = core.detectGraphicsBackend(projectPath, plugin);
+      if (result.error) {
+        console.error(`error:${result.error}`);
+        process.exit(1);
+      }
+      console.log(result.backend);
+      process.exit(0);
+    }
+    const backend = args[2] || "";
+    if (!backend) {
+      usage(topicList);
+      process.exit(1);
+    }
+    const result = core.setGraphicsBackend(projectPath, plugin, backend);
+    if (result.error) {
+      console.error(`error:${result.error}`);
+      process.exit(1);
+    }
+    console.log(result.backend);
     process.exit(0);
   }
   if (command === "doxy") {

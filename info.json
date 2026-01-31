@@ -2,7 +2,7 @@
   "manage": [
     "You can use `ifact list` to list the tools and plugins within the current project.",
     "You can use `ifact templates` to list the available plugin templates provided by iPlug2.",
-    "You can create a new plugin within the project by using `ifact create <template> [name]`. The name is the internal code name so it may not contain spaces or special characters."
+    "You can create a new plugin within the project by using `ifact create <template> <name>`. The name is the internal code name so it may not contain spaces or special characters."
   ],
   "ui": [
     "iPlug2's UI/graphics framework is IGraphics, and the on-screen UI pieces you attach to it are \"controls,\" i.e., classes that derive from IControl. For more details and advanced features inspect iPlug2/IGraphics.",
