@@ -112,6 +112,23 @@ const loadSettings = () => {
   }
 };
 
+const getAgentVersion = (filePath) => {
+  try {
+    if (!fs.existsSync(filePath)) {
+      return null;
+    }
+    const firstLine = fs.readFileSync(filePath, "utf8").split(/\r?\n/)[0] || "";
+    const match = firstLine.match(/Version\s+(\d+)/i);
+    if (!match) {
+      return null;
+    }
+    const parsed = Number.parseInt(match[1], 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  } catch (error) {
+    return null;
+  }
+};
+
 const copyAgentInstructions = (projectPath) => {
   if (!projectPath) {
     return;
@@ -120,6 +137,16 @@ const copyAgentInstructions = (projectPath) => {
   const destPath = path.join(projectPath, "AGENTS.md");
   if (!fs.existsSync(sourcePath)) {
     return;
+  }
+  const sourceVersion = getAgentVersion(sourcePath);
+  if (fs.existsSync(destPath)) {
+    const destVersion = getAgentVersion(destPath);
+    if (!destVersion) {
+      return;
+    }
+    if (sourceVersion !== null && sourceVersion <= destVersion) {
+      return;
+    }
   }
   try {
     fs.copyFileSync(sourcePath, destPath);
@@ -1158,6 +1185,7 @@ const registerIpc = () => {
       if (!fs.existsSync(projectPath)) {
         return { error: "path_not_found" };
       }
+      copyAgentInstructions(projectPath);
       const iPlugPath = path.join(projectPath, "iPlug2");
       const needsIPlug = !fs.existsSync(iPlugPath);
       let needsDependencies = false;
