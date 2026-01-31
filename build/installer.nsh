@@ -32,13 +32,13 @@
   Delete "$INSTDIR\ifact.cmd"
   ReadRegStr $1 HKCU "Environment" "Path"
   StrCpy $2 "$INSTDIR\cli"
-  ${StrRep} $1 $1 "$2;" ""
-  ${StrRep} $1 $1 ";$2" ""
-  ${StrRep} $1 $1 "$2" ""
-  ${StrStr} $3 $1 ";;"
+  ${un.StrRep} $1 $1 "$2;" ""
+  ${un.StrRep} $1 $1 ";$2" ""
+  ${un.StrRep} $1 $1 "$2" ""
+  ${un.StrStr} $3 $1 ";;"
   ${DoWhile} $3 != ""
-    ${StrRep} $1 $1 ";;" ";"
-    ${StrStr} $3 $1 ";;"
+    ${un.StrRep} $1 $1 ";;" ";"
+    ${un.StrStr} $3 $1 ";;"
   ${Loop}
   WriteRegExpandStr HKCU "Environment" "Path" $1
   SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
