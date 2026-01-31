@@ -1,8 +1,6 @@
 !include "LogicLib.nsh"
 !include "StrFunc.nsh"
-
-${StrStr}
-${StrRep}
+!include "WordFunc.nsh"
 
 !macro customInstall
   FileOpen $0 "$INSTDIR\ifact.cmd" "w"
@@ -12,25 +10,36 @@ ${StrRep}
 
   ReadRegStr $1 HKCU "Environment" "Path"
   StrCpy $2 "$INSTDIR\cli"
-  ${StrStr} $3 $1 $2
-  ${If} $3 == ""
-    ${If} $1 == ""
-      StrCpy $4 "$2"
-    ${Else}
-      StrCpy $4 "$1;$2"
-    ${EndIf}
-    WriteRegExpandStr HKCU "Environment" "Path" $4
-    SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
+  ${If} $1 == ""
+    StrCpy $4 "$2"
+  ${Else}
+    StrCpy $4 "$1;$2"
   ${EndIf}
+  StrCpy $5 "$4"
+  ${StrStr} $6 $5 ";;"
+  ${DoWhile} $6 != ""
+    ${StrRep} $5 $5 ";;" ";"
+    ${StrStr} $6 $5 ";;"
+  ${Loop}
+  Push $5
+  Call PathUnique
+  Pop $5
+  WriteRegExpandStr HKCU "Environment" "Path" $5
+  SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
 !macroend
 
 !macro customUnInstall
   Delete "$INSTDIR\ifact.cmd"
   ReadRegStr $1 HKCU "Environment" "Path"
-  StrCpy $2 "$INSTDIR"
+  StrCpy $2 "$INSTDIR\cli"
   ${StrRep} $1 $1 "$2;" ""
   ${StrRep} $1 $1 ";$2" ""
   ${StrRep} $1 $1 "$2" ""
+  ${StrStr} $3 $1 ";;"
+  ${DoWhile} $3 != ""
+    ${StrRep} $1 $1 ";;" ";"
+    ${StrStr} $3 $1 ";;"
+  ${Loop}
   WriteRegExpandStr HKCU "Environment" "Path" $1
   SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
 !macroend
