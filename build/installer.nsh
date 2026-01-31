@@ -1,7 +1,6 @@
 !include "LogicLib.nsh"
 !include "StrFunc.nsh"
 
-${StrStr}
 ${UnStrRep}
 ${UnStrStr}
 
@@ -13,16 +12,13 @@ ${UnStrStr}
 
   ReadRegStr $1 HKCU "Environment" "Path"
   StrCpy $2 "$INSTDIR\cli"
-  ${StrStr} $3 $1 $2
-  ${If} $3 == ""
-    ${If} $1 == ""
-      StrCpy $4 "$2"
-    ${Else}
-      StrCpy $4 "$1;$2"
-    ${EndIf}
-    WriteRegExpandStr HKCU "Environment" "Path" $4
-    SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
+  ${If} $1 == ""
+    StrCpy $4 "$2"
+  ${Else}
+    StrCpy $4 "$1;$2"
   ${EndIf}
+  WriteRegExpandStr HKCU "Environment" "Path" $4
+  SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
 !macroend
 
 !macro customUnInstall
