@@ -6,20 +6,26 @@ const rootDir = path.resolve(__dirname, "..");
 const cliOutDir = path.join(rootDir, "build", "cli");
 fs.mkdirSync(cliOutDir, { recursive: true });
 
-const pkgBin = path.join(
+const pkgLocal = path.join(
   rootDir,
   "node_modules",
   ".bin",
   process.platform === "win32" ? "pkg.cmd" : "pkg",
 );
+const pkgBin = fs.existsSync(pkgLocal)
+  ? pkgLocal
+  : (process.platform === "win32" ? "npx.cmd" : "npx");
 const outputPath = path.join(cliOutDir, process.platform === "win32" ? "ifact.exe" : "ifact");
 const entryPath = path.join(rootDir, "ifact.js");
 
-const result = spawnSync(
-  pkgBin,
-  ["-t", "node20-win-x64", "-o", outputPath, entryPath],
-  { stdio: "inherit" },
-);
+const pkgArgs =
+  pkgBin.toLowerCase().includes("npx")
+    ? ["pkg", "-t", process.env.IFACT_PKG_TARGET || "node18-win-x64", "-o", outputPath, entryPath]
+    : ["-t", process.env.IFACT_PKG_TARGET || "node18-win-x64", "-o", outputPath, entryPath];
+const result = spawnSync(pkgBin, pkgArgs, { stdio: "inherit" });
+if (result.error) {
+  console.error(result.error);
+}
 if (result.status !== 0) {
   process.exit(result.status ?? 1);
 }
