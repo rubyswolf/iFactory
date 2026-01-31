@@ -1,7 +1,7 @@
 {
   "name": "ifactory",
   "productName": "iFactory",
-  "version": "0.1.23",
+  "version": "0.1.24",
   "description": "Build plugins with the iPlug2 framework, Codex and GitHub all in one integrated environment",
   "author": "Dart Spark",
   "license": "UNLICENSED",
@@ -30,8 +30,7 @@
     ],
     "nsis": {
       "include": "build/installer.nsh",
-      "createDesktopShortcut": false,
-      "buildUninstaller": true
+      "createDesktopShortcut": false
     },
     "beforeBuild": "scripts/before-build.js"
   },
