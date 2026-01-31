@@ -1,16 +1,42 @@
 !include "LogicLib.nsh"
+!include "StrFunc.nsh"
+
+${StrStr}
+${StrRep}
+${UnStrStr}
+${UnStrRep}
 
 !macro customInstall
   FileOpen $0 "$INSTDIR\ifact.cmd" "w"
   FileWrite $0 "@echo off$\r$\n"
   FileWrite $0 "$\"$INSTDIR\\cli\\ifact.exe$\" %*$\r$\n"
   FileClose $0
-  ExecWait '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command "$$p=[Environment]::GetEnvironmentVariable($\'Path$\',$\'User$\'); $$add=$\'$INSTDIR\\cli$\' ; if ([string]::IsNullOrWhiteSpace($$p)) { $$p=$$add } elseif ($$p -notmatch [regex]::Escape($$add)) { $$p=$$p + $\' ; $\' + $$add }; [Environment]::SetEnvironmentVariable($\'Path$\', $$p, $\'User$\')"'
+  ReadRegStr $1 HKCU "Environment" "Path"
+  StrCpy $2 "$INSTDIR\cli"
+  ${StrStr} $3 $1 $2
+  ${If} $3 == ""
+    ${If} $1 == ""
+      StrCpy $4 "$2"
+    ${Else}
+      StrCpy $4 "$1;$2"
+    ${EndIf}
+    WriteRegExpandStr HKCU "Environment" "Path" $4
+  ${EndIf}
   SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
 !macroend
 
 !macro customUnInstall
   Delete "$INSTDIR\ifact.cmd"
-  ExecWait '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command "$$p=[Environment]::GetEnvironmentVariable($\'Path$\',$\'User$\') -split $\' ; $\'; $$p=$$p | Where-Object { $$_ -and $$_ -ne $\'$INSTDIR\\cli$\' }; [Environment]::SetEnvironmentVariable($\'Path$\', ($$p -join $\' ; $\'), $\'User$\')"'
+  ReadRegStr $1 HKCU "Environment" "Path"
+  StrCpy $2 "$INSTDIR\cli"
+  ${UnStrRep} $1 $1 "$2;" ""
+  ${UnStrRep} $1 $1 ";$2" ""
+  ${UnStrRep} $1 $1 "$2" ""
+  ${UnStrStr} $3 $1 ";;"
+  ${DoWhile} $3 != ""
+    ${UnStrRep} $1 $1 ";;" ";"
+    ${UnStrStr} $3 $1 ";;"
+  ${Loop}
+  WriteRegExpandStr HKCU "Environment" "Path" $1
   SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
 !macroend
