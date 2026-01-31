@@ -408,6 +408,27 @@
                     />
                   </div>
                   <div class="template-list" data-template-list></div>
+                  <div class="template-graphics">
+                    <label class="field">
+                      <span>Graphics backend</span>
+                      <div class="source-toggle graphics-toggle">
+                        <button
+                          class="ghost is-active"
+                          type="button"
+                          data-graphics-option="skia"
+                        >
+                          SKIA
+                        </button>
+                        <button
+                          class="ghost"
+                          type="button"
+                          data-graphics-option="nanovg"
+                        >
+                          NanoVG
+                        </button>
+                      </div>
+                    </label>
+                  </div>
                   <div class="template-name" data-template-name-section>
                     <label class="field">
                       <span>Name your plugin</span>
@@ -517,6 +538,15 @@
           type="button"
         >
           <span class="window-icon">&#x2715;</span>
+        </button>
+      </div>
+
+      <div class="graphics-menu" data-graphics-menu hidden>
+        <button class="graphics-menu__item" type="button" data-graphics-choice="SKIA">
+          <span>SKIA</span>
+        </button>
+        <button class="graphics-menu__item" type="button" data-graphics-choice="NANOVG">
+          <span>NanoVG</span>
         </button>
       </div>
     </div>

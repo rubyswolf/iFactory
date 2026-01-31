@@ -100,6 +100,10 @@ contextBridge.exposeInMainWorld("ifactory", {
   resource: {
     add: (payload) => ipcRenderer.invoke("resource:add", payload)
   },
+  graphics: {
+    set: (payload) => ipcRenderer.invoke("graphics:set", payload),
+    get: (payload) => ipcRenderer.invoke("graphics:get", payload)
+  },
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
   dialog: {
     selectFolder: () => ipcRenderer.invoke("dialog:selectFolder")

@@ -23,6 +23,8 @@ const {
   listTemplatesForProject,
   addResourceToPlugin,
   listProjectItems,
+  detectGraphicsBackend,
+  setGraphicsBackend,
   runDoxygenGenerate,
   runDoxygenFind,
   runDoxygenLookup,
@@ -1374,6 +1376,31 @@ const registerIpc = () => {
       });
     } catch (error) {
       return { error: "resource_failed" };
+    }
+  });
+  ipcMain.handle("graphics:set", async (event, payload) => {
+    try {
+      const projectPath = payload?.projectPath?.trim();
+      const pluginName = payload?.pluginName?.trim();
+      const backend = payload?.backend?.trim();
+      if (!projectPath || !pluginName || !backend) {
+        return { error: "missing_fields" };
+      }
+      return setGraphicsBackend(projectPath, pluginName, backend);
+    } catch (error) {
+      return { error: "graphics_failed" };
+    }
+  });
+  ipcMain.handle("graphics:get", async (event, payload) => {
+    try {
+      const projectPath = payload?.projectPath?.trim();
+      const pluginName = payload?.pluginName?.trim();
+      if (!projectPath || !pluginName) {
+        return { error: "missing_fields" };
+      }
+      return detectGraphicsBackend(projectPath, pluginName);
+    } catch (error) {
+      return { error: "graphics_failed" };
     }
   });
   ipcMain.handle("window:minimize", (event) => {

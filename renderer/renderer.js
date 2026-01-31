@@ -80,11 +80,18 @@ const setupProjectManager = () => {
   const templateStatusEl = document.querySelector("[data-template-status]");
   const templateSearchInput = document.querySelector("[data-template-search]");
   const templateListEl = document.querySelector("[data-template-list]");
+  const graphicsOptionButtons = document.querySelectorAll(
+    "[data-graphics-option]"
+  );
   const templateContinueButton = document.querySelector(
     "[data-template-continue]"
   );
   const templateNameInput = document.querySelector("[data-template-name]");
   const recentListEl = document.querySelector("[data-recent-list]");
+  const graphicsMenu = document.querySelector("[data-graphics-menu]");
+  const graphicsMenuItems = graphicsMenu
+    ? graphicsMenu.querySelectorAll("[data-graphics-choice]")
+    : [];
 
   if (
     !gitSection ||
@@ -103,10 +110,13 @@ const setupProjectManager = () => {
   let gitChecking = false;
   let templatesData = [];
   let selectedTemplate = "";
+  let selectedGraphics = "SKIA";
   let aiView = "agent";
   let activeProjectItem = "";
   let projectItems = [];
   let sidebarHoverLock = false;
+  let graphicsMenuTarget = "";
+  let graphicsMenuBackend = "";
 
   const sanitizeTemplateName = (value) => value.replace(/[^a-zA-Z0-9]/g, "");
   const getProjectPath = () =>
@@ -117,6 +127,62 @@ const setupProjectManager = () => {
     }
     const nameValue = templateNameInput?.value.trim() || "";
     templateContinueButton.disabled = !selectedTemplate || !nameValue;
+  };
+
+  const setGraphicsSelection = (value) => {
+    selectedGraphics = value;
+    graphicsOptionButtons.forEach((button) => {
+      const option = String(button.dataset.graphicsOption || "").toLowerCase();
+      const isActive = option === value.toLowerCase();
+      button.classList.toggle("is-active", isActive);
+    });
+  };
+
+  const setGraphicsMenuActive = (backend) => {
+    graphicsMenuBackend = backend;
+    graphicsMenuItems.forEach((button) => {
+      const option = String(button.dataset.graphicsChoice || "").toUpperCase();
+      button.classList.toggle("is-active", option === backend);
+    });
+  };
+
+  const closeGraphicsMenu = () => {
+    if (!graphicsMenu) {
+      return;
+    }
+    graphicsMenu.hidden = true;
+    graphicsMenuTarget = "";
+    graphicsMenuBackend = "";
+  };
+
+  const openGraphicsMenu = async (event, pluginName) => {
+    if (!graphicsMenu) {
+      return;
+    }
+    graphicsMenuTarget = pluginName;
+    graphicsMenu.hidden = true;
+    setGraphicsMenuActive("NANOVG");
+    const { innerWidth, innerHeight } = window;
+    const menuRect = graphicsMenu.getBoundingClientRect();
+    const offsetX = Math.min(event.clientX, innerWidth - menuRect.width - 12);
+    const offsetY = Math.min(event.clientY, innerHeight - menuRect.height - 12);
+    graphicsMenu.style.left = `${Math.max(12, offsetX)}px`;
+    graphicsMenu.style.top = `${Math.max(12, offsetY)}px`;
+    if (window.ifactory?.graphics?.get) {
+      const projectPath = getProjectPath();
+      try {
+        const result = await window.ifactory.graphics.get({
+          projectPath,
+          pluginName
+        });
+        if (result?.backend) {
+          setGraphicsMenuActive(String(result.backend).toUpperCase());
+        }
+      } catch (error) {
+        setGraphicsMenuActive("NANOVG");
+      }
+    }
+    graphicsMenu.hidden = false;
   };
 
   const updateCreateSubmit = () => {
@@ -226,6 +292,7 @@ const setupProjectManager = () => {
     if (view === "doxygen") {
       checkDoxygen();
     }
+    closeGraphicsMenu();
     closeResourceDialog();
   };
 
@@ -412,6 +479,88 @@ const setupProjectManager = () => {
       event.stopPropagation();
       sidebarDragDepth = 0;
       setSidebarDragHover(false);
+    });
+  }
+
+  document.addEventListener(
+    "contextmenu",
+    async (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+      const item = target.closest("[data-project-item]");
+      if (!item || item.dataset.itemType !== "plugin") {
+        if (graphicsMenu && !graphicsMenu.hidden) {
+          closeGraphicsMenu();
+        }
+        return;
+      }
+      event.preventDefault();
+      const pluginName = item.dataset.projectItem || "";
+      if (!pluginName) {
+        return;
+      }
+      await openGraphicsMenu(event, pluginName);
+    },
+    true
+  );
+
+  if (graphicsMenu) {
+    graphicsMenuItems.forEach((button) => {
+      button.addEventListener("click", async () => {
+        if (!graphicsMenuTarget || !window.ifactory?.graphics?.set) {
+          closeGraphicsMenu();
+          return;
+        }
+        const backend = String(
+          button.dataset.graphicsChoice || ""
+        ).toUpperCase();
+        if (!backend) {
+          closeGraphicsMenu();
+          return;
+        }
+        if (backend === graphicsMenuBackend) {
+          closeGraphicsMenu();
+          return;
+        }
+        const projectPath = getProjectPath();
+        try {
+          const result = await window.ifactory.graphics.set({
+            projectPath,
+            pluginName: graphicsMenuTarget,
+            backend
+          });
+          if (!result?.error) {
+            setGraphicsMenuActive(backend);
+          }
+        } catch (error) {
+          // ignore failures
+        }
+        closeGraphicsMenu();
+      });
+    });
+    document.addEventListener("click", (event) => {
+      if (!graphicsMenu || graphicsMenu.hidden) {
+        return;
+      }
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        closeGraphicsMenu();
+        return;
+      }
+      if (graphicsMenu.contains(target)) {
+        return;
+      }
+      closeGraphicsMenu();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        closeGraphicsMenu();
+      }
+    });
+    window.addEventListener("blur", () => {
+      closeGraphicsMenu();
     });
   }
 
@@ -851,6 +1000,7 @@ const setupProjectManager = () => {
       templateSearchInput.value = "";
     }
     selectedTemplate = "";
+    setGraphicsSelection("SKIA");
     if (templateNameInput) {
       templateNameInput.value = "";
     }
@@ -1050,6 +1200,7 @@ const setupProjectManager = () => {
     setAiNeedsAgent(false);
     document.body.removeAttribute("data-ai-view");
     activeProjectItem = "";
+    closeGraphicsMenu();
     updateSetupState();
   };
 
@@ -1331,11 +1482,22 @@ const setupProjectManager = () => {
       setAiNeedsAgent(false);
       document.body.removeAttribute("data-ai-view");
       activeProjectItem = "";
+      closeGraphicsMenu();
       updateSetupState();
     });
   });
   if (templateSearchInput) {
     templateSearchInput.addEventListener("input", renderTemplates);
+  }
+  if (graphicsOptionButtons.length) {
+    graphicsOptionButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const option = String(
+          button.dataset.graphicsOption || "skia"
+        ).toUpperCase();
+        setGraphicsSelection(option);
+      });
+    });
   }
   if (templateNameInput) {
     templateNameInput.addEventListener("input", () => {
@@ -1386,6 +1548,24 @@ const setupProjectManager = () => {
                 : "Unable to create the plugin.";
           installApi.setStatus?.(message, "error");
           return;
+        }
+      if (
+        selectedGraphics === "SKIA" &&
+        window.ifactory?.graphics?.set
+      ) {
+        installApi.updateProgress?.(0.85, "Switching graphics to SKIA...");
+        const graphicsResult = await window.ifactory.graphics.set({
+          projectPath,
+          pluginName,
+          backend: "SKIA"
+        });
+        if (graphicsResult?.error) {
+          installApi.setStatus?.(
+            "Unable to switch graphics backend.",
+            "error"
+          );
+          return;
+        }
       }
       installApi.updateProgress?.(1, "Finished");
       await loadProjectItems(projectPath);
