@@ -2,8 +2,10 @@
 !include "StrFunc.nsh"
 !include "WordFunc.nsh"
 
+!ifdef BUILD_UNINSTALLER
 ${UnStrRep}
 ${UnStrStr}
+!endif
 
 !macro customInstall
   FileOpen $0 "$INSTDIR\ifact.cmd" "w"
@@ -25,6 +27,7 @@ ${UnStrStr}
   SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
 !macroend
 
+!ifdef BUILD_UNINSTALLER
 !macro customUnInstall
   Delete "$INSTDIR\ifact.cmd"
   ReadRegStr $1 HKCU "Environment" "Path"
@@ -40,3 +43,7 @@ ${UnStrStr}
   WriteRegExpandStr HKCU "Environment" "Path" $1
   SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
 !macroend
+!else
+!macro customUnInstall
+!macroend
+!endif
