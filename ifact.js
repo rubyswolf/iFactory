@@ -3,13 +3,12 @@
 
 const fs = require("fs");
 const path = require("path");
-const { spawn } = require("child_process");
+const { spawnSync } = require("child_process");
 const core = require("./lib/ifact-core");
 
 const usage = (topics = []) => {
-  const topicList = Array.isArray(topics) && topics.length
-    ? topics.join("|")
-    : "<topic>";
+  const topicList =
+    Array.isArray(topics) && topics.length ? topics.join("|") : "<topic>";
   console.log("ifact <command>");
   console.log("");
   console.log("Commands:");
@@ -81,25 +80,84 @@ const loadInfoTopics = () => {
   }
 };
 
-const playLocalPingSound = () => {
-  const windir = process.env.WINDIR || "C:\\Windows";
-  const soundPath = path.join(windir, "Media", "Windows Hardware Fail.wav");
-  const command = `(New-Object Media.SoundPlayer '${soundPath.replace(/'/g, "''")}').PlaySync()`;
-  const powershellPath = path.join(
-    windir,
-    "System32",
-    "WindowsPowerShell",
-    "v1.0",
-    "powershell.exe",
-  );
-  try {
-    spawnSync(powershellPath, ["-NoProfile", "-Command", command], {
-      windowsHide: true,
-      stdio: "ignore",
-    });
-  } catch (error) {
-    // ignore failures
+const DEBUG = process.env.IFACT_DEBUG === "1";
+const debugLog = (...values) => {
+  if (DEBUG) {
+    console.log("[ifact:debug]", ...values);
   }
+};
+
+const resolvePowerShell = (windir) => {
+  const systemRoot = windir || "C:\\Windows";
+  const candidates = [
+    path.join(
+      systemRoot,
+      "System32",
+      "WindowsPowerShell",
+      "v1.0",
+      "powershell.exe",
+    ),
+    path.join(systemRoot, "System32", "powershell.exe"),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return "powershell.exe";
+};
+
+const runSync = (label, exe, args) => {
+  debugLog("ping attempt", label, exe, args.join(" "));
+  const result = spawnSync(exe, args, {
+    windowsHide: true,
+    stdio: "ignore",
+  });
+  if (result.error) {
+    debugLog("ping failed", label, result.error?.message || String(result.error));
+    return false;
+  }
+  debugLog("ping exit", label, result.status ?? 0);
+  return result.status === 0;
+};
+
+const runStartDetached = (label, windir, exe, args) => {
+  const cmd = path.join(windir, "System32", "cmd.exe");
+  const startArgs = ["/c", "start", "", "/min", exe, ...args];
+  return runSync(label, cmd, startArgs);
+};
+
+const playLocalPingSound = () => {
+  const windir = process.env.WINDIR || process.env.SystemRoot || "C:\\Windows";
+  const soundPath = path.join(windir, "Media", "Windows Hardware Fail.wav");
+  const hasSound = fs.existsSync(soundPath);
+  debugLog("ping sound", soundPath, hasSound ? "found" : "missing");
+
+  if (hasSound) {
+    const powershell = resolvePowerShell(windir);
+    const command = `[System.Media.SoundPlayer]::new('${soundPath.replace(/'/g, "''")}').PlaySync()`;
+    if (
+      runStartDetached("powershell-playsound-detached", windir, powershell, [
+        "-NoProfile",
+        "-WindowStyle",
+        "Hidden",
+        "-Command",
+        command,
+      ])
+    ) {
+      return;
+    }
+
+    const rundll = path.join(windir, "System32", "rundll32.exe");
+    const asyncFlags = "0x00020001";
+    const asyncArgs = ["winmm.dll,PlaySound", `${soundPath},${asyncFlags}`];
+    if (runSync("rundll32-playsound-async", rundll, asyncArgs)) {
+      return;
+    }
+  }
+
+  const rundll = path.join(windir, "System32", "rundll32.exe");
+  runSync("rundll32-messagebeep", rundll, ["user32.dll,MessageBeep", "0x10"]);
 };
 
 const requireProjectPath = () => {
@@ -235,7 +293,9 @@ const run = async (argv = process.argv) => {
       process.exit(1);
     }
     if (/[^a-zA-Z0-9 _]/.test(name)) {
-      console.error("Name may only include letters, numbers, spaces, or underscores.");
+      console.error(
+        "Name may only include letters, numbers, spaces, or underscores.",
+      );
       process.exit(1);
     }
     const projectPath = requireProjectPath();
@@ -428,4 +488,3 @@ if (require.main === module) {
 }
 
 module.exports = { run };
-
