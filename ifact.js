@@ -80,13 +80,6 @@ const loadInfoTopics = () => {
   }
 };
 
-const DEBUG = process.env.IFACT_DEBUG === "1";
-const debugLog = (...values) => {
-  if (DEBUG) {
-    console.log("[ifact:debug]", ...values);
-  }
-};
-
 const resolvePowerShell = (windir) => {
   const systemRoot = windir || "C:\\Windows";
   const candidates = [
@@ -108,16 +101,13 @@ const resolvePowerShell = (windir) => {
 };
 
 const runSync = (label, exe, args) => {
-  debugLog("ping attempt", label, exe, args.join(" "));
   const result = spawnSync(exe, args, {
     windowsHide: true,
     stdio: "ignore",
   });
   if (result.error) {
-    debugLog("ping failed", label, result.error?.message || String(result.error));
     return false;
   }
-  debugLog("ping exit", label, result.status ?? 0);
   return result.status === 0;
 };
 
@@ -131,8 +121,6 @@ const playLocalPingSound = () => {
   const windir = process.env.WINDIR || process.env.SystemRoot || "C:\\Windows";
   const soundPath = path.join(windir, "Media", "Windows Hardware Fail.wav");
   const hasSound = fs.existsSync(soundPath);
-  debugLog("ping sound", soundPath, hasSound ? "found" : "missing");
-
   if (hasSound) {
     const powershell = resolvePowerShell(windir);
     const command = `[System.Media.SoundPlayer]::new('${soundPath.replace(/'/g, "''")}').PlaySync()`;

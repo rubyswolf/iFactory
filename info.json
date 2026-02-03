@@ -26,7 +26,7 @@
     "Use targetScale > 0 to explicity load e.g. an @2x.png"
   ],
   "ui controls": [
-    "If you want make a new control outside of what is built into IGraphics or make a modified version of an existing control then you find a tutorial on how to make your own control with `ifact info ui control custom`",
+    "If you want make a new control outside of what is built into IGraphics or make a modified version of an existing control then you find a tutorial on how to make your own control with `ifact info ui controls custom`",
     "Use your Doxygen lookup command to look further into any controls you wish to use or learn from.",
     "Controls are broken into 3 categories based on prefix:",
     "'IV': These these controls render with default builtin vectors, they're functional but often not the prettiest.",
