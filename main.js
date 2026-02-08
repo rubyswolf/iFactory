@@ -625,6 +625,26 @@ const installDoxygen = async (event) => {
   }
 };
 
+const removeDoxygen = () => {
+  const installDir = getDoxygenInstallDir();
+  try {
+    if (fs.existsSync(installDir)) {
+      fs.rmSync(installDir, { recursive: true, force: true });
+    }
+    settings.dependencies.doxygen = {
+      ...settings.dependencies.doxygen,
+      installed: false,
+      path: "",
+      version: "",
+      checkedAt: new Date().toISOString(),
+    };
+    saveSettings();
+    return { removed: true };
+  } catch (error) {
+    return { error: "doxygen_remove_failed", details: error?.message || "" };
+  }
+};
+
 const checkBuildToolsInstalled = () => {
   const programFilesX86 =
     process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
@@ -876,6 +896,7 @@ const registerIpc = () => {
     }
     return result;
   });
+  ipcMain.handle("doxygen:remove", () => removeDoxygen());
   ipcMain.handle("build:run", async (event, payload) => {
     if (activeBuild) {
       return { error: "build_in_progress" };

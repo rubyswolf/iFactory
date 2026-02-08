@@ -39,6 +39,7 @@ contextBridge.exposeInMainWorld("ifactory", {
   doxygen: {
     check: () => ipcRenderer.invoke("doxygen:check"),
     install: () => ipcRenderer.invoke("doxygen:install"),
+    remove: () => ipcRenderer.invoke("doxygen:remove"),
     onProgress: (callback) => {
       if (typeof callback !== "function") {
         return () => {};

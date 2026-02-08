@@ -777,7 +777,7 @@ body.is-ai[data-ai-view="agent"] .ai-chat {
 body.is-ai[data-ai-view="agent"] .ai-view[data-ai-view="agent"],
 body.is-ai[data-ai-view="templates"] .ai-view[data-ai-view="templates"],
 body.is-ai[data-ai-view="git"] .ai-view[data-ai-view="git"],
-body.is-ai[data-ai-view="doxygen"] .ai-view[data-ai-view="doxygen"] {
+body.is-ai[data-ai-view="addons"] .ai-view[data-ai-view="addons"] {
   display: flex;
 }
 
@@ -816,17 +816,145 @@ body.is-ai:not(.ai-needs-agent) .prompt-dock {
 }
 
 
-.doxygen-panel {
-  width: min(760px, 100%);
+.addons-panel {
+  width: min(980px, 100%);
+  max-height: calc(100vh - 108px);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 18px;
 }
 
-.doxygen-ready {
-  margin-top: 16px;
-  padding: 12px 14px;
+.addons-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.addons-filter {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.addons-filter-btn {
+  padding: 8px 14px;
+  font-size: 11px;
+}
+
+.addons-filter-btn.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(179, 255, 0, 0.1);
+}
+
+.addons-list {
+  display: grid;
+  gap: 12px;
+  overflow-y: auto;
+  padding-right: 6px;
+  align-content: start;
+}
+
+.addon-card {
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    radial-gradient(
+      circle at 5% 18%,
+      rgba(179, 255, 0, 0.14),
+      transparent 42%
+    ),
+    linear-gradient(145deg, rgba(18, 28, 42, 0.95), rgba(9, 15, 24, 0.92));
+  box-shadow: 0 16px 30px rgba(5, 8, 14, 0.35);
+  padding: 16px 18px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 16px;
+  align-items: center;
+}
+
+.addon-card__icon {
+  width: 48px;
+  height: 48px;
   border-radius: 12px;
-  border: 1px solid rgba(179, 255, 0, 0.2);
-  background: rgba(179, 255, 0, 0.08);
-  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(8, 12, 18, 0.6);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.addon-card__icon img {
+  width: 30px;
+  height: 30px;
+}
+
+.addon-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.addon-card__title-row h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 19px;
+}
+
+.addon-card__pill {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 4px 9px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.addon-card__pill.is-installed {
+  border-color: rgba(179, 255, 0, 0.35);
+  color: var(--accent);
+  background: rgba(179, 255, 0, 0.12);
+}
+
+.addon-card__pill.is-working {
+  border-color: rgba(71, 213, 255, 0.35);
+  color: var(--teal-strong);
+  background: rgba(71, 213, 255, 0.12);
+}
+
+.addon-card__desc {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.addon-card__status {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.addon-card__status.is-error {
+  color: #ff9f9f;
+}
+
+.addon-card__action {
+  min-width: 108px;
+}
+
+.addon-empty {
+  border-radius: 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  background: rgba(8, 12, 18, 0.55);
+  padding: 20px 18px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 
@@ -2143,6 +2271,28 @@ body.is-ai .titlebar-group--ai {
 
   .install-panel {
     width: 100%;
+  }
+
+  .addons-panel {
+    max-height: none;
+  }
+
+  .addons-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .addons-filter {
+    justify-content: flex-start;
+  }
+
+  .addon-card {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .addon-card__action {
+    width: fit-content;
   }
 
   .home-actions {

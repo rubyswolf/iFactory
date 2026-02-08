@@ -338,9 +338,9 @@
                   <img src="../icons/github.svg" alt="Desktop" />
                   <span class="ai-nav-label">Desktop</span>
                 </button>
-                <button class="ai-nav-item" type="button" data-ai-nav="doxygen">
-                  <img src="../icons/doxygen.svg" alt="Doxygen" />
-                  <span class="ai-nav-label">Doxygen</span>
+                <button class="ai-nav-item" type="button" data-ai-nav="addons">
+                  <img src="../icons/addons.svg" alt="Addons" />
+                  <span class="ai-nav-label">Addons</span>
                 </button>
               </div>
               <div class="project-sidebar-center">
@@ -456,29 +456,41 @@
                   </div>
                 </section>
               </div>
-              <div class="ai-view" data-ai-view="doxygen">
-                <section class="panel doxygen-panel reveal">
-                  <div class="eyebrow">Doxygen</div>
-                  <h2>Doxygen documentation.</h2>
-                  <p class="card-meta" data-doxygen-status>
-                    Checking for Doxygen...
-                  </p>
-                  <div class="agent-instructions" data-doxygen-instructions>
-                    <div class="instruction-title">Install Doxygen</div>
-                    <ol class="instruction-list">
-                      <li>Download the latest Doxygen release.</li>
-                      <li>Extract it into your iFactory tools folder.</li>
-                      <li>Continue once installation completes.</li>
-                    </ol>
+              <div class="ai-view" data-ai-view="addons">
+                <section class="panel addons-panel reveal">
+                  <div class="addons-header">
+                    <div>
+                      <div class="eyebrow">Addons</div>
+                      <h2>Manage optional addons.</h2>
+                      <p class="card-meta">
+                        Install and manage extra tooling available in iFactory.
+                      </p>
+                    </div>
+                    <div class="addons-filter" role="tablist" aria-label="Addon filter">
+                      <button
+                        class="ghost addons-filter-btn"
+                        type="button"
+                        data-addon-filter="all"
+                      >
+                        All
+                      </button>
+                      <button
+                        class="ghost addons-filter-btn"
+                        type="button"
+                        data-addon-filter="installed"
+                      >
+                        Installed
+                      </button>
+                      <button
+                        class="ghost addons-filter-btn is-active"
+                        type="button"
+                        data-addon-filter="not-installed"
+                      >
+                        Not installed
+                      </button>
+                    </div>
                   </div>
-                  <div class="connect-actions">
-                    <button class="cta" type="button" data-doxygen-install>
-                      Install Doxygen
-                    </button>
-                  </div>
-                  <div class="doxygen-ready" data-doxygen-ready hidden>
-                    Doxygen installed.
-                  </div>
+                  <div class="addons-list" data-addon-list></div>
                 </section>
               </div>
               <div class="resource-dialog" data-resource-dialog hidden>

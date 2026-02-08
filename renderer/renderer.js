@@ -57,7 +57,7 @@ const setupProjectManager = () => {
   const createErrorEl = document.querySelector("[data-create-error]");
   const homeButtons = document.querySelectorAll("[data-action-home]");
   const agentNavButton = document.querySelector("[data-ai-nav=\"agent\"]");
-  const doxygenNavButton = document.querySelector("[data-ai-nav=\"doxygen\"]");
+  const addonsNavButton = document.querySelector("[data-ai-nav=\"addons\"]");
   const createNavButton = document.querySelector("[data-ai-create]");
   const projectItemsEl = document.querySelector("[data-project-items]");
   const projectSidebar = document.querySelector(".project-sidebar");
@@ -72,10 +72,8 @@ const setupProjectManager = () => {
     "[data-open-github-desktop]"
   );
   const openCodeButton = document.querySelector("[data-open-code]");
-  const doxygenStatusEl = document.querySelector("[data-doxygen-status]");
-  const doxygenInstallButton = document.querySelector("[data-doxygen-install]");
-  const doxygenReadyEl = document.querySelector("[data-doxygen-ready]");
-  const doxygenInstructions = document.querySelector("[data-doxygen-instructions]");
+  const addonListEl = document.querySelector("[data-addon-list]");
+  const addonFilterButtons = document.querySelectorAll("[data-addon-filter]");
   const templateTitleEl = document.querySelector("[data-template-title]");
   const templateStatusEl = document.querySelector("[data-template-status]");
   const templateSearchInput = document.querySelector("[data-template-search]");
@@ -269,8 +267,8 @@ const setupProjectManager = () => {
     if (agentNavButton) {
       agentNavButton.classList.toggle("is-active", aiView === "agent");
     }
-    if (doxygenNavButton) {
-      doxygenNavButton.classList.toggle("is-active", aiView === "doxygen");
+    if (addonsNavButton) {
+      addonsNavButton.classList.toggle("is-active", aiView === "addons");
     }
     if (createNavButton) {
       createNavButton.classList.toggle("is-active", aiView === "templates");
@@ -289,7 +287,7 @@ const setupProjectManager = () => {
     document.body.dataset.aiView = view;
     setAi(true);
     updateSidebarActive();
-    if (view === "doxygen") {
+    if (view === "addons") {
       checkDoxygen();
     }
     closeGraphicsMenu();
@@ -301,45 +299,224 @@ const setupProjectManager = () => {
     updateSidebarActive();
   };
 
+  const addonFilterValues = new Set(["all", "installed", "not-installed"]);
+  let addonFilter = "not-installed";
   let doxygenInstalled = false;
   let doxygenChecking = false;
+  let doxygenWorking = false;
+  let doxygenError = "";
 
-  const applyDoxygenState = (state) => {
-    doxygenInstalled = Boolean(state?.installed);
-    if (doxygenStatusEl) {
-      if (doxygenChecking) {
-        doxygenStatusEl.textContent = "Checking for Doxygen...";
-      } else if (doxygenInstalled) {
-        doxygenStatusEl.textContent = "Installed";
+  const updateAddonFilterButtons = () => {
+    addonFilterButtons.forEach((button) => {
+      const value = String(button.dataset.addonFilter || "");
+      button.classList.toggle("is-active", value === addonFilter);
+    });
+  };
+
+  const getAddonCards = () => [
+    {
+      key: "doxygen",
+      name: "Doxygen",
+      icon: "../icons/doxygen.svg",
+      description:
+        "Generate searchable iPlug2 docs and use symbol lookup with the iFactory CLI.",
+      installed: doxygenInstalled,
+      checking: doxygenChecking,
+      working: doxygenWorking,
+      error: doxygenError
+    }
+  ];
+
+  const getAddonStatusText = (addon) => {
+    if (addon.checking) {
+      return "Checking installation...";
+    }
+    if (addon.working) {
+      return addon.installed ? "Removing..." : "Installing...";
+    }
+    if (addon.error) {
+      return addon.error;
+    }
+    return addon.installed ? "Installed" : "Not installed";
+  };
+
+  const addonMatchesFilter = (addon) => {
+    if (addonFilter === "all") {
+      return true;
+    }
+    if (addonFilter === "installed") {
+      return addon.installed;
+    }
+    return !addon.installed;
+  };
+
+  const renderAddonList = () => {
+    if (!addonListEl) {
+      return;
+    }
+    addonListEl.innerHTML = "";
+    const visibleAddons = getAddonCards().filter(addonMatchesFilter);
+    if (!visibleAddons.length) {
+      const empty = document.createElement("div");
+      empty.className = "addon-empty";
+      if (addonFilter === "installed") {
+        empty.textContent = "No installed addons.";
+      } else if (addonFilter === "not-installed") {
+        empty.textContent = "No addons left to install.";
       } else {
-        doxygenStatusEl.textContent = "Not installed";
+        empty.textContent = "No addons available.";
       }
+      addonListEl.appendChild(empty);
+      return;
     }
-    if (doxygenInstallButton) {
-      doxygenInstallButton.disabled = doxygenChecking || doxygenInstalled;
+
+    visibleAddons.forEach((addon) => {
+      const statusText = getAddonStatusText(addon);
+      const card = document.createElement("article");
+      card.className = "addon-card";
+
+      const iconWrap = document.createElement("div");
+      iconWrap.className = "addon-card__icon";
+      const icon = document.createElement("img");
+      icon.src = addon.icon;
+      icon.alt = `${addon.name} icon`;
+      iconWrap.appendChild(icon);
+
+      const body = document.createElement("div");
+      const titleRow = document.createElement("div");
+      titleRow.className = "addon-card__title-row";
+
+      const title = document.createElement("h3");
+      title.textContent = addon.name;
+
+      const pill = document.createElement("span");
+      pill.className = "addon-card__pill";
+      if (addon.checking || addon.working) {
+        pill.classList.add("is-working");
+      } else if (addon.installed) {
+        pill.classList.add("is-installed");
+      }
+      pill.textContent = addon.installed ? "Installed" : "Not installed";
+
+      const description = document.createElement("p");
+      description.className = "addon-card__desc";
+      description.textContent = addon.description;
+
+      const status = document.createElement("p");
+      status.className = "addon-card__status";
+      if (addon.error) {
+        status.classList.add("is-error");
+      }
+      status.textContent = statusText;
+
+      titleRow.appendChild(title);
+      titleRow.appendChild(pill);
+      body.appendChild(titleRow);
+      body.appendChild(description);
+      body.appendChild(status);
+
+      const action = document.createElement("button");
+      action.type = "button";
+      action.className = `addon-card__action ${addon.installed ? "ghost" : "cta"}`;
+      action.dataset.addonAction = addon.key;
+      action.disabled = addon.checking || addon.working;
+      action.textContent = addon.installed ? "Remove" : "Install";
+
+      card.appendChild(iconWrap);
+      card.appendChild(body);
+      card.appendChild(action);
+      addonListEl.appendChild(card);
+    });
+  };
+
+  const setAddonFilter = (value) => {
+    if (!addonFilterValues.has(value)) {
+      return;
     }
-    if (doxygenInstructions) {
-      doxygenInstructions.hidden = doxygenInstalled;
-    }
-    if (doxygenReadyEl) {
-      doxygenReadyEl.hidden = !doxygenInstalled;
-    }
+    addonFilter = value;
+    updateAddonFilterButtons();
+    renderAddonList();
   };
 
   const checkDoxygen = async () => {
     if (!window.ifactory?.doxygen?.check) {
-      applyDoxygenState({ installed: false });
+      doxygenInstalled = false;
+      doxygenChecking = false;
+      renderAddonList();
       return;
     }
     doxygenChecking = true;
-    applyDoxygenState({ installed: false });
+    doxygenError = "";
+    renderAddonList();
     try {
       const result = await window.ifactory.doxygen.check();
+      doxygenInstalled = Boolean(result?.installed);
       doxygenChecking = false;
-      applyDoxygenState(result);
+      renderAddonList();
     } catch (error) {
+      doxygenInstalled = false;
       doxygenChecking = false;
-      applyDoxygenState({ installed: false });
+      doxygenError = "Unable to check installation.";
+      renderAddonList();
+    }
+  };
+
+  const installDoxygenAddon = async () => {
+    if (!window.ifactory?.doxygen?.install) {
+      return;
+    }
+    const installApi = getInstallApi();
+    doxygenWorking = true;
+    doxygenError = "";
+    renderAddonList();
+    installApi.setHeader?.("Installing", "Setting up Doxygen");
+    installApi.setStatus?.("");
+    installApi.start?.();
+    window.ifactoryInstall?.setCancelDisabled?.(true);
+    try {
+      const result = await window.ifactory.doxygen.install();
+      if (result?.error) {
+        doxygenError = result.details
+          ? `Install failed: ${result.details}`
+          : "Install failed. Try again.";
+        installApi.setStatus?.(doxygenError, "error");
+      } else {
+        doxygenError = "";
+        installApi.setStatus?.("Doxygen installed.", "success");
+      }
+    } catch (error) {
+      doxygenError = "Install failed. Try again.";
+      installApi.setStatus?.(doxygenError, "error");
+    } finally {
+      doxygenWorking = false;
+      installApi.stop?.();
+      window.ifactoryInstall?.setCancelDisabled?.(false);
+      window.ifactoryInstall?.resetHeader?.();
+      await checkDoxygen();
+    }
+  };
+
+  const removeDoxygenAddon = async () => {
+    if (!window.ifactory?.doxygen?.remove) {
+      return;
+    }
+    doxygenWorking = true;
+    doxygenError = "";
+    renderAddonList();
+    try {
+      const result = await window.ifactory.doxygen.remove();
+      if (result?.error) {
+        doxygenError = result.details
+          ? `Remove failed: ${result.details}`
+          : "Remove failed. Try again.";
+      } else {
+        doxygenError = "";
+      }
+    } catch (error) {
+      doxygenError = "Remove failed. Try again.";
+    } finally {
+      doxygenWorking = false;
+      await checkDoxygen();
     }
   };
 
@@ -1268,42 +1445,40 @@ const setupProjectManager = () => {
       await showProjectEditor("agent");
     });
   }
-  if (doxygenNavButton) {
-    doxygenNavButton.addEventListener("click", () => {
-      setAiView("doxygen");
+  if (addonsNavButton) {
+    addonsNavButton.addEventListener("click", () => {
+      setAiView("addons");
     });
   }
-  if (doxygenInstallButton) {
-    doxygenInstallButton.addEventListener("click", async () => {
-      if (!window.ifactory?.doxygen?.install) {
+  addonFilterButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const value = String(button.dataset.addonFilter || "");
+      setAddonFilter(value);
+    });
+  });
+  if (addonListEl) {
+    addonListEl.addEventListener("click", async (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
         return;
       }
-      const installApi = getInstallApi();
-      installApi.setHeader?.("Installing", "Setting up Doxygen");
-      installApi.setStatus?.("");
-      installApi.start?.();
-      window.ifactoryInstall?.setCancelDisabled?.(true);
-      try {
-        const result = await window.ifactory.doxygen.install();
-        if (result?.error) {
-          const message = result.details
-            ? `Installation failed: ${result.details}`
-            : "Installation failed. Check your settings and try again.";
-          installApi.setStatus?.(message, "error");
-          return;
-        }
-        installApi.setStatus?.("Doxygen installed.", "success");
-        doxygenInstalled = true;
-        applyDoxygenState({ installed: true });
-      } catch (error) {
-        installApi.setStatus?.("Installation failed. Check your settings and try again.", "error");
-      } finally {
-        installApi.stop?.();
-        window.ifactoryInstall?.setCancelDisabled?.(false);
-        window.ifactoryInstall?.resetHeader?.();
+      const actionButton = target.closest("[data-addon-action]");
+      if (!actionButton) {
+        return;
+      }
+      const addonKey = String(actionButton.dataset.addonAction || "");
+      if (addonKey !== "doxygen") {
+        return;
+      }
+      if (doxygenInstalled) {
+        await removeDoxygenAddon();
+      } else {
+        await installDoxygenAddon();
       }
     });
   }
+  updateAddonFilterButtons();
+  renderAddonList();
   if (openDesktopButton) {
     openDesktopButton.addEventListener("click", async () => {
       const projectPath = getProjectPath();
