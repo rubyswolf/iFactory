@@ -68,6 +68,11 @@ contextBridge.exposeInMainWorld("ifactory", {
     install: (payload) => ipcRenderer.invoke("edsp:install", payload),
     remove: (payload) => ipcRenderer.invoke("edsp:remove", payload)
   },
+  vst3: {
+    check: (payload) => ipcRenderer.invoke("vst3:check", payload),
+    install: (payload) => ipcRenderer.invoke("vst3:install", payload),
+    remove: (payload) => ipcRenderer.invoke("vst3:remove", payload)
+  },
   github: {
     listIPlugForks: () => ipcRenderer.invoke("github:listIPlugForks"),
     listRepoForks: (fullName) =>

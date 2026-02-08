@@ -73,6 +73,11 @@ const defaultSettings = {
       path: "",
       checkedAt: null,
     },
+    vst3: {
+      installed: false,
+      path: "",
+      checkedAt: null,
+    },
   },
   recentProjects: [],
 };
@@ -104,6 +109,9 @@ const mergeSettings = (settings) => {
   }
   if (settings?.dependencies?.edsp) {
     Object.assign(merged.dependencies.edsp, settings.dependencies.edsp);
+  }
+  if (settings?.dependencies?.vst3) {
+    Object.assign(merged.dependencies.vst3, settings.dependencies.vst3);
   }
   if (Array.isArray(settings?.recentProjects)) {
     merged.recentProjects = settings.recentProjects;
@@ -260,6 +268,9 @@ const downloadFile = (
             downloadFile(location, destPath, {
               headers,
               redirectCount: redirectCount + 1,
+              onProgress,
+              onRequest,
+              shouldAbort,
             }),
           );
         }
@@ -721,6 +732,196 @@ const removeProjectAddon = (projectPath, folderName) => {
   }
 };
 
+const VST3_REQUIRED_SUBMODULES = [
+  "pluginterfaces",
+  "base",
+  "public.sdk",
+  "cmake",
+  "vstgui4",
+];
+
+const parseGitmodulesByPath = (content) => {
+  const map = new Map();
+  if (!content) {
+    return map;
+  }
+  const lines = String(content).split(/\r?\n/);
+  let currentPath = "";
+  for (const line of lines) {
+    const sectionMatch = line.match(/^\s*\[submodule\s+"[^"]+"\]\s*$/);
+    if (sectionMatch) {
+      currentPath = "";
+      continue;
+    }
+    const pathMatch = line.match(/^\s*path\s*=\s*(.+)\s*$/);
+    if (pathMatch) {
+      currentPath = pathMatch[1].trim();
+      if (!map.has(currentPath)) {
+        map.set(currentPath, "");
+      }
+      continue;
+    }
+    const urlMatch = line.match(/^\s*url\s*=\s*(.+)\s*$/);
+    if (urlMatch && currentPath) {
+      map.set(currentPath, urlMatch[1].trim());
+    }
+  }
+  return map;
+};
+
+const parseGitHubFullName = (urlValue) => {
+  const value = String(urlValue || "").trim();
+  if (!value) {
+    return "";
+  }
+  const githubUrl = value.match(
+    /github\.com[/:]([^/]+\/[^/]+?)(?:\.git)?(?:\/)?$/i,
+  );
+  if (githubUrl && githubUrl[1]) {
+    return githubUrl[1];
+  }
+  const compact = value.replace(/\.git$/i, "").replace(/^\/+/, "");
+  const parts = compact.split("/").filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[parts.length - 2]}/${parts[parts.length - 1]}`;
+  }
+  return "";
+};
+
+const resolveSubmoduleRepoFullName = (parentRepoFullName, submoduleUrl) => {
+  const value = String(submoduleUrl || "").trim();
+  if (!value) {
+    return "";
+  }
+  const parsed = parseGitHubFullName(value);
+  if (parsed) {
+    return parsed;
+  }
+  if (value.startsWith("../")) {
+    const owner = String(parentRepoFullName || "").split("/")[0] || "";
+    const repoName = value.replace(/^(?:\.\.\/)+/, "").replace(/\.git$/i, "");
+    if (owner && repoName) {
+      return `${owner}/${repoName}`;
+    }
+  }
+  return "";
+};
+
+const getGithubHeaders = (token = "") => {
+  const headers = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "iFactory",
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+};
+
+const removePathIfExists = (targetPath) => {
+  if (fs.existsSync(targetPath)) {
+    fs.rmSync(targetPath, { recursive: true, force: true });
+  }
+};
+
+const removeGitArtifactsOneLevel = (folderPath) => {
+  let entries = [];
+  try {
+    entries = fs.readdirSync(folderPath, { withFileTypes: true });
+  } catch (error) {
+    return;
+  }
+  entries.forEach((entry) => {
+    if (entry.name.startsWith(".git")) {
+      removePathIfExists(path.join(folderPath, entry.name));
+    }
+  });
+};
+
+const cleanupVST3SdkTree = (targetPath) => {
+  removePathIfExists(path.join(targetPath, "VST3_BUILD"));
+  removePathIfExists(path.join(targetPath, "public.sdk", "samples"));
+  removePathIfExists(path.join(targetPath, "vstgui4"));
+  removeGitArtifactsOneLevel(targetPath);
+
+  let topEntries = [];
+  try {
+    topEntries = fs.readdirSync(targetPath, { withFileTypes: true });
+  } catch (error) {
+    return;
+  }
+  topEntries.forEach((entry) => {
+    if (entry.isDirectory()) {
+      removeGitArtifactsOneLevel(path.join(targetPath, entry.name));
+    }
+  });
+};
+
+const loadVST3SubmoduleRefs = async (repoFullName, branch, token) => {
+  const headers = getGithubHeaders(token);
+  const tree = await requestJson(
+    `https://api.github.com/repos/${repoFullName}/git/trees/${encodeURIComponent(
+      branch,
+    )}?recursive=1`,
+    { headers },
+  );
+  const entries = Array.isArray(tree?.tree) ? tree.tree : [];
+  const refs = new Map();
+  entries.forEach((entry) => {
+    if (!entry?.path || !entry?.sha) {
+      return;
+    }
+    if (entry.mode === "160000" || entry.type === "commit") {
+      refs.set(entry.path, entry.sha);
+    }
+  });
+  return refs;
+};
+
+const removeVST3Addon = (projectPath) => {
+  const normalizedPath = String(projectPath || "").trim();
+  if (!normalizedPath) {
+    return { error: "missing_fields" };
+  }
+  if (!fs.existsSync(normalizedPath)) {
+    return { error: "path_not_found" };
+  }
+  const iplugRoot = path.join(normalizedPath, "iPlug2", "Dependencies", "IPlug");
+  const targetPath = path.join(iplugRoot, "VST3_SDK");
+  if (!fs.existsSync(iplugRoot)) {
+    return { error: "missing_iplug" };
+  }
+  try {
+    removePathIfExists(targetPath);
+    return { removed: true };
+  } catch (error) {
+    return { error: "remove_failed", details: String(error?.message || "") };
+  }
+};
+
+const getVST3InstallPaths = (projectPath) => {
+  const normalizedPath = String(projectPath || "").trim();
+  const iplugRoot = path.join(normalizedPath, "iPlug2", "Dependencies", "IPlug");
+  return {
+    projectPath: normalizedPath,
+    iplugRoot,
+    targetPath: path.join(iplugRoot, "VST3_SDK"),
+  };
+};
+
+const isVST3Installed = (targetPath) => {
+  if (!targetPath || !fs.existsSync(targetPath)) {
+    return false;
+  }
+  const requiredPaths = [
+    path.join(targetPath, "base", "source"),
+    path.join(targetPath, "pluginterfaces"),
+    path.join(targetPath, "public.sdk", "source"),
+  ];
+  return requiredPaths.every((entryPath) => fs.existsSync(entryPath));
+};
+
 const checkBuildToolsInstalled = () => {
   const programFilesX86 =
     process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
@@ -1002,6 +1203,43 @@ const registerIpc = () => {
     };
     saveSettings();
     return settings.dependencies.edsp;
+  });
+  ipcMain.handle("vst3:check", (event, payload) => {
+    const projectPath = payload?.projectPath?.trim();
+    const paths = getVST3InstallPaths(projectPath);
+    if (!paths.projectPath) {
+      return { error: "missing_fields" };
+    }
+    if (!fs.existsSync(paths.projectPath)) {
+      return { error: "path_not_found" };
+    }
+    if (!fs.existsSync(paths.iplugRoot)) {
+      return { error: "missing_iplug" };
+    }
+    const installed = isVST3Installed(paths.targetPath);
+    settings.dependencies.vst3 = {
+      ...settings.dependencies.vst3,
+      installed,
+      path: installed ? paths.targetPath : "",
+      checkedAt: new Date().toISOString(),
+    };
+    saveSettings();
+    return settings.dependencies.vst3;
+  });
+  ipcMain.handle("vst3:remove", (event, payload) => {
+    const projectPath = payload?.projectPath?.trim();
+    const result = removeVST3Addon(projectPath);
+    if (result?.error) {
+      return result;
+    }
+    settings.dependencies.vst3 = {
+      ...settings.dependencies.vst3,
+      installed: false,
+      path: "",
+      checkedAt: new Date().toISOString(),
+    };
+    saveSettings();
+    return settings.dependencies.vst3;
   });
   ipcMain.handle("build:run", async (event, payload) => {
     if (activeBuild) {
@@ -2097,6 +2335,314 @@ const registerIpc = () => {
         details: message,
       };
     } finally {
+      if (window && !window.isDestroyed()) {
+        window.setProgressBar(-1);
+      }
+      activeInstall = null;
+    }
+  });
+
+  ipcMain.handle("vst3:install", async (event, payload) => {
+    if (activeInstall) {
+      return { error: "install_in_progress" };
+    }
+    const projectPath = payload?.projectPath?.trim();
+    const repoFullName =
+      payload?.repoFullName?.trim() || "steinbergmedia/vst3sdk";
+    const branch = payload?.branch?.trim() || "master";
+    if (!projectPath || !repoFullName) {
+      return { error: "missing_fields" };
+    }
+    if (!fs.existsSync(projectPath)) {
+      return { error: "path_not_found" };
+    }
+
+    const paths = getVST3InstallPaths(projectPath);
+    if (!fs.existsSync(paths.iplugRoot)) {
+      return { error: "missing_iplug" };
+    }
+
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const targetPath = paths.targetPath;
+
+    const gitState = checkGitInstalled();
+    const token = settings?.integrations?.github?.token || "";
+    const sanitizedUrl = `https://github.com/${repoFullName}.git`;
+    const tokenValue = token ? encodeURIComponent(token) : "";
+    const authUrl = tokenValue
+      ? `https://x-access-token:${tokenValue}@github.com/${repoFullName}.git`
+      : sanitizedUrl;
+    let tmpDir = null;
+
+    const sendProgress = (progress, stage) => {
+      const normalized = Number.isFinite(progress)
+        ? Math.max(0, Math.min(progress, 1))
+        : null;
+      if (window && !window.isDestroyed()) {
+        window.setProgressBar(normalized === null ? -1 : normalized);
+      }
+      event.sender.send("iplug:progress", {
+        progress: normalized,
+        stage,
+      });
+    };
+
+    const cleanup = () => {
+      try {
+        removePathIfExists(targetPath);
+      } catch (error) {
+        // ignore cleanup errors
+      }
+      if (tmpDir) {
+        try {
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+        } catch (error) {
+          // ignore cleanup errors
+        }
+      }
+    };
+
+    const installRequiredSubmodulesFromZip = async () => {
+      const gitmodulesPath = path.join(targetPath, ".gitmodules");
+      let submoduleUrls = new Map();
+      if (fs.existsSync(gitmodulesPath)) {
+        try {
+          const content = fs.readFileSync(gitmodulesPath, "utf8");
+          submoduleUrls = parseGitmodulesByPath(content);
+        } catch (error) {
+          submoduleUrls = new Map();
+        }
+      }
+
+      let submoduleRefs = new Map();
+      try {
+        submoduleRefs = await loadVST3SubmoduleRefs(repoFullName, branch, token);
+      } catch (error) {
+        submoduleRefs = new Map();
+      }
+
+      const headers = getGithubHeaders(token);
+      for (let index = 0; index < VST3_REQUIRED_SUBMODULES.length; index += 1) {
+        if (activeInstall?.canceled) {
+          throw new Error("cancelled");
+        }
+        const subPath = VST3_REQUIRED_SUBMODULES[index];
+        const subUrl = submoduleUrls.get(subPath) || "";
+        const subRepo =
+          resolveSubmoduleRepoFullName(repoFullName, subUrl) ||
+          (subPath === "vstgui4"
+            ? "steinbergmedia/vstgui"
+            : `steinbergmedia/vst3_${subPath.replace(/\./g, "_")}`);
+        const subRef = submoduleRefs.get(subPath) || branch || "master";
+
+        const subTmpDir = fs.mkdtempSync(path.join(tmpDir, "submodule-"));
+        const zipPath = path.join(
+          subTmpDir,
+          `${subPath.replace(/[^\w.-]/g, "_")}.zip`,
+        );
+        const extractDir = path.join(subTmpDir, "extract");
+        fs.mkdirSync(extractDir, { recursive: true });
+
+        let zipUrl = `https://github.com/${subRepo}/archive/${encodeURIComponent(
+          subRef,
+        )}.zip`;
+        if (token) {
+          zipUrl = `https://api.github.com/repos/${subRepo}/zipball/${encodeURIComponent(
+            subRef,
+          )}`;
+        }
+
+        const stagePrefix = `Downloading ${subPath}...`;
+        await downloadFile(zipUrl, zipPath, {
+          headers,
+          onProgress: (progress) => {
+            const itemBase = 0.58 + (index / VST3_REQUIRED_SUBMODULES.length) * 0.26;
+            const itemSpan = 0.26 / VST3_REQUIRED_SUBMODULES.length;
+            sendProgress(itemBase + progress * itemSpan, stagePrefix);
+          },
+          onRequest: (request) => {
+            activeInstall.request = request;
+          },
+          shouldAbort: () => activeInstall?.canceled,
+        });
+
+        if (activeInstall?.canceled) {
+          throw new Error("cancelled");
+        }
+
+        await expandArchive(zipPath, extractDir, (child) => {
+          activeInstall.child = child;
+        });
+        const entries = fs.readdirSync(extractDir, { withFileTypes: true });
+        const rootDir = entries.find((entry) => entry.isDirectory());
+        if (!rootDir) {
+          throw new Error(`Archive structure invalid for ${subRepo}`);
+        }
+        const rootPath = path.join(extractDir, rootDir.name);
+        const subTarget = path.join(targetPath, subPath);
+        fs.mkdirSync(path.dirname(subTarget), { recursive: true });
+        removePathIfExists(subTarget);
+        fs.renameSync(rootPath, subTarget);
+        fs.rmSync(subTmpDir, { recursive: true, force: true });
+      }
+    };
+
+    activeInstall = {
+      canceled: false,
+      child: null,
+      request: null,
+    };
+
+    try {
+      sendProgress(0.02, "Preparing VST3 SDK...");
+      removePathIfExists(targetPath);
+
+      if (gitState.installed) {
+        sendProgress(0.08, "Cloning VST3 SDK...");
+        await runGitWithProgress(
+          [
+            "clone",
+            "--progress",
+            "--branch",
+            branch,
+            "--single-branch",
+            "--depth",
+            "1",
+            authUrl,
+            targetPath,
+          ],
+          projectPath,
+          (progress) => {
+            sendProgress(0.08 + progress * 0.52, "Cloning VST3 SDK...");
+          },
+          (child) => {
+            activeInstall.child = child;
+          },
+        );
+        if (tokenValue) {
+          runGit(["remote", "set-url", "origin", sanitizedUrl], targetPath);
+        }
+        if (activeInstall.canceled) {
+          throw new Error("cancelled");
+        }
+
+        sendProgress(0.62, "Fetching required VST3 SDK components...");
+        await runGitWithProgress(
+          [
+            "submodule",
+            "update",
+            "--init",
+            "--progress",
+            ...VST3_REQUIRED_SUBMODULES,
+          ],
+          targetPath,
+          (progress) => {
+            sendProgress(
+              0.62 + progress * 0.24,
+              "Fetching required VST3 SDK components...",
+            );
+          },
+          (child) => {
+            activeInstall.child = child;
+          },
+        );
+      } else {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ifactory-"));
+        const zipPath = path.join(tmpDir, "vst3sdk.zip");
+        const extractDir = path.join(tmpDir, "extract");
+        fs.mkdirSync(extractDir, { recursive: true });
+
+        const headers = {
+          "User-Agent": "iFactory",
+        };
+        let zipUrl = `https://github.com/${repoFullName}/archive/refs/heads/${encodeURIComponent(
+          branch,
+        )}.zip`;
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+          zipUrl = `https://api.github.com/repos/${repoFullName}/zipball/${encodeURIComponent(
+            branch,
+          )}`;
+        }
+
+        try {
+          await downloadFile(zipUrl, zipPath, {
+            headers,
+            onProgress: (progress) => {
+              sendProgress(0.08 + progress * 0.42, "Downloading VST3 SDK...");
+            },
+            onRequest: (request) => {
+              activeInstall.request = request;
+            },
+            shouldAbort: () => activeInstall?.canceled,
+          });
+        } catch (error) {
+          if (!token) {
+            return { error: "github_required" };
+          }
+          throw error;
+        }
+
+        sendProgress(0.52, "Extracting VST3 SDK...");
+        await expandArchive(zipPath, extractDir, (child) => {
+          activeInstall.child = child;
+        });
+        const entries = fs.readdirSync(extractDir, { withFileTypes: true });
+        const rootDir = entries.find((entry) => entry.isDirectory());
+        if (!rootDir) {
+          throw new Error("Archive structure invalid");
+        }
+        const rootPath = path.join(extractDir, rootDir.name);
+        fs.renameSync(rootPath, targetPath);
+
+        await installRequiredSubmodulesFromZip();
+      }
+
+      if (activeInstall.canceled) {
+        throw new Error("cancelled");
+      }
+
+      sendProgress(0.9, "Finalizing VST3 SDK...");
+      cleanupVST3SdkTree(targetPath);
+      sendProgress(1, "Finished");
+      settings.dependencies.vst3 = {
+        ...settings.dependencies.vst3,
+        installed: true,
+        path: targetPath,
+        checkedAt: new Date().toISOString(),
+      };
+      saveSettings();
+      return {
+        path: targetPath,
+      };
+    } catch (error) {
+      if (activeInstall?.canceled || error?.message === "cancelled") {
+        cleanup();
+        return { error: "cancelled" };
+      }
+      const message = String(error?.message || "");
+      const authError =
+        !token &&
+        /authentication|access denied|repository not found|not found|permission|could not read username/i.test(
+          message,
+        );
+      if (authError) {
+        cleanup();
+        return { error: "github_required" };
+      }
+      cleanup();
+      return {
+        error: "install_failed",
+        details: message,
+      };
+    } finally {
+      if (tmpDir) {
+        try {
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+        } catch (error) {
+          // ignore cleanup errors
+        }
+      }
       if (window && !window.isDestroyed()) {
         window.setProgressBar(-1);
       }

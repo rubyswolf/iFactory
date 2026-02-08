@@ -309,6 +309,10 @@ const setupProjectManager = () => {
   let edspChecking = false;
   let edspWorking = false;
   let edspError = "";
+  let vst3Installed = false;
+  let vst3Checking = false;
+  let vst3Working = false;
+  let vst3Error = "";
 
   const updateAddonFilterButtons = () => {
     addonFilterButtons.forEach((button) => {
@@ -339,6 +343,17 @@ const setupProjectManager = () => {
       checking: edspChecking,
       working: edspWorking,
       error: edspError
+    },
+    {
+      key: "vst3",
+      name: "VST3 SDK",
+      icon: "../icons/vst.svg",
+      description:
+        "Install Steinberg VST3 SDK sources with required submodules and cleanup steps used by iPlug dependency scripts.",
+      installed: vst3Installed,
+      checking: vst3Checking,
+      working: vst3Working,
+      error: vst3Error
     }
   ];
 
@@ -523,7 +538,7 @@ const setupProjectManager = () => {
   };
 
   const refreshAddonStates = async () => {
-    await Promise.all([checkDoxygen(false), checkEDSP(false)]);
+    await Promise.all([checkDoxygen(false), checkEDSP(false), checkVST3(false)]);
     renderAddonList();
   };
 
@@ -588,6 +603,112 @@ const setupProjectManager = () => {
     } finally {
       edspWorking = false;
       await checkEDSP();
+    }
+  };
+
+  const checkVST3 = async (shouldRender = true) => {
+    const projectPath = getProjectPath();
+    if (!projectPath || !window.ifactory?.vst3?.check) {
+      vst3Installed = false;
+      vst3Checking = false;
+      vst3Error = projectPath ? "VST3 SDK tools unavailable." : "";
+      if (shouldRender) {
+        renderAddonList();
+      }
+      return;
+    }
+    vst3Checking = true;
+    vst3Error = "";
+    if (shouldRender) {
+      renderAddonList();
+    }
+    try {
+      const result = await window.ifactory.vst3.check({ projectPath });
+      if (result?.error) {
+        vst3Installed = false;
+        vst3Error =
+          result.error === "missing_iplug"
+            ? "Install iPlug2 first."
+            : "Unable to check VST3 SDK.";
+      } else {
+        vst3Installed = Boolean(result?.installed);
+      }
+      vst3Checking = false;
+      if (shouldRender) {
+        renderAddonList();
+      }
+    } catch (error) {
+      vst3Installed = false;
+      vst3Checking = false;
+      vst3Error = "Unable to check VST3 SDK.";
+      if (shouldRender) {
+        renderAddonList();
+      }
+    }
+  };
+
+  const launchVST3Install = () => {
+    const projectPath = getProjectPath();
+    if (!projectPath) {
+      vst3Error = "Select a project first.";
+      renderAddonList();
+      return;
+    }
+    if (!window.ifactoryInstall?.startAddonInstall) {
+      vst3Error = "Install flow is unavailable.";
+      renderAddonList();
+      return;
+    }
+    vst3Error = "";
+    window.ifactoryInstall.startAddonInstall({
+      addonKey: "vst3",
+      name: "VST3 SDK",
+      officialRepo: "steinbergmedia/vst3sdk",
+      targetFolder: "VST3_SDK",
+      installTitleEyebrow: "Install VST3 SDK",
+      installTitle: "Install the VST3 SDK addon.",
+      installDescription:
+        "Choose the official repository or a fork, then select a branch to install the VST3 SDK.",
+      installButtonText: "Install VST3 SDK",
+      installStatusMessage: "Installing VST3 SDK...",
+      installProgressStage: "Preparing VST3 SDK...",
+      installProgressTitle: "Setting up VST3 SDK",
+      successMessage: "VST3 SDK installed.",
+      alreadyExistsMessage: "VST3 SDK already exists in this project.",
+      iplugRequiredMessage:
+        "Install iPlug2 first. VST3 SDK is installed into iPlug2/Dependencies/IPlug/VST3_SDK.",
+      cancelReturnView: "addons",
+      completeReturnView: "addons",
+      laterReturnView: "addons",
+      installApi: "vst3"
+    });
+  };
+
+  const removeVST3Addon = async () => {
+    const projectPath = getProjectPath();
+    if (!projectPath || !window.ifactory?.vst3?.remove) {
+      return;
+    }
+    vst3Working = true;
+    vst3Error = "";
+    renderAddonList();
+    try {
+      const result = await window.ifactory.vst3.remove({ projectPath });
+      if (result?.error) {
+        vst3Error =
+          result.error === "missing_iplug"
+            ? "Install iPlug2 first."
+            : result.details
+              ? `Remove failed: ${result.details}`
+              : "Remove failed. Try again.";
+      } else {
+        vst3Error = "";
+      }
+    } catch (error) {
+      vst3Error = "Remove failed. Try again.";
+    } finally {
+      vst3Working = false;
+      await checkVST3();
     }
   };
 
@@ -1612,6 +1733,14 @@ const setupProjectManager = () => {
         } else {
           launchEDSPInstall();
         }
+        return;
+      }
+      if (addonKey === "vst3") {
+        if (vst3Installed) {
+          await removeVST3Addon();
+        } else {
+          launchVST3Install();
+        }
       }
     });
   }
@@ -2593,6 +2722,9 @@ const setupInstallScreen = () => {
         const message =
           result.error === "git_required"
             ? installConfig.gitRequiredMessage
+            : result.error === "missing_iplug"
+              ? installConfig.iplugRequiredMessage ||
+                "Install iPlug2 first for this addon."
             : result.error === "cancelled"
               ? "Installation cancelled."
               : result.error === "already_exists"
