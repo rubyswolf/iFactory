@@ -17,6 +17,7 @@ const usage = (topics = []) => {
   console.log("  list       List plugins and tools in the current project");
   console.log("  create     Create a plugin from a template");
   console.log("  resource   Add a resource to a plugin");
+  console.log("  include    Add a file to all projects in a plugin/tool solution");
   console.log("  graphics   Detect the graphics backend for the project");
   console.log("  info       Print additional topic notes");
   console.log("  doxy       Generate Doxygen XML for the current project");
@@ -24,6 +25,7 @@ const usage = (topics = []) => {
   console.log("Usage:");
   console.log("  ifact create <template> [name]");
   console.log("  ifact resource add <plugin> <path> <resource name> [-m]");
+  console.log("  ifact include <plugin/tool name> <path to file>");
   console.log("  ifact graphics get <plugin>");
   console.log("  ifact graphics set <plugin> <SKIA|NANOVG>");
   console.log("  ifact doxy generate <iPlug2|eDSP>");
@@ -300,6 +302,35 @@ const run = async (argv = process.argv) => {
     }
     const macro = result.macroName || `${result.resourceName}_FN`;
     console.log(macro);
+    process.exit(0);
+  }
+  if (command === "include") {
+    const itemName = (args[0] || "").trim();
+    const filePath = args.slice(1).join(" ").trim();
+    if (!itemName || !filePath) {
+      usage(topicList);
+      process.exit(1);
+    }
+    const projectPath = requireProjectPath();
+    const result = core.includeFileInItem({
+      projectPath,
+      itemName,
+      filePath,
+    });
+    if (result?.error) {
+      console.error(`error:${result.error}`);
+      process.exit(1);
+    }
+    const updated = Array.isArray(result.updatedProjects)
+      ? result.updatedProjects.length
+      : 0;
+    const skipped = Array.isArray(result.skippedProjects)
+      ? result.skippedProjects.length
+      : 0;
+    console.log(
+      `Included as ${result.tag} in ${updated} project(s)` +
+        (skipped ? `, already present in ${skipped}.` : "."),
+    );
     process.exit(0);
   }
   if (command === "graphics") {
