@@ -63,8 +63,15 @@ contextBridge.exposeInMainWorld("ifactory", {
       return () => ipcRenderer.removeListener("iplug:progress", listener);
     }
   },
+  edsp: {
+    check: (payload) => ipcRenderer.invoke("edsp:check", payload),
+    install: (payload) => ipcRenderer.invoke("edsp:install", payload),
+    remove: (payload) => ipcRenderer.invoke("edsp:remove", payload)
+  },
   github: {
     listIPlugForks: () => ipcRenderer.invoke("github:listIPlugForks"),
+    listRepoForks: (fullName) =>
+      ipcRenderer.invoke("github:listRepoForks", { fullName }),
     listRepoBranches: (fullName) =>
       ipcRenderer.invoke("github:listRepoBranches", { fullName })
   },

@@ -68,6 +68,11 @@ const defaultSettings = {
       version: "",
       checkedAt: null,
     },
+    edsp: {
+      installed: false,
+      path: "",
+      checkedAt: null,
+    },
   },
   recentProjects: [],
 };
@@ -96,6 +101,9 @@ const mergeSettings = (settings) => {
   }
   if (settings?.dependencies?.doxygen) {
     Object.assign(merged.dependencies.doxygen, settings.dependencies.doxygen);
+  }
+  if (settings?.dependencies?.edsp) {
+    Object.assign(merged.dependencies.edsp, settings.dependencies.edsp);
   }
   if (Array.isArray(settings?.recentProjects)) {
     merged.recentProjects = settings.recentProjects;
@@ -645,6 +653,74 @@ const removeDoxygen = () => {
   }
 };
 
+const checkProjectAddonInstalled = (projectPath, folderName) => {
+  const normalizedPath = String(projectPath || "").trim();
+  const normalizedFolder = String(folderName || "").trim();
+  if (!normalizedPath || !normalizedFolder) {
+    return { error: "missing_fields" };
+  }
+  if (!fs.existsSync(normalizedPath)) {
+    return { error: "path_not_found" };
+  }
+  const targetPath = path.join(normalizedPath, normalizedFolder);
+  const installed = fs.existsSync(targetPath);
+  return {
+    installed,
+    path: installed ? targetPath : "",
+  };
+};
+
+const removeProjectAddon = (projectPath, folderName) => {
+  const normalizedPath = String(projectPath || "").trim();
+  const normalizedFolder = String(folderName || "").trim();
+  if (!normalizedPath || !normalizedFolder) {
+    return { error: "missing_fields" };
+  }
+  if (!fs.existsSync(normalizedPath)) {
+    return { error: "path_not_found" };
+  }
+
+  const targetPath = path.join(normalizedPath, normalizedFolder);
+  const gitState = checkGitInstalled();
+  const hasGitFolder = fs.existsSync(path.join(normalizedPath, ".git"));
+  const isRepo = gitState.installed ? isGitRepo(normalizedPath) : hasGitFolder;
+
+  if (isRepo && !gitState.installed) {
+    return { error: "git_required" };
+  }
+
+  try {
+    if (isRepo && gitState.installed) {
+      try {
+        runGit(["submodule", "deinit", "-f", "--", normalizedFolder], normalizedPath);
+      } catch (error) {
+        // ignore when addon is not registered as a submodule
+      }
+      try {
+        runGit(["rm", "-f", "--", normalizedFolder], normalizedPath);
+      } catch (error) {
+        // fallback to direct folder deletion below
+      }
+      try {
+        fs.rmSync(path.join(normalizedPath, ".git", "modules", normalizedFolder), {
+          recursive: true,
+          force: true,
+        });
+      } catch (error) {
+        // ignore cleanup errors
+      }
+    }
+
+    if (fs.existsSync(targetPath)) {
+      fs.rmSync(targetPath, { recursive: true, force: true });
+    }
+
+    return { removed: true };
+  } catch (error) {
+    return { error: "remove_failed", details: String(error?.message || "") };
+  }
+};
+
 const checkBuildToolsInstalled = () => {
   const programFilesX86 =
     process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
@@ -897,6 +973,36 @@ const registerIpc = () => {
     return result;
   });
   ipcMain.handle("doxygen:remove", () => removeDoxygen());
+  ipcMain.handle("edsp:check", (event, payload) => {
+    const projectPath = payload?.projectPath?.trim();
+    const result = checkProjectAddonInstalled(projectPath, "eDSP");
+    if (result?.error) {
+      return result;
+    }
+    settings.dependencies.edsp = {
+      ...settings.dependencies.edsp,
+      installed: Boolean(result.installed),
+      path: result.path || "",
+      checkedAt: new Date().toISOString(),
+    };
+    saveSettings();
+    return settings.dependencies.edsp;
+  });
+  ipcMain.handle("edsp:remove", (event, payload) => {
+    const projectPath = payload?.projectPath?.trim();
+    const result = removeProjectAddon(projectPath, "eDSP");
+    if (result?.error) {
+      return result;
+    }
+    settings.dependencies.edsp = {
+      ...settings.dependencies.edsp,
+      installed: false,
+      path: "",
+      checkedAt: new Date().toISOString(),
+    };
+    saveSettings();
+    return settings.dependencies.edsp;
+  });
   ipcMain.handle("build:run", async (event, payload) => {
     if (activeBuild) {
       return { error: "build_in_progress" };
@@ -1591,6 +1697,40 @@ const registerIpc = () => {
     }
   });
 
+  ipcMain.handle("github:listRepoForks", async (event, payload) => {
+    const fullName = payload?.fullName?.trim();
+    if (!fullName) {
+      return { error: "missing_repo" };
+    }
+    const token = settings?.integrations?.github?.token;
+    const headers = {
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "iFactory",
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    try {
+      const forks = await requestJson(
+        `https://api.github.com/repos/${fullName}/forks?per_page=100&sort=newest`,
+        { headers },
+      );
+      return {
+        forks: Array.isArray(forks) ? forks : [],
+      };
+    } catch (error) {
+      return {
+        error: "forks_failed",
+        details: {
+          status: error?.status || null,
+          message: error?.message || null,
+        },
+      };
+    }
+  });
+
   ipcMain.handle("github:listRepoBranches", async (event, payload) => {
     const fullName = payload?.fullName?.trim();
     if (!fullName) {
@@ -1933,6 +2073,257 @@ const registerIpc = () => {
 
       sendProgress(0.97, "Finalizing...");
       sendProgress(1, "Finished");
+      return {
+        path: targetPath,
+      };
+    } catch (error) {
+      if (activeInstall?.canceled || error?.message === "cancelled") {
+        cleanup();
+        return { error: "cancelled" };
+      }
+      const message = String(error?.message || "");
+      const authError =
+        !token &&
+        /authentication|access denied|repository not found|not found|permission|could not read username/i.test(
+          message,
+        );
+      if (authError) {
+        cleanup();
+        return { error: "github_required" };
+      }
+      cleanup();
+      return {
+        error: "install_failed",
+        details: message,
+      };
+    } finally {
+      if (window && !window.isDestroyed()) {
+        window.setProgressBar(-1);
+      }
+      activeInstall = null;
+    }
+  });
+
+  ipcMain.handle("edsp:install", async (event, payload) => {
+    if (activeInstall) {
+      return { error: "install_in_progress" };
+    }
+    const projectPath = payload?.projectPath?.trim();
+    const repoFullName = payload?.repoFullName?.trim() || "mohabouje/eDSP";
+    const branch = payload?.branch?.trim() || "master";
+    if (!projectPath || !repoFullName) {
+      return { error: "missing_fields" };
+    }
+    if (!fs.existsSync(projectPath)) {
+      return { error: "path_not_found" };
+    }
+
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const targetPath = path.join(projectPath, "eDSP");
+    if (fs.existsSync(targetPath)) {
+      return { error: "already_exists" };
+    }
+
+    const gitState = checkGitInstalled();
+    const token = settings?.integrations?.github?.token || "";
+    const hasGitFolder = fs.existsSync(path.join(projectPath, ".git"));
+    const isRepo = gitState.installed ? isGitRepo(projectPath) : hasGitFolder;
+    if (!gitState.installed && isRepo) {
+      return { error: "git_required" };
+    }
+
+    const sanitizedUrl = `https://github.com/${repoFullName}.git`;
+    const tokenValue = token ? encodeURIComponent(token) : "";
+    const authUrl = tokenValue
+      ? `https://x-access-token:${tokenValue}@github.com/${repoFullName}.git`
+      : sanitizedUrl;
+    let tmpDir = null;
+    let gitmodulesBackup = null;
+    let usedSubmodule = false;
+
+    const sendProgress = (progress, stage) => {
+      const normalized = Number.isFinite(progress)
+        ? Math.max(0, Math.min(progress, 1))
+        : null;
+      if (window && !window.isDestroyed()) {
+        window.setProgressBar(normalized === null ? -1 : normalized);
+      }
+      event.sender.send("iplug:progress", {
+        progress: normalized,
+        stage,
+      });
+    };
+
+    const cleanup = () => {
+      try {
+        if (usedSubmodule && gitState.installed) {
+          try {
+            runGit(["submodule", "deinit", "-f", "eDSP"], projectPath);
+          } catch (error) {
+            // ignore cleanup errors
+          }
+          try {
+            runGit(["rm", "-f", "eDSP"], projectPath);
+          } catch (error) {
+            // ignore cleanup errors
+          }
+          try {
+            fs.rmSync(path.join(projectPath, ".git", "modules", "eDSP"), {
+              recursive: true,
+              force: true,
+            });
+          } catch (error) {
+            // ignore cleanup errors
+          }
+          const gitmodulesPath = path.join(projectPath, ".gitmodules");
+          if (gitmodulesBackup === null && fs.existsSync(gitmodulesPath)) {
+            fs.rmSync(gitmodulesPath, { force: true });
+          }
+          if (typeof gitmodulesBackup === "string") {
+            fs.writeFileSync(gitmodulesPath, gitmodulesBackup);
+          }
+        }
+        if (fs.existsSync(targetPath)) {
+          fs.rmSync(targetPath, { recursive: true, force: true });
+        }
+      } catch (error) {
+        // ignore cleanup errors
+      }
+      if (tmpDir) {
+        try {
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+        } catch (error) {
+          // ignore cleanup errors
+        }
+      }
+    };
+
+    activeInstall = {
+      canceled: false,
+      child: null,
+      request: null,
+    };
+
+    try {
+      sendProgress(0.02, "Preparing eDSP...");
+
+      if (gitState.installed) {
+        const progressStage = isRepo
+          ? "Adding eDSP as submodule..."
+          : "Cloning eDSP...";
+        sendProgress(0.06, progressStage);
+
+        if (isRepo) {
+          usedSubmodule = true;
+          const gitmodulesPath = path.join(projectPath, ".gitmodules");
+          if (fs.existsSync(gitmodulesPath)) {
+            gitmodulesBackup = fs.readFileSync(gitmodulesPath, "utf8");
+          }
+          await runGitWithProgress(
+            ["submodule", "add", "--progress", "-b", branch, authUrl, "eDSP"],
+            projectPath,
+            (progress) => {
+              sendProgress(0.06 + progress * 0.82, progressStage);
+            },
+            (child) => {
+              activeInstall.child = child;
+            },
+          );
+          if (tokenValue) {
+            runGit(
+              ["submodule", "set-url", "eDSP", sanitizedUrl],
+              projectPath,
+            );
+            runGit(["submodule", "sync", "--", "eDSP"], projectPath);
+          }
+        } else {
+          await runGitWithProgress(
+            [
+              "clone",
+              "--progress",
+              "--branch",
+              branch,
+              "--single-branch",
+              authUrl,
+              targetPath,
+            ],
+            projectPath,
+            (progress) => {
+              sendProgress(0.06 + progress * 0.82, progressStage);
+            },
+            (child) => {
+              activeInstall.child = child;
+            },
+          );
+          if (tokenValue) {
+            runGit(["remote", "set-url", "origin", sanitizedUrl], targetPath);
+          }
+        }
+      } else {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ifactory-"));
+        const zipPath = path.join(tmpDir, "edsp.zip");
+        const extractDir = path.join(tmpDir, "extract");
+        fs.mkdirSync(extractDir, { recursive: true });
+
+        const headers = {
+          "User-Agent": "iFactory",
+        };
+        let zipUrl = `https://github.com/${repoFullName}/archive/refs/heads/${encodeURIComponent(
+          branch,
+        )}.zip`;
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+          zipUrl = `https://api.github.com/repos/${repoFullName}/zipball/${encodeURIComponent(
+            branch,
+          )}`;
+        }
+
+        try {
+          await downloadFile(zipUrl, zipPath, {
+            headers,
+            onProgress: (progress) => {
+              sendProgress(0.06 + progress * 0.82, "Downloading eDSP...");
+            },
+            onRequest: (request) => {
+              activeInstall.request = request;
+            },
+            shouldAbort: () => activeInstall?.canceled,
+          });
+        } catch (error) {
+          if (!token) {
+            return { error: "github_required" };
+          }
+          throw error;
+        }
+
+        sendProgress(0.9, "Extracting eDSP...");
+        await expandArchive(zipPath, extractDir, (child) => {
+          activeInstall.child = child;
+        });
+        const entries = fs.readdirSync(extractDir, { withFileTypes: true });
+        const rootDir = entries.find((entry) => entry.isDirectory());
+        if (!rootDir) {
+          throw new Error("Archive structure invalid");
+        }
+        const rootPath = path.join(extractDir, rootDir.name);
+        fs.renameSync(rootPath, targetPath);
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+        tmpDir = null;
+      }
+
+      if (activeInstall.canceled) {
+        throw new Error("cancelled");
+      }
+
+      sendProgress(0.97, "Finalizing...");
+      sendProgress(1, "Finished");
+      settings.dependencies.edsp = {
+        ...settings.dependencies.edsp,
+        installed: true,
+        path: targetPath,
+        checkedAt: new Date().toISOString(),
+      };
+      saveSettings();
       return {
         path: targetPath,
       };

@@ -26,7 +26,7 @@ const usage = (topics = []) => {
   console.log("  ifact resource add <plugin> <path> <resource name> [-m]");
   console.log("  ifact graphics get <plugin>");
   console.log("  ifact graphics set <plugin> <SKIA|NANOVG>");
-  console.log("  ifact doxy generate iPlug2");
+  console.log("  ifact doxy generate <iPlug2|eDSP>");
   console.log(
     "  ifact doxy find <target> <query> [--limit N] [--type kind] [--no-desc] [--name-only]",
   );

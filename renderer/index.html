@@ -227,9 +227,9 @@
       <div class="page page-install" data-page-install>
         <main class="install-grid">
           <section class="panel install-panel reveal">
-            <div class="eyebrow">Install iPlug2</div>
-            <h2>Set up the plugin framework.</h2>
-            <p class="card-meta">
+            <div class="eyebrow" data-install-screen-eyebrow>Install iPlug2</div>
+            <h2 data-install-screen-title>Set up the plugin framework.</h2>
+            <p class="card-meta" data-install-screen-description>
               This project needs iPlug2 before you can build and test plugins.
             </p>
             <div class="source-toggle" role="tablist">
@@ -247,7 +247,9 @@
             <div class="iplug-source" data-iplug-official>
               <div class="repo-card">
                 <div class="repo-label">Official repository</div>
-                <div class="repo-url">https://github.com/iplug2/iplug2</div>
+                <div class="repo-url" data-install-screen-repo-url>
+                  https://github.com/iplug2/iplug2
+                </div>
               </div>
             </div>
             <div class="iplug-source" data-iplug-forks hidden>
@@ -292,9 +294,14 @@
             </div>
             <div class="install-actions">
               <button class="cta" type="button" data-iplug-install>
-                Install iPlug2
+                <span data-install-screen-button-text>Install iPlug2</span>
               </button>
-              <button class="ghost" data-action-home type="button">
+              <button
+                class="ghost"
+                data-action-home
+                data-install-screen-later
+                type="button"
+              >
                 Do this later
               </button>
             </div>

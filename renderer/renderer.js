@@ -288,7 +288,7 @@ const setupProjectManager = () => {
     setAi(true);
     updateSidebarActive();
     if (view === "addons") {
-      checkDoxygen();
+      refreshAddonStates();
     }
     closeGraphicsMenu();
     closeResourceDialog();
@@ -305,6 +305,10 @@ const setupProjectManager = () => {
   let doxygenChecking = false;
   let doxygenWorking = false;
   let doxygenError = "";
+  let edspInstalled = false;
+  let edspChecking = false;
+  let edspWorking = false;
+  let edspError = "";
 
   const updateAddonFilterButtons = () => {
     addonFilterButtons.forEach((button) => {
@@ -324,6 +328,17 @@ const setupProjectManager = () => {
       checking: doxygenChecking,
       working: doxygenWorking,
       error: doxygenError
+    },
+    {
+      key: "edsp",
+      name: "eDSP",
+      icon: "../icons/edsp.svg",
+      description:
+        "Install the eDSP framework into this project using official, fork, and branch selection.",
+      installed: edspInstalled,
+      checking: edspChecking,
+      working: edspWorking,
+      error: edspError
     }
   ];
 
@@ -438,26 +453,141 @@ const setupProjectManager = () => {
     renderAddonList();
   };
 
-  const checkDoxygen = async () => {
+  const checkDoxygen = async (shouldRender = true) => {
     if (!window.ifactory?.doxygen?.check) {
       doxygenInstalled = false;
       doxygenChecking = false;
-      renderAddonList();
+      if (shouldRender) {
+        renderAddonList();
+      }
       return;
     }
     doxygenChecking = true;
     doxygenError = "";
-    renderAddonList();
+    if (shouldRender) {
+      renderAddonList();
+    }
     try {
       const result = await window.ifactory.doxygen.check();
       doxygenInstalled = Boolean(result?.installed);
       doxygenChecking = false;
-      renderAddonList();
+      if (shouldRender) {
+        renderAddonList();
+      }
     } catch (error) {
       doxygenInstalled = false;
       doxygenChecking = false;
       doxygenError = "Unable to check installation.";
+      if (shouldRender) {
+        renderAddonList();
+      }
+    }
+  };
+
+  const checkEDSP = async (shouldRender = true) => {
+    const projectPath = getProjectPath();
+    if (!projectPath || !window.ifactory?.edsp?.check) {
+      edspInstalled = false;
+      edspChecking = false;
+      edspError = projectPath ? "eDSP tools unavailable." : "";
+      if (shouldRender) {
+        renderAddonList();
+      }
+      return;
+    }
+    edspChecking = true;
+    edspError = "";
+    if (shouldRender) {
       renderAddonList();
+    }
+    try {
+      const result = await window.ifactory.edsp.check({ projectPath });
+      if (result?.error) {
+        edspInstalled = false;
+        edspError = "Unable to check eDSP.";
+      } else {
+        edspInstalled = Boolean(result?.installed);
+      }
+      edspChecking = false;
+      if (shouldRender) {
+        renderAddonList();
+      }
+    } catch (error) {
+      edspInstalled = false;
+      edspChecking = false;
+      edspError = "Unable to check eDSP.";
+      if (shouldRender) {
+        renderAddonList();
+      }
+    }
+  };
+
+  const refreshAddonStates = async () => {
+    await Promise.all([checkDoxygen(false), checkEDSP(false)]);
+    renderAddonList();
+  };
+
+  const launchEDSPInstall = () => {
+    const projectPath = getProjectPath();
+    if (!projectPath) {
+      edspError = "Select a project first.";
+      renderAddonList();
+      return;
+    }
+    if (!window.ifactoryInstall?.startAddonInstall) {
+      edspError = "Install flow is unavailable.";
+      renderAddonList();
+      return;
+    }
+    edspError = "";
+    window.ifactoryInstall.startAddonInstall({
+      addonKey: "edsp",
+      name: "eDSP",
+      officialRepo: "mohabouje/eDSP",
+      targetFolder: "eDSP",
+      installTitleEyebrow: "Install eDSP",
+      installTitle: "Install the eDSP addon.",
+      installDescription:
+        "Choose the official repository or a fork, then select a branch to install eDSP.",
+      installButtonText: "Install eDSP",
+      installStatusMessage: "Installing eDSP...",
+      installProgressStage: "Preparing eDSP...",
+      installProgressTitle: "Setting up eDSP",
+      successMessage: "eDSP installed.",
+      alreadyExistsMessage: "eDSP already exists in this project.",
+      gitRequiredMessage: "Git is required to add eDSP as a submodule.",
+      cancelReturnView: "addons",
+      completeReturnView: "addons",
+      laterReturnView: "addons",
+      installApi: "edsp"
+    });
+  };
+
+  const removeEDSPAddon = async () => {
+    const projectPath = getProjectPath();
+    if (!projectPath || !window.ifactory?.edsp?.remove) {
+      return;
+    }
+    edspWorking = true;
+    edspError = "";
+    renderAddonList();
+    try {
+      const result = await window.ifactory.edsp.remove({ projectPath });
+      if (result?.error) {
+        edspError =
+          result.error === "git_required"
+            ? "Git is required to remove eDSP from a Git project."
+            : result.details
+              ? `Remove failed: ${result.details}`
+              : "Remove failed. Try again.";
+      } else {
+        edspError = "";
+      }
+    } catch (error) {
+      edspError = "Remove failed. Try again.";
+    } finally {
+      edspWorking = false;
+      await checkEDSP();
     }
   };
 
@@ -492,7 +622,7 @@ const setupProjectManager = () => {
       installApi.stop?.();
       window.ifactoryInstall?.setCancelDisabled?.(false);
       window.ifactoryInstall?.resetHeader?.();
-      await checkDoxygen();
+      await refreshAddonStates();
     }
   };
 
@@ -516,7 +646,7 @@ const setupProjectManager = () => {
       doxygenError = "Remove failed. Try again.";
     } finally {
       doxygenWorking = false;
-      await checkDoxygen();
+      await refreshAddonStates();
     }
   };
 
@@ -1256,6 +1386,7 @@ const setupProjectManager = () => {
   const setInstalling = (installing) => {
     document.body.classList.toggle("is-installing", installing);
     if (installing) {
+      window.ifactoryInstall?.resetInstallFlow?.();
       document.body.classList.remove("is-installing-run");
       document.body.classList.remove("is-creating");
       document.body.classList.remove("is-ai");
@@ -1467,13 +1598,20 @@ const setupProjectManager = () => {
         return;
       }
       const addonKey = String(actionButton.dataset.addonAction || "");
-      if (addonKey !== "doxygen") {
+      if (addonKey === "doxygen") {
+        if (doxygenInstalled) {
+          await removeDoxygenAddon();
+        } else {
+          await installDoxygenAddon();
+        }
         return;
       }
-      if (doxygenInstalled) {
-        await removeDoxygenAddon();
-      } else {
-        await installDoxygenAddon();
+      if (addonKey === "edsp") {
+        if (edspInstalled) {
+          await removeEDSPAddon();
+        } else {
+          launchEDSPInstall();
+        }
       }
     });
   }
@@ -1925,6 +2063,24 @@ const setupInstallScreen = () => {
   const installProgress = document.querySelector("[data-install-progress]");
   const installStage = document.querySelector("[data-install-stage]");
   const installCancel = document.querySelector("[data-install-cancel]");
+  const installLaterButton = document.querySelector(
+    "[data-install-screen-later]"
+  );
+  const installScreenEyebrow = document.querySelector(
+    "[data-install-screen-eyebrow]"
+  );
+  const installScreenTitle = document.querySelector(
+    "[data-install-screen-title]"
+  );
+  const installScreenDescription = document.querySelector(
+    "[data-install-screen-description]"
+  );
+  const installScreenRepoUrl = document.querySelector(
+    "[data-install-screen-repo-url]"
+  );
+  const installScreenButtonText = document.querySelector(
+    "[data-install-screen-button-text]"
+  );
   const installEyebrowEl = document.querySelector("[data-install-eyebrow]");
   const installTitleTextEl = document.querySelector("[data-install-title-text]");
 
@@ -1956,6 +2112,28 @@ const setupInstallScreen = () => {
   const defaultInstallEyebrow = installEyebrowEl?.textContent || "Installing";
   const defaultInstallTitle =
     installTitleTextEl?.textContent || "Setting up iPlug2";
+  const defaultInstallConfig = {
+    addonKey: "iplug",
+    name: "iPlug2",
+    officialRepo: "iplug2/iplug2",
+    targetFolder: "iPlug2",
+    installTitleEyebrow: "Install iPlug2",
+    installTitle: "Set up the plugin framework.",
+    installDescription:
+      "This project needs iPlug2 before you can build and test plugins.",
+    installButtonText: "Install iPlug2",
+    installStatusMessage: "Installing iPlug2...",
+    installProgressStage: "Preparing iPlug2...",
+    installProgressTitle: "Setting up iPlug2",
+    successMessage: "iPlug2 installed.",
+    alreadyExistsMessage: "iPlug2 already exists in this project.",
+    gitRequiredMessage: "Git is required to add iPlug2 as a submodule.",
+    installApi: "iplug",
+    cancelReturnView: "",
+    completeReturnView: "agent",
+    laterReturnView: ""
+  };
+  let installConfig = { ...defaultInstallConfig };
 
   const resetInstallHeader = () => {
     if (installEyebrowEl) {
@@ -1964,6 +2142,49 @@ const setupInstallScreen = () => {
     if (installTitleTextEl) {
       installTitleTextEl.textContent = defaultInstallTitle;
     }
+  };
+  const applyInstallConfig = () => {
+    if (installScreenEyebrow) {
+      installScreenEyebrow.textContent = installConfig.installTitleEyebrow;
+    }
+    if (installScreenTitle) {
+      installScreenTitle.textContent = installConfig.installTitle;
+    }
+    if (installScreenDescription) {
+      installScreenDescription.textContent = installConfig.installDescription;
+    }
+    if (installScreenRepoUrl) {
+      installScreenRepoUrl.textContent = `https://github.com/${installConfig.officialRepo}`;
+    }
+    if (installScreenButtonText) {
+      installScreenButtonText.textContent = installConfig.installButtonText;
+    } else {
+      installButton.textContent = installConfig.installButtonText;
+    }
+  };
+  const setInstallConfig = (nextConfig = {}) => {
+    installConfig = { ...defaultInstallConfig, ...nextConfig };
+    selectedFork = "";
+    selectedSource = "official";
+    branchMode = "master";
+    selectedBranch = "master";
+    forksData = null;
+    currentBranches = [];
+    branchesCache.clear();
+    if (searchInput) {
+      searchInput.value = "";
+    }
+    if (branchSearchInput) {
+      branchSearchInput.value = "";
+    }
+    listEl.innerHTML = "";
+    branchListEl.innerHTML = "";
+    setInstallStatus("");
+    resetInstallHeader();
+    setActiveSource("official");
+    setActiveBranchMode("master");
+    updateBranchVisibility();
+    applyInstallConfig();
   };
 
   const setInstallStatus = (message, tone) => {
@@ -1986,19 +2207,19 @@ const setupInstallScreen = () => {
     document.body.classList.toggle("is-installing-run", active);
     if (active) {
       installProgress.style.width = "0%";
-      installStage.textContent = "Preparing iPlug2...";
+      installStage.textContent = installConfig.installProgressStage;
       installCancel.disabled = false;
     }
   };
-  const openProjectEditor = async () => {
+  const openProjectEditor = async (view = "agent") => {
     if (window.ifactoryUI?.showProjectEditor) {
-      await window.ifactoryUI.showProjectEditor("agent");
+      await window.ifactoryUI.showProjectEditor(view);
       if (window.ifactoryUI.refreshProjectItems) {
         await window.ifactoryUI.refreshProjectItems();
       }
     } else {
       document.body.classList.add("is-ai");
-      document.body.dataset.aiView = "agent";
+      document.body.dataset.aiView = view;
     }
     document.body.classList.remove("is-installing-run");
     document.body.classList.remove("is-installing");
@@ -2100,7 +2321,7 @@ const setupInstallScreen = () => {
 
   const getSelectedRepoFullName = () => {
     if (selectedSource === "official") {
-      return "iplug2/iplug2";
+      return installConfig.officialRepo;
     }
     if (selectedSource === "fork") {
       return selectedFork;
@@ -2283,8 +2504,22 @@ const setupInstallScreen = () => {
     loading.textContent = "Loading forks...";
     listEl.appendChild(loading);
 
+    const fullName = installConfig.officialRepo;
+    if (!fullName) {
+      listEl.textContent = "Unable to load forks right now.";
+      return;
+    }
     try {
-      const result = await window.ifactory.github.listIPlugForks();
+      const listForksApi =
+        window.ifactory?.github?.listRepoForks ||
+        window.ifactory?.github?.listIPlugForks;
+      if (!listForksApi) {
+        listEl.textContent = "Unable to load forks right now.";
+        return;
+      }
+      const result = window.ifactory?.github?.listRepoForks
+        ? await listForksApi(fullName)
+        : await listForksApi();
       if (result?.error) {
         listEl.textContent = "Unable to load forks right now.";
         return;
@@ -2323,7 +2558,9 @@ const setupInstallScreen = () => {
   });
 
   const handleInstall = async () => {
-    if (!window.ifactory?.iplug?.install) {
+    const installApiName = installConfig.installApi || "iplug";
+    const installApi = window.ifactory?.[installApiName]?.install;
+    if (!installApi) {
       return;
     }
     const projectPath = document.body.dataset.projectPath || "";
@@ -2340,11 +2577,14 @@ const setupInstallScreen = () => {
     }
 
     resetInstallHeader();
-    setInstallStatus("Installing iPlug2...", "");
+    if (installTitleTextEl) {
+      installTitleTextEl.textContent = installConfig.installProgressTitle;
+    }
+    setInstallStatus(installConfig.installStatusMessage, "");
     installButton.disabled = true;
     setInstallingScreen(true);
     try {
-      const result = await window.ifactory.iplug.install({
+      const result = await installApi({
         projectPath,
         repoFullName,
         branch
@@ -2352,25 +2592,44 @@ const setupInstallScreen = () => {
       if (result?.error) {
         const message =
           result.error === "git_required"
-            ? "Git is required to add iPlug2 as a submodule."
+            ? installConfig.gitRequiredMessage
             : result.error === "cancelled"
               ? "Installation cancelled."
               : result.error === "already_exists"
-                ? "iPlug2 already exists in this project."
+                ? installConfig.alreadyExistsMessage
                 : result.details
                   ? `Installation failed: ${result.details}`
                   : "Installation failed. Check your settings and try again.";
         setInstallStatus(message, result.error === "cancelled" ? "" : "error");
+        if (result.error === "cancelled" && installConfig.cancelReturnView) {
+          await openProjectEditor(installConfig.cancelReturnView);
+        }
         return;
       }
-      setInstallStatus("iPlug2 installed.", "success");
-      await openProjectEditor();
+      setInstallStatus(installConfig.successMessage, "success");
+      await openProjectEditor(installConfig.completeReturnView || "agent");
     } catch (error) {
       setInstallStatus("Installation failed. Check your settings and try again.", "error");
     } finally {
       setInstallingScreen(false);
       installButton.disabled = false;
     }
+  };
+
+  const openInstallSelection = () => {
+    document.body.classList.remove("is-installing-run");
+    document.body.classList.remove("is-creating");
+    document.body.classList.remove("is-ai");
+    document.body.classList.add("is-installing");
+  };
+
+  const startAddonInstall = (config) => {
+    setInstallConfig(config);
+    openInstallSelection();
+  };
+
+  const resetInstallFlow = () => {
+    setInstallConfig(defaultInstallConfig);
   };
 
   installCancel.addEventListener("click", async () => {
@@ -2385,6 +2644,20 @@ const setupInstallScreen = () => {
       console.error("Failed to cancel install", error);
     }
   });
+  if (installLaterButton) {
+    installLaterButton.addEventListener(
+      "click",
+      async (event) => {
+        if (!installConfig.laterReturnView) {
+          return;
+        }
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        await openProjectEditor(installConfig.laterReturnView);
+      },
+      true
+    );
+  }
 
   if (window.ifactory?.iplug?.onProgress) {
     window.ifactory.iplug.onProgress((payload) => {
@@ -2403,6 +2676,9 @@ const setupInstallScreen = () => {
     installDependencies: runDependenciesInstall,
     start: () => setInstallingScreen(true),
     stop: () => setInstallingScreen(false),
+    startAddonInstall,
+    resetInstallFlow,
+    isAddonInstallFlow: () => installConfig.installApi !== "iplug",
     setStatus: setInstallStatus,
     updateProgress,
     setHeader: (eyebrow, title) => {
@@ -2421,9 +2697,7 @@ const setupInstallScreen = () => {
     }
   };
 
-  setActiveSource("official");
-  setActiveBranchMode("master");
-  updateBranchVisibility();
+  resetInstallFlow();
 };
 
 document.addEventListener("DOMContentLoaded", () => {
