@@ -353,7 +353,7 @@ const run = async (argv = process.argv) => {
       if (result?.error) {
         if (result.error === "doxygen_missing") {
           console.error(
-            "Doxygen is not installed, please let the user know to install it using the Doxygen tab in the sidebar.",
+            "Doxygen is not installed. Ask the user to open the Addons view in iFactory and install the Doxygen addon, then run this command again.",
           );
         } else {
           console.error(`error:${result.error}`);

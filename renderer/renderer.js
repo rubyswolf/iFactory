@@ -323,7 +323,7 @@ const setupProjectManager = () => {
       name: "Doxygen",
       icon: "../icons/doxygen.svg",
       description:
-        "Generate searchable iPlug2 docs and use symbol lookup with the iFactory CLI.",
+        "Generate searchable API docs and use symbol lookup with the iFactory CLI.",
       installed: doxygenInstalled,
       checking: doxygenChecking,
       working: doxygenWorking,
@@ -334,7 +334,7 @@ const setupProjectManager = () => {
       name: "eDSP",
       icon: "../icons/edsp.svg",
       description:
-        "Install the eDSP framework into this project using official, fork, and branch selection.",
+        "Header-first DSP toolkit with filters, FFT/spectral analysis, windowing, oscillators, and audio feature extraction.",
       installed: edspInstalled,
       checking: edspChecking,
       working: edspWorking,
