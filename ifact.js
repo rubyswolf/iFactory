@@ -386,6 +386,10 @@ const run = async (argv = process.argv) => {
           console.error(
             "Doxygen is not installed. Ask the user to open the Addons view in iFactory and install the Doxygen addon, then run this command again.",
           );
+        } else if (result.error === "edsp_missing") {
+          console.error(
+            "eDSP is not installed in this project. Ask the user to open the Addons view in iFactory and install the eDSP addon, then run this command again.",
+          );
         } else {
           console.error(`error:${result.error}`);
         }
@@ -444,7 +448,7 @@ const run = async (argv = process.argv) => {
       if (result?.error) {
         if (result.error === "db_missing") {
           console.error(
-            "Doxygen database not found. Ask the user for permission to run `ifact doxy generate <target>` first; let them know it may take some time.",
+            "Doxygen database not found. Run `ifact doxy generate <target>` first; it may take some time.",
           );
         } else if (result.error === "unknown_type") {
           console.error("error:unknown_type");
@@ -482,7 +486,7 @@ const run = async (argv = process.argv) => {
       if (result?.error) {
         if (result.error === "db_missing") {
           console.error(
-            "Doxygen database not found. Ask the user for permission to run `ifact doxy generate <target>` first; let them know it may take some time.",
+            "Doxygen database not found. Run `ifact doxy generate <target>` first; it may take some time.",
           );
         } else if (result.error === "unknown_feature") {
           console.error("error:Unknown lookup feature.");
