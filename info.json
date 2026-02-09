@@ -69,7 +69,8 @@
     "When creating a custom control you need to make a class that extends IControl included as \"IControl.h\" and use namespace iplug and use namespace igraphics.",
     "Override the draw method for control rendering which takes `IGraphics& g`.",
     "IGraphics is an abstraction which can work with both NanoVG and SKIA as the backend.",
-    "If you want to do backend specific things then you can use `ifact graphics get <plugin>` and you can easily switch the backend macro with `ifact graphics set <plugin> <SKIA|NANOVG>` (caps required)."
+    "If you want to do backend specific things then you can use `ifact graphics get <plugin>` to check which is active and you can easily switch the backend macro with `ifact graphics set <plugin> <SKIA|NANOVG>` (caps required).",
+    "Skia also uses Doxygen and you can use all your usual `ifact doxy` commands but by specifying Skia instead of iPlug2."
   ],
   "dsp": [
     "Audio runs in `void <Your Plugin>::ProcessBlock(sample** inputs, sample** outputs, int nFrames)` where `sample` is a typedef for double/float depending on the project config.",
