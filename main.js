@@ -13,7 +13,6 @@ const {
   getDepsConfig,
   getDepsBuildPath,
   copyDirectory,
-  createPatchedDoxyfile,
   findDoxygenExecutable,
   checkDoxygenInstalled,
   getTemplateIPlugRoot,
@@ -44,9 +43,6 @@ const defaultSettings = {
   integrations: {
     github: {
       username: "",
-      token: "",
-      connected: false,
-      authMethod: "",
       updatedAt: null,
     },
   },
@@ -78,6 +74,12 @@ const defaultSettings = {
       path: "",
       checkedAt: null,
     },
+    skiaDocs: {
+      installed: false,
+      path: "",
+      branch: "",
+      checkedAt: null,
+    },
   },
   recentProjects: [],
 };
@@ -93,7 +95,10 @@ const getDoxygenInstallDir = () =>
 const mergeSettings = (settings) => {
   const merged = cloneSettings(defaultSettings);
   if (settings?.integrations?.github) {
-    Object.assign(merged.integrations.github, settings.integrations.github);
+    merged.integrations.github.username =
+      settings.integrations.github.username || "";
+    merged.integrations.github.updatedAt =
+      settings.integrations.github.updatedAt || null;
   }
   if (settings?.dependencies?.git) {
     Object.assign(merged.dependencies.git, settings.dependencies.git);
@@ -112,6 +117,9 @@ const mergeSettings = (settings) => {
   }
   if (settings?.dependencies?.vst3) {
     Object.assign(merged.dependencies.vst3, settings.dependencies.vst3);
+  }
+  if (settings?.dependencies?.skiaDocs) {
+    Object.assign(merged.dependencies.skiaDocs, settings.dependencies.skiaDocs);
   }
   if (Array.isArray(settings?.recentProjects)) {
     merged.recentProjects = settings.recentProjects;
@@ -361,9 +369,6 @@ const requestText = (urlString) =>
 
 const sanitizeSettings = (settings) => {
   const sanitized = cloneSettings(settings);
-  const github = sanitized.integrations.github;
-  github.tokenStored = Boolean(github.token);
-  delete github.token;
   return sanitized;
 };
 
@@ -807,15 +812,12 @@ const resolveSubmoduleRepoFullName = (parentRepoFullName, submoduleUrl) => {
   return "";
 };
 
-const getGithubHeaders = (token = "") => {
+const getGithubHeaders = () => {
   const headers = {
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
     "User-Agent": "iFactory",
   };
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
   return headers;
 };
 
@@ -858,8 +860,8 @@ const cleanupVST3SdkTree = (targetPath) => {
   });
 };
 
-const loadVST3SubmoduleRefs = async (repoFullName, branch, token) => {
-  const headers = getGithubHeaders(token);
+const loadVST3SubmoduleRefs = async (repoFullName, branch) => {
+  const headers = getGithubHeaders();
   const tree = await requestJson(
     `https://api.github.com/repos/${repoFullName}/git/trees/${encodeURIComponent(
       branch,
@@ -921,6 +923,193 @@ const isVST3Installed = (targetPath) => {
   ];
   return requiredPaths.every((entryPath) => fs.existsSync(entryPath));
 };
+
+const getSkiaDocsOutputDir = (projectPath) =>
+  path.join(String(projectPath || "").trim(), "doxygen", "skia");
+
+const getSkiaDocsDbPath = (projectPath) =>
+  path.join(
+    getSkiaDocsOutputDir(projectPath),
+    "doxygen.sqlite3",
+    "doxygen_sqlite3.db",
+  );
+
+const checkSkiaDocsInstalled = (projectPath) => {
+  const normalizedPath = String(projectPath || "").trim();
+  if (!normalizedPath) {
+    return { error: "missing_fields" };
+  }
+  if (!fs.existsSync(normalizedPath)) {
+    return { error: "path_not_found" };
+  }
+  const dbPath = getSkiaDocsDbPath(normalizedPath);
+  const installed = fs.existsSync(dbPath);
+  return {
+    installed,
+    path: installed ? getSkiaDocsOutputDir(normalizedPath) : "",
+  };
+};
+
+const removeSkiaDocsAddon = (projectPath) => {
+  const normalizedPath = String(projectPath || "").trim();
+  if (!normalizedPath) {
+    return { error: "missing_fields" };
+  }
+  if (!fs.existsSync(normalizedPath)) {
+    return { error: "path_not_found" };
+  }
+  try {
+    removePathIfExists(getSkiaDocsOutputDir(normalizedPath));
+    return { removed: true };
+  } catch (error) {
+    return { error: "remove_failed", details: String(error?.message || "") };
+  }
+};
+
+const detectSkiaBranchFromIPlug2 = (projectPath) => {
+  const normalizedPath = String(projectPath || "").trim();
+  const scriptPath = path.join(
+    normalizedPath,
+    "iPlug2",
+    "Dependencies",
+    "IGraphics",
+    "download-igraphics-libs.sh",
+  );
+  if (fs.existsSync(scriptPath)) {
+    try {
+      const script = fs.readFileSync(scriptPath, "utf8");
+      const branchMatch = script.match(/^\s*SKIA_VERSION\s*=\s*([^\r\n#]+)/m);
+      if (branchMatch && branchMatch[1]) {
+        const candidate = branchMatch[1].trim().replace(/^['"]|['"]$/g, "");
+        if (candidate) {
+          return candidate;
+        }
+      }
+    } catch (error) {
+      // ignore and fall through
+    }
+  }
+
+  const milestonePath = path.join(
+    normalizedPath,
+    "iPlug2",
+    "Dependencies",
+    "Build",
+    "src",
+    "skia",
+    "include",
+    "core",
+    "SkMilestone.h",
+  );
+  if (fs.existsSync(milestonePath)) {
+    try {
+      const milestoneRaw = fs.readFileSync(milestonePath, "utf8");
+      const milestoneMatch = milestoneRaw.match(
+        /^\s*#define\s+SK_MILESTONE\s+(\d+)/m,
+      );
+      if (milestoneMatch && milestoneMatch[1]) {
+        return `chrome/m${milestoneMatch[1]}`;
+      }
+    } catch (error) {
+      // ignore and fall through
+    }
+  }
+
+  return "";
+};
+
+const updateDoxySetting = (content, key, value) => {
+  const pattern = new RegExp(`^[ \\t]*${key}[ \\t]*=.*$`, "gm");
+  const line = `${key} = ${value}`;
+  if (pattern.test(content)) {
+    return content.replace(pattern, line);
+  }
+  const trimmed = content.replace(/\s*$/, "");
+  return `${trimmed}\n${line}\n`;
+};
+
+const createPatchedDoxyfileBesideSource = (sourcePath, outputDir) => {
+  const raw = fs.readFileSync(sourcePath, "utf8");
+  const normalizedOutput = outputDir.replace(/\\/g, "/");
+  let next = raw;
+  next = updateDoxySetting(next, "GENERATE_HTML", "NO");
+  next = updateDoxySetting(next, "GENERATE_SQLITE3", "YES");
+  next = updateDoxySetting(next, "SQLITE3_OUTPUT", '"doxygen.sqlite3"');
+  next = updateDoxySetting(next, "OUTPUT_DIRECTORY", `"${normalizedOutput}"`);
+  const tempName = `.ifactory-doxygen-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2)}.cfg`;
+  const tempPath = path.join(path.dirname(sourcePath), tempName);
+  fs.writeFileSync(tempPath, next);
+  return { tempPath };
+};
+
+const runDoxygenWithConfig = ({
+  doxygenPath,
+  doxyfilePath,
+  outputDir,
+  cwd,
+  onChild,
+  onOutput,
+}) =>
+  new Promise((resolve, reject) => {
+    let patched = null;
+    try {
+      patched = createPatchedDoxyfileBesideSource(doxyfilePath, outputDir);
+    } catch (error) {
+      reject(error);
+      return;
+    }
+    const tempPath = patched.tempPath;
+    let cleaned = false;
+    const cleanupPatchedFile = () => {
+      if (cleaned) {
+        return;
+      }
+      cleaned = true;
+      try {
+        fs.rmSync(tempPath, { force: true });
+      } catch (cleanupError) {
+        // ignore cleanup errors
+      }
+    };
+    const child = spawn(doxygenPath, [tempPath], {
+      cwd: cwd || path.dirname(doxyfilePath),
+      windowsHide: true,
+    });
+    if (onChild) {
+      onChild(child);
+    }
+    let output = "";
+    const append = (chunk) => {
+      const text = chunk.toString();
+      if (onOutput) {
+        try {
+          onOutput(text);
+        } catch (error) {
+          // ignore logging callback failures
+        }
+      }
+      output += text;
+      if (output.length > 8000) {
+        output = output.slice(-8000);
+      }
+    };
+    child.stdout.on("data", append);
+    child.stderr.on("data", append);
+    child.on("error", (error) => {
+      cleanupPatchedFile();
+      reject(error);
+    });
+    child.on("close", (code) => {
+      cleanupPatchedFile();
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(output.trim() || "Doxygen generation failed"));
+    });
+  });
 
 const checkBuildToolsInstalled = () => {
   const programFilesX86 =
@@ -1240,6 +1429,36 @@ const registerIpc = () => {
     };
     saveSettings();
     return settings.dependencies.vst3;
+  });
+  ipcMain.handle("skiaDocs:check", (event, payload) => {
+    const projectPath = payload?.projectPath?.trim();
+    const result = checkSkiaDocsInstalled(projectPath);
+    if (result?.error) {
+      return result;
+    }
+    settings.dependencies.skiaDocs = {
+      ...settings.dependencies.skiaDocs,
+      installed: Boolean(result.installed),
+      path: result.path || "",
+      checkedAt: new Date().toISOString(),
+    };
+    saveSettings();
+    return settings.dependencies.skiaDocs;
+  });
+  ipcMain.handle("skiaDocs:remove", (event, payload) => {
+    const projectPath = payload?.projectPath?.trim();
+    const result = removeSkiaDocsAddon(projectPath);
+    if (result?.error) {
+      return result;
+    }
+    settings.dependencies.skiaDocs = {
+      ...settings.dependencies.skiaDocs,
+      installed: false,
+      path: "",
+      checkedAt: new Date().toISOString(),
+    };
+    saveSettings();
+    return settings.dependencies.skiaDocs;
   });
   ipcMain.handle("build:run", async (event, payload) => {
     if (activeBuild) {
@@ -1839,82 +2058,8 @@ const registerIpc = () => {
       window.close();
     }
   });
-  ipcMain.handle("github:deviceStart", async (event, payload) => {
-    const scopes = Array.isArray(payload?.scopes)
-      ? payload.scopes.join(" ")
-      : "";
-    const body = new URLSearchParams({
-      client_id: "Ov23liXefQviBroFvVlU",
-      scope: scopes,
-    });
-
-    return requestJson("https://github.com/login/device/code", {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: body.toString(),
-    });
-  });
-
-  ipcMain.handle("github:devicePoll", async (event, payload) => {
-    if (!payload?.deviceCode) {
-      throw new Error("Missing device code");
-    }
-
-    const body = new URLSearchParams({
-      client_id: "Ov23liXefQviBroFvVlU",
-      device_code: payload.deviceCode,
-      grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-    });
-
-    const data = await requestJson(
-      "https://github.com/login/oauth/access_token",
-      {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: body.toString(),
-      },
-    );
-    if (data.error) {
-      return data;
-    }
-
-    const token = data.access_token;
-    if (!token) {
-      return { error: "missing_token" };
-    }
-
-    const user = await requestJson("https://api.github.com/user", {
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${token}`,
-        "User-Agent": "iFactory",
-      },
-    });
-    const username = user?.login || "";
-    settings.integrations.github = {
-      ...settings.integrations.github,
-      username,
-      token,
-      connected: true,
-      authMethod: "oauth",
-      updatedAt: new Date().toISOString(),
-    };
-    saveSettings();
-    return sanitizeSettings(settings);
-  });
-
   ipcMain.handle("github:listIPlugForks", async () => {
-    const headers = {
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-      "User-Agent": "iFactory",
-    };
+    const headers = getGithubHeaders();
 
     try {
       const forks = await requestJson(
@@ -1940,15 +2085,7 @@ const registerIpc = () => {
     if (!fullName) {
       return { error: "missing_repo" };
     }
-    const token = settings?.integrations?.github?.token;
-    const headers = {
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-      "User-Agent": "iFactory",
-    };
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
+    const headers = getGithubHeaders();
 
     try {
       const forks = await requestJson(
@@ -1974,15 +2111,7 @@ const registerIpc = () => {
     if (!fullName) {
       return { error: "missing_repo" };
     }
-    const token = settings?.integrations?.github?.token;
-    const headers = {
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-      "User-Agent": "iFactory",
-    };
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
+    const headers = getGithubHeaders();
 
     try {
       const branches = await requestJson(
@@ -2003,7 +2132,7 @@ const registerIpc = () => {
     }
   });
 
-  const installDependencies = async ({ targetPath, event, token }) => {
+  const installDependencies = async ({ targetPath, event }) => {
     const depsDir = path.join(targetPath, "Dependencies");
     if (!fs.existsSync(depsDir)) {
       throw new Error("Dependencies folder missing");
@@ -2102,18 +2231,13 @@ const registerIpc = () => {
     }
 
     const gitState = checkGitInstalled();
-    const token = settings?.integrations?.github?.token || "";
     const hasGitFolder = fs.existsSync(path.join(projectPath, ".git"));
     const isRepo = gitState.installed ? isGitRepo(projectPath) : hasGitFolder;
     if (!gitState.installed && isRepo) {
       return { error: "git_required" };
     }
 
-    const sanitizedUrl = `https://github.com/${repoFullName}.git`;
-    const tokenValue = token ? encodeURIComponent(token) : "";
-    const authUrl = tokenValue
-      ? `https://x-access-token:${tokenValue}@github.com/${repoFullName}.git`
-      : sanitizedUrl;
+    const authUrl = `https://github.com/${repoFullName}.git`;
     let tmpDir = null;
     let gitmodulesBackup = null;
     let usedSubmodule = false;
@@ -2217,13 +2341,6 @@ const registerIpc = () => {
               activeInstall.child = child;
             },
           );
-          if (tokenValue) {
-            runGit(
-              ["submodule", "set-url", "iPlug2", sanitizedUrl],
-              projectPath,
-            );
-            runGit(["submodule", "sync", "--", "iPlug2"], projectPath);
-          }
         } else {
           await runGitWithProgress(
             [
@@ -2243,9 +2360,6 @@ const registerIpc = () => {
               activeInstall.child = child;
             },
           );
-          if (tokenValue) {
-            runGit(["remote", "set-url", "origin", sanitizedUrl], targetPath);
-          }
         }
       } else {
         tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ifactory-"));
@@ -2256,33 +2370,20 @@ const registerIpc = () => {
         const headers = {
           "User-Agent": "iFactory",
         };
-        let zipUrl = `https://github.com/${repoFullName}/archive/refs/heads/${encodeURIComponent(
+        const zipUrl = `https://github.com/${repoFullName}/archive/refs/heads/${encodeURIComponent(
           branch,
         )}.zip`;
-        if (token) {
-          headers.Authorization = `Bearer ${token}`;
-          zipUrl = `https://api.github.com/repos/${repoFullName}/zipball/${encodeURIComponent(
-            branch,
-          )}`;
-        }
 
-        try {
-          await downloadFile(zipUrl, zipPath, {
-            headers,
-            onProgress: (progress) => {
-              sendProgress(0.06 + progress * 0.54, "Downloading iPlug2...");
-            },
-            onRequest: (request) => {
-              activeInstall.request = request;
-            },
-            shouldAbort: () => activeInstall?.canceled,
-          });
-        } catch (error) {
-          if (!token) {
-            return { error: "github_required" };
-          }
-          throw error;
-        }
+        await downloadFile(zipUrl, zipPath, {
+          headers,
+          onProgress: (progress) => {
+            sendProgress(0.06 + progress * 0.54, "Downloading iPlug2...");
+          },
+          onRequest: (request) => {
+            activeInstall.request = request;
+          },
+          shouldAbort: () => activeInstall?.canceled,
+        });
 
         sendProgress(0.62, "Extracting iPlug2...");
         await expandArchive(zipPath, extractDir, (child) => {
@@ -2306,7 +2407,6 @@ const registerIpc = () => {
       await installDependencies({
         targetPath,
         event: installContext,
-        token,
       });
 
       sendProgress(0.97, "Finalizing...");
@@ -2320,15 +2420,6 @@ const registerIpc = () => {
         return { error: "cancelled" };
       }
       const message = String(error?.message || "");
-      const authError =
-        !token &&
-        /authentication|access denied|repository not found|not found|permission|could not read username/i.test(
-          message,
-        );
-      if (authError) {
-        cleanup();
-        return { error: "github_required" };
-      }
       cleanup();
       return {
         error: "install_failed",
@@ -2366,12 +2457,7 @@ const registerIpc = () => {
     const targetPath = paths.targetPath;
 
     const gitState = checkGitInstalled();
-    const token = settings?.integrations?.github?.token || "";
-    const sanitizedUrl = `https://github.com/${repoFullName}.git`;
-    const tokenValue = token ? encodeURIComponent(token) : "";
-    const authUrl = tokenValue
-      ? `https://x-access-token:${tokenValue}@github.com/${repoFullName}.git`
-      : sanitizedUrl;
+    const authUrl = `https://github.com/${repoFullName}.git`;
     let tmpDir = null;
 
     const sendProgress = (progress, stage) => {
@@ -2416,12 +2502,12 @@ const registerIpc = () => {
 
       let submoduleRefs = new Map();
       try {
-        submoduleRefs = await loadVST3SubmoduleRefs(repoFullName, branch, token);
+        submoduleRefs = await loadVST3SubmoduleRefs(repoFullName, branch);
       } catch (error) {
         submoduleRefs = new Map();
       }
 
-      const headers = getGithubHeaders(token);
+      const headers = getGithubHeaders();
       for (let index = 0; index < VST3_REQUIRED_SUBMODULES.length; index += 1) {
         if (activeInstall?.canceled) {
           throw new Error("cancelled");
@@ -2443,14 +2529,9 @@ const registerIpc = () => {
         const extractDir = path.join(subTmpDir, "extract");
         fs.mkdirSync(extractDir, { recursive: true });
 
-        let zipUrl = `https://github.com/${subRepo}/archive/${encodeURIComponent(
+        const zipUrl = `https://github.com/${subRepo}/archive/${encodeURIComponent(
           subRef,
         )}.zip`;
-        if (token) {
-          zipUrl = `https://api.github.com/repos/${subRepo}/zipball/${encodeURIComponent(
-            subRef,
-          )}`;
-        }
 
         const stagePrefix = `Downloading ${subPath}...`;
         await downloadFile(zipUrl, zipPath, {
@@ -2519,9 +2600,6 @@ const registerIpc = () => {
             activeInstall.child = child;
           },
         );
-        if (tokenValue) {
-          runGit(["remote", "set-url", "origin", sanitizedUrl], targetPath);
-        }
         if (activeInstall.canceled) {
           throw new Error("cancelled");
         }
@@ -2555,33 +2633,20 @@ const registerIpc = () => {
         const headers = {
           "User-Agent": "iFactory",
         };
-        let zipUrl = `https://github.com/${repoFullName}/archive/refs/heads/${encodeURIComponent(
+        const zipUrl = `https://github.com/${repoFullName}/archive/refs/heads/${encodeURIComponent(
           branch,
         )}.zip`;
-        if (token) {
-          headers.Authorization = `Bearer ${token}`;
-          zipUrl = `https://api.github.com/repos/${repoFullName}/zipball/${encodeURIComponent(
-            branch,
-          )}`;
-        }
 
-        try {
-          await downloadFile(zipUrl, zipPath, {
-            headers,
-            onProgress: (progress) => {
-              sendProgress(0.08 + progress * 0.42, "Downloading VST3 SDK...");
-            },
-            onRequest: (request) => {
-              activeInstall.request = request;
-            },
-            shouldAbort: () => activeInstall?.canceled,
-          });
-        } catch (error) {
-          if (!token) {
-            return { error: "github_required" };
-          }
-          throw error;
-        }
+        await downloadFile(zipUrl, zipPath, {
+          headers,
+          onProgress: (progress) => {
+            sendProgress(0.08 + progress * 0.42, "Downloading VST3 SDK...");
+          },
+          onRequest: (request) => {
+            activeInstall.request = request;
+          },
+          shouldAbort: () => activeInstall?.canceled,
+        });
 
         sendProgress(0.52, "Extracting VST3 SDK...");
         await expandArchive(zipPath, extractDir, (child) => {
@@ -2621,15 +2686,6 @@ const registerIpc = () => {
         return { error: "cancelled" };
       }
       const message = String(error?.message || "");
-      const authError =
-        !token &&
-        /authentication|access denied|repository not found|not found|permission|could not read username/i.test(
-          message,
-        );
-      if (authError) {
-        cleanup();
-        return { error: "github_required" };
-      }
       cleanup();
       return {
         error: "install_failed",
@@ -2643,6 +2699,216 @@ const registerIpc = () => {
           // ignore cleanup errors
         }
       }
+      if (window && !window.isDestroyed()) {
+        window.setProgressBar(-1);
+      }
+      activeInstall = null;
+    }
+  });
+
+  ipcMain.handle("skiaDocs:install", async (event, payload) => {
+    if (activeInstall) {
+      return { error: "install_in_progress" };
+    }
+    const projectPath = payload?.projectPath?.trim();
+    if (!projectPath) {
+      return { error: "missing_fields" };
+    }
+    if (!fs.existsSync(projectPath)) {
+      return { error: "path_not_found" };
+    }
+
+    const iplugPath = path.join(projectPath, "iPlug2");
+    if (!fs.existsSync(iplugPath)) {
+      return { error: "missing_iplug" };
+    }
+
+    const installState = checkDoxygenInstalled(getDoxygenInstallDir());
+    if (!installState.installed || !installState.path) {
+      return { error: "doxygen_missing" };
+    }
+
+    const branch = detectSkiaBranchFromIPlug2(projectPath);
+    if (!branch) {
+      return { error: "skia_branch_missing" };
+    }
+
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const outputDir = getSkiaDocsOutputDir(projectPath);
+    const repoFullName = "google/skia";
+    const authUrl = `https://github.com/${repoFullName}.git`;
+    const gitState = checkGitInstalled();
+    let projectTmpDir = null;
+    let zipTmpDir = null;
+
+    const sendProgress = (progress, stage) => {
+      const normalized = Number.isFinite(progress)
+        ? Math.max(0, Math.min(progress, 1))
+        : null;
+      if (window && !window.isDestroyed()) {
+        window.setProgressBar(normalized === null ? -1 : normalized);
+      }
+      event.sender.send("iplug:progress", {
+        progress: normalized,
+        stage,
+      });
+    };
+
+    const cleanup = (removeOutput) => {
+      if (projectTmpDir) {
+        removePathIfExists(projectTmpDir);
+        projectTmpDir = null;
+      }
+      if (zipTmpDir) {
+        removePathIfExists(zipTmpDir);
+        zipTmpDir = null;
+      }
+      if (removeOutput) {
+        removePathIfExists(outputDir);
+      }
+    };
+
+    activeInstall = {
+      canceled: false,
+      child: null,
+      request: null,
+    };
+
+    try {
+      sendProgress(0.03, `Detecting Skia branch (${branch})...`);
+      removePathIfExists(outputDir);
+      projectTmpDir = fs.mkdtempSync(path.join(projectPath, ".ifactory-skia-"));
+      const skiaSourcePath = path.join(projectTmpDir, "skia");
+
+      if (gitState.installed) {
+        sendProgress(0.08, `Cloning Skia (${branch})...`);
+        await runGitWithProgress(
+          [
+            "clone",
+            "--progress",
+            "--depth",
+            "1",
+            "--branch",
+            branch,
+            "--single-branch",
+            authUrl,
+            skiaSourcePath,
+          ],
+          projectPath,
+          (progress) => {
+            sendProgress(0.08 + progress * 0.48, `Cloning Skia (${branch})...`);
+          },
+          (child) => {
+            activeInstall.child = child;
+          },
+        );
+      } else {
+        sendProgress(0.08, `Downloading Skia (${branch})...`);
+        zipTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ifactory-skia-"));
+        const zipPath = path.join(zipTmpDir, "skia.zip");
+        const extractDir = path.join(zipTmpDir, "extract");
+        fs.mkdirSync(extractDir, { recursive: true });
+
+        const headers = {
+          "User-Agent": "iFactory",
+        };
+        const zipUrl = `https://github.com/${repoFullName}/archive/refs/heads/${encodeURIComponent(
+          branch,
+        )}.zip`;
+
+        await downloadFile(zipUrl, zipPath, {
+          headers,
+          onProgress: (progress) => {
+            sendProgress(0.08 + progress * 0.42, `Downloading Skia (${branch})...`);
+          },
+          onRequest: (request) => {
+            activeInstall.request = request;
+          },
+          shouldAbort: () => activeInstall?.canceled,
+        });
+
+        if (activeInstall.canceled) {
+          throw new Error("cancelled");
+        }
+
+        sendProgress(0.52, "Extracting Skia source...");
+        await expandArchive(zipPath, extractDir, (child) => {
+          activeInstall.child = child;
+        });
+        const entries = fs.readdirSync(extractDir, { withFileTypes: true });
+        const rootDir = entries.find((entry) => entry.isDirectory());
+        if (!rootDir) {
+          throw new Error("Archive structure invalid");
+        }
+        fs.renameSync(path.join(extractDir, rootDir.name), skiaSourcePath);
+      }
+
+      if (activeInstall.canceled) {
+        throw new Error("cancelled");
+      }
+
+      const doxyfilePath = path.join(skiaSourcePath, "tools", "doxygen", "Doxyfile");
+      if (!fs.existsSync(doxyfilePath)) {
+        throw new Error("Skia Doxyfile not found");
+      }
+
+      sendProgress(0.64, "Generating Skia docs...");
+      await runDoxygenWithConfig({
+        doxygenPath: installState.path,
+        doxyfilePath,
+        outputDir,
+        cwd: path.dirname(doxyfilePath),
+        onChild: (child) => {
+          activeInstall.child = child;
+        },
+      });
+
+      if (activeInstall.canceled) {
+        throw new Error("cancelled");
+      }
+
+      let outputEntries = [];
+      try {
+        outputEntries = fs.existsSync(outputDir)
+          ? fs.readdirSync(outputDir)
+          : [];
+      } catch (error) {
+        outputEntries = [];
+      }
+      const sqliteDbPath = getSkiaDocsDbPath(projectPath);
+      if (!fs.existsSync(sqliteDbPath)) {
+        throw new Error(
+          "Skia docs database was not generated in the expected output path.",
+        );
+      }
+
+      sendProgress(0.96, "Cleaning temporary Skia source...");
+      cleanup(false);
+      sendProgress(1, "Finished");
+      settings.dependencies.skiaDocs = {
+        ...settings.dependencies.skiaDocs,
+        installed: true,
+        path: outputDir,
+        branch,
+        checkedAt: new Date().toISOString(),
+      };
+      saveSettings();
+      return {
+        path: outputDir,
+        branch,
+      };
+    } catch (error) {
+      const message = String(error?.message || "");
+      if (activeInstall?.canceled || message === "cancelled") {
+        cleanup(true);
+        return { error: "cancelled" };
+      }
+      cleanup(true);
+      return {
+        error: "install_failed",
+        details: message,
+      };
+    } finally {
       if (window && !window.isDestroyed()) {
         window.setProgressBar(-1);
       }
@@ -2671,18 +2937,13 @@ const registerIpc = () => {
     }
 
     const gitState = checkGitInstalled();
-    const token = settings?.integrations?.github?.token || "";
     const hasGitFolder = fs.existsSync(path.join(projectPath, ".git"));
     const isRepo = gitState.installed ? isGitRepo(projectPath) : hasGitFolder;
     if (!gitState.installed && isRepo) {
       return { error: "git_required" };
     }
 
-    const sanitizedUrl = `https://github.com/${repoFullName}.git`;
-    const tokenValue = token ? encodeURIComponent(token) : "";
-    const authUrl = tokenValue
-      ? `https://x-access-token:${tokenValue}@github.com/${repoFullName}.git`
-      : sanitizedUrl;
+    const authUrl = `https://github.com/${repoFullName}.git`;
     let tmpDir = null;
     let gitmodulesBackup = null;
     let usedSubmodule = false;
@@ -2775,13 +3036,6 @@ const registerIpc = () => {
               activeInstall.child = child;
             },
           );
-          if (tokenValue) {
-            runGit(
-              ["submodule", "set-url", "eDSP", sanitizedUrl],
-              projectPath,
-            );
-            runGit(["submodule", "sync", "--", "eDSP"], projectPath);
-          }
         } else {
           await runGitWithProgress(
             [
@@ -2801,9 +3055,6 @@ const registerIpc = () => {
               activeInstall.child = child;
             },
           );
-          if (tokenValue) {
-            runGit(["remote", "set-url", "origin", sanitizedUrl], targetPath);
-          }
         }
       } else {
         tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ifactory-"));
@@ -2814,33 +3065,20 @@ const registerIpc = () => {
         const headers = {
           "User-Agent": "iFactory",
         };
-        let zipUrl = `https://github.com/${repoFullName}/archive/refs/heads/${encodeURIComponent(
+        const zipUrl = `https://github.com/${repoFullName}/archive/refs/heads/${encodeURIComponent(
           branch,
         )}.zip`;
-        if (token) {
-          headers.Authorization = `Bearer ${token}`;
-          zipUrl = `https://api.github.com/repos/${repoFullName}/zipball/${encodeURIComponent(
-            branch,
-          )}`;
-        }
 
-        try {
-          await downloadFile(zipUrl, zipPath, {
-            headers,
-            onProgress: (progress) => {
-              sendProgress(0.06 + progress * 0.82, "Downloading eDSP...");
-            },
-            onRequest: (request) => {
-              activeInstall.request = request;
-            },
-            shouldAbort: () => activeInstall?.canceled,
-          });
-        } catch (error) {
-          if (!token) {
-            return { error: "github_required" };
-          }
-          throw error;
-        }
+        await downloadFile(zipUrl, zipPath, {
+          headers,
+          onProgress: (progress) => {
+            sendProgress(0.06 + progress * 0.82, "Downloading eDSP...");
+          },
+          onRequest: (request) => {
+            activeInstall.request = request;
+          },
+          shouldAbort: () => activeInstall?.canceled,
+        });
 
         sendProgress(0.9, "Extracting eDSP...");
         await expandArchive(zipPath, extractDir, (child) => {
@@ -2879,15 +3117,6 @@ const registerIpc = () => {
         return { error: "cancelled" };
       }
       const message = String(error?.message || "");
-      const authError =
-        !token &&
-        /authentication|access denied|repository not found|not found|permission|could not read username/i.test(
-          message,
-        );
-      if (authError) {
-        cleanup();
-        return { error: "github_required" };
-      }
       cleanup();
       return {
         error: "install_failed",
@@ -2971,7 +3200,6 @@ const registerIpc = () => {
           },
           isCanceled: () => activeInstall?.canceled,
         },
-        token: settings?.integrations?.github?.token || "",
       });
       sendProgress(1, "Finished");
       return { path: targetPath };
@@ -3007,51 +3235,7 @@ const registerIpc = () => {
     return true;
   });
 
-  ipcMain.handle("github:disconnect", () => {
-    settings.integrations.github = {
-      ...settings.integrations.github,
-      username: "",
-      token: "",
-      connected: false,
-      authMethod: "",
-      updatedAt: new Date().toISOString(),
-    };
-    saveSettings();
-    return sanitizeSettings(settings);
-  });
-
-  ipcMain.handle("settings:update", (event, payload) => {
-    if (!payload || payload.scope !== "github") {
-      return sanitizeSettings(settings);
-    }
-
-    const values =
-      payload.values && typeof payload.values === "object"
-        ? payload.values
-        : {};
-    const current = settings.integrations.github;
-    const next = { ...current, ...values };
-
-    if (Object.prototype.hasOwnProperty.call(values, "token")) {
-      next.token = values.token;
-      if (
-        !values.token &&
-        !Object.prototype.hasOwnProperty.call(values, "connected")
-      ) {
-        next.connected = false;
-      }
-    }
-
-    if (
-      values.token &&
-      !Object.prototype.hasOwnProperty.call(values, "connected")
-    ) {
-      next.connected = true;
-    }
-
-    next.updatedAt = new Date().toISOString();
-    settings.integrations.github = next;
-    saveSettings();
+  ipcMain.handle("settings:update", () => {
     return sanitizeSettings(settings);
   });
 };

@@ -313,6 +313,10 @@ const setupProjectManager = () => {
   let vst3Checking = false;
   let vst3Working = false;
   let vst3Error = "";
+  let skiaDocsInstalled = false;
+  let skiaDocsChecking = false;
+  let skiaDocsWorking = false;
+  let skiaDocsError = "";
 
   const updateAddonFilterButtons = () => {
     addonFilterButtons.forEach((button) => {
@@ -354,6 +358,18 @@ const setupProjectManager = () => {
       checking: vst3Checking,
       working: vst3Working,
       error: vst3Error
+    },
+    {
+      key: "skiaDocs",
+      name: "Skia Docs",
+      icon: "../icons/skia.svg",
+      description:
+        "Generate local Doxygen docs for Skia using the branch pinned by iPlug2, then clean temporary source files.",
+      installed: skiaDocsInstalled,
+      checking: skiaDocsChecking,
+      working: skiaDocsWorking,
+      installBlockedByDoxygen: !skiaDocsInstalled && !doxygenInstalled,
+      error: skiaDocsError
     }
   ];
 
@@ -363,6 +379,9 @@ const setupProjectManager = () => {
     }
     if (addon.working) {
       return addon.installed ? "Removing..." : "Installing...";
+    }
+    if (addon.installBlockedByDoxygen) {
+      return "Install Doxygen first.";
     }
     if (addon.error) {
       return addon.error;
@@ -449,8 +468,13 @@ const setupProjectManager = () => {
       action.type = "button";
       action.className = `addon-card__action ${addon.installed ? "ghost" : "cta"}`;
       action.dataset.addonAction = addon.key;
-      action.disabled = addon.checking || addon.working;
-      action.textContent = addon.installed ? "Remove" : "Install";
+      action.disabled =
+        addon.checking || addon.working || Boolean(addon.installBlockedByDoxygen);
+      action.textContent = addon.installed
+        ? "Remove"
+        : addon.installBlockedByDoxygen
+          ? "Needs Doxygen"
+          : "Install";
 
       card.appendChild(iconWrap);
       card.appendChild(body);
@@ -538,7 +562,12 @@ const setupProjectManager = () => {
   };
 
   const refreshAddonStates = async () => {
-    await Promise.all([checkDoxygen(false), checkEDSP(false), checkVST3(false)]);
+    await Promise.all([
+      checkDoxygen(false),
+      checkEDSP(false),
+      checkVST3(false),
+      checkSkiaDocs(false),
+    ]);
     renderAddonList();
   };
 
@@ -709,6 +738,112 @@ const setupProjectManager = () => {
     } finally {
       vst3Working = false;
       await checkVST3();
+    }
+  };
+
+  const checkSkiaDocs = async (shouldRender = true) => {
+    const projectPath = getProjectPath();
+    if (!projectPath || !window.ifactory?.skiaDocs?.check) {
+      skiaDocsInstalled = false;
+      skiaDocsChecking = false;
+      skiaDocsError = projectPath ? "Skia docs tools unavailable." : "";
+      if (shouldRender) {
+        renderAddonList();
+      }
+      return;
+    }
+    skiaDocsChecking = true;
+    skiaDocsError = "";
+    if (shouldRender) {
+      renderAddonList();
+    }
+    try {
+      const result = await window.ifactory.skiaDocs.check({ projectPath });
+      if (result?.error) {
+        skiaDocsInstalled = false;
+        skiaDocsError = "Unable to check Skia docs.";
+      } else {
+        skiaDocsInstalled = Boolean(result?.installed);
+      }
+      skiaDocsChecking = false;
+      if (shouldRender) {
+        renderAddonList();
+      }
+    } catch (error) {
+      skiaDocsInstalled = false;
+      skiaDocsChecking = false;
+      skiaDocsError = "Unable to check Skia docs.";
+      if (shouldRender) {
+        renderAddonList();
+      }
+    }
+  };
+
+  const launchSkiaDocsInstall = () => {
+    const projectPath = getProjectPath();
+    if (!projectPath) {
+      skiaDocsError = "Select a project first.";
+      renderAddonList();
+      return;
+    }
+    if (!window.ifactoryInstall?.startAddonInstall) {
+      skiaDocsError = "Install flow is unavailable.";
+      renderAddonList();
+      return;
+    }
+    skiaDocsError = "";
+    window.ifactoryInstall.startAddonInstall({
+      addonKey: "skiaDocs",
+      name: "Skia Docs",
+      officialRepo: "google/skia",
+      installTitleEyebrow: "Install Skia Docs",
+      installTitle: "Generate local Skia docs.",
+      installDescription:
+        "This uses the Skia branch pinned by iPlug2, generates Doxygen docs, and deletes the temporary Skia source copy.",
+      installButtonText: "Install Skia Docs",
+      installStatusMessage: "Generating Skia docs...",
+      installProgressStage: "Preparing Skia docs...",
+      installProgressTitle: "Generating Skia docs",
+      successMessage: "Skia docs generated.",
+      iplugRequiredMessage:
+        "Install iPlug2 first so the Skia branch can be detected.",
+      doxygenRequiredMessage:
+        "Install Doxygen first from Addons, then run this again.",
+      branchMissingMessage:
+        "Unable to detect the Skia branch from this iPlug2 install.",
+      cancelReturnView: "addons",
+      completeReturnView: "addons",
+      laterReturnView: "addons",
+      installApi: "skiaDocs",
+      autoStartInstall: true,
+      hideSourceSelection: true,
+      hideBranchSelection: true,
+      hideLaterButton: true
+    });
+  };
+
+  const removeSkiaDocsAddon = async () => {
+    const projectPath = getProjectPath();
+    if (!projectPath || !window.ifactory?.skiaDocs?.remove) {
+      return;
+    }
+    skiaDocsWorking = true;
+    skiaDocsError = "";
+    renderAddonList();
+    try {
+      const result = await window.ifactory.skiaDocs.remove({ projectPath });
+      if (result?.error) {
+        skiaDocsError = result.details
+          ? `Remove failed: ${result.details}`
+          : "Remove failed. Try again.";
+      } else {
+        skiaDocsError = "";
+      }
+    } catch (error) {
+      skiaDocsError = "Remove failed. Try again.";
+    } finally {
+      skiaDocsWorking = false;
+      await checkSkiaDocs();
     }
   };
 
@@ -1741,6 +1876,14 @@ const setupProjectManager = () => {
         } else {
           launchVST3Install();
         }
+        return;
+      }
+      if (addonKey === "skiaDocs") {
+        if (skiaDocsInstalled) {
+          await removeSkiaDocsAddon();
+        } else {
+          launchSkiaDocsInstall();
+        }
       }
     });
   }
@@ -2175,6 +2318,7 @@ const setupInstallScreen = () => {
     return;
   }
 
+  const sourceToggleEl = document.querySelector("[data-page-install] .source-toggle");
   const sourceButtons = document.querySelectorAll("[data-iplug-source]");
   const branchButtons = document.querySelectorAll("[data-iplug-branch-mode]");
   const officialSection = document.querySelector("[data-iplug-official]");
@@ -2257,10 +2401,16 @@ const setupInstallScreen = () => {
     successMessage: "iPlug2 installed.",
     alreadyExistsMessage: "iPlug2 already exists in this project.",
     gitRequiredMessage: "Git is required to add iPlug2 as a submodule.",
+    doxygenRequiredMessage: "Install Doxygen first for this addon.",
+    branchMissingMessage: "Unable to detect the required branch for this addon.",
     installApi: "iplug",
     cancelReturnView: "",
     completeReturnView: "agent",
-    laterReturnView: ""
+    laterReturnView: "",
+    autoStartInstall: false,
+    hideSourceSelection: false,
+    hideBranchSelection: false,
+    hideLaterButton: false
   };
   let installConfig = { ...defaultInstallConfig };
 
@@ -2290,6 +2440,21 @@ const setupInstallScreen = () => {
     } else {
       installButton.textContent = installConfig.installButtonText;
     }
+    if (sourceToggleEl) {
+      sourceToggleEl.hidden = Boolean(installConfig.hideSourceSelection);
+    }
+    if (installConfig.hideSourceSelection) {
+      officialSection.hidden = false;
+      forkSection.hidden = true;
+    }
+    if (installConfig.hideBranchSelection) {
+      branchSection.hidden = true;
+      branchSearchWrap.hidden = true;
+      branchListEl.hidden = true;
+    }
+    if (installLaterButton) {
+      installLaterButton.hidden = Boolean(installConfig.hideLaterButton);
+    }
   };
   const setInstallConfig = (nextConfig = {}) => {
     installConfig = { ...defaultInstallConfig, ...nextConfig };
@@ -2310,9 +2475,23 @@ const setupInstallScreen = () => {
     branchListEl.innerHTML = "";
     setInstallStatus("");
     resetInstallHeader();
-    setActiveSource("official");
-    setActiveBranchMode("master");
-    updateBranchVisibility();
+    if (installConfig.hideSourceSelection) {
+      setActiveSource("official");
+      officialSection.hidden = false;
+      forkSection.hidden = true;
+    } else {
+      setActiveSource("official");
+    }
+    if (installConfig.hideBranchSelection) {
+      branchMode = "master";
+      selectedBranch = "master";
+      branchSection.hidden = true;
+      branchSearchWrap.hidden = true;
+      branchListEl.hidden = true;
+    } else {
+      setActiveBranchMode("master");
+      updateBranchVisibility();
+    }
     applyInstallConfig();
   };
 
@@ -2397,6 +2576,12 @@ const setupInstallScreen = () => {
   };
 
   const updateBranchVisibility = () => {
+    if (installConfig.hideBranchSelection) {
+      branchSection.hidden = true;
+      branchSearchWrap.hidden = true;
+      branchListEl.hidden = true;
+      return false;
+    }
     const hasRepo =
       selectedSource === "official" ||
       (selectedSource === "fork" && Boolean(selectedFork));
@@ -2410,6 +2595,18 @@ const setupInstallScreen = () => {
 
   const setActiveSource = (source) => {
     selectedSource = source;
+    if (installConfig.hideSourceSelection) {
+      sourceButtons.forEach((button) => {
+        button.classList.toggle(
+          "is-active",
+          button.dataset.iplugSource === "official"
+        );
+      });
+      officialSection.hidden = false;
+      forkSection.hidden = true;
+      updateBranchVisibility();
+      return;
+    }
     sourceButtons.forEach((button) => {
       button.classList.toggle(
         "is-active",
@@ -2430,6 +2627,20 @@ const setupInstallScreen = () => {
   };
 
   const setActiveBranchMode = (mode) => {
+    if (installConfig.hideBranchSelection) {
+      branchMode = "master";
+      selectedBranch = "master";
+      branchButtons.forEach((button) => {
+        button.classList.toggle(
+          "is-active",
+          button.dataset.iplugBranchMode === "master"
+        );
+      });
+      branchSearchWrap.hidden = true;
+      branchListEl.hidden = true;
+      branchSection.hidden = true;
+      return;
+    }
     branchMode = mode;
     branchButtons.forEach((button) => {
       button.classList.toggle(
@@ -2725,6 +2936,12 @@ const setupInstallScreen = () => {
             : result.error === "missing_iplug"
               ? installConfig.iplugRequiredMessage ||
                 "Install iPlug2 first for this addon."
+            : result.error === "doxygen_missing"
+              ? installConfig.doxygenRequiredMessage ||
+                "Install Doxygen first for this addon."
+            : result.error === "skia_branch_missing"
+              ? installConfig.branchMissingMessage ||
+                "Unable to detect the required branch for this addon."
             : result.error === "cancelled"
               ? "Installation cancelled."
               : result.error === "already_exists"
@@ -2758,6 +2975,11 @@ const setupInstallScreen = () => {
   const startAddonInstall = (config) => {
     setInstallConfig(config);
     openInstallSelection();
+    if (installConfig.autoStartInstall) {
+      setTimeout(() => {
+        handleInstall();
+      }, 0);
+    }
   };
 
   const resetInstallFlow = () => {

@@ -73,6 +73,11 @@ contextBridge.exposeInMainWorld("ifactory", {
     install: (payload) => ipcRenderer.invoke("vst3:install", payload),
     remove: (payload) => ipcRenderer.invoke("vst3:remove", payload)
   },
+  skiaDocs: {
+    check: (payload) => ipcRenderer.invoke("skiaDocs:check", payload),
+    install: (payload) => ipcRenderer.invoke("skiaDocs:install", payload),
+    remove: (payload) => ipcRenderer.invoke("skiaDocs:remove", payload)
+  },
   github: {
     listIPlugForks: () => ipcRenderer.invoke("github:listIPlugForks"),
     listRepoForks: (fullName) =>

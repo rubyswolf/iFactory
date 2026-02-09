@@ -380,6 +380,12 @@ const run = async (argv = process.argv) => {
     }
     const projectPath = requireProjectPath();
     if (action === "generate") {
+      if (String(target).toLowerCase() === "skia") {
+        console.error(
+          "Skia docs are generated via the Skia Docs addon in iFactory. Ask the user to open the Addons view in iFactory and install the Skia Docs addon.",
+        );
+        process.exit(1);
+      }
       const result = await core.runDoxygenGenerate(projectPath, target);
       if (result?.error) {
         if (result.error === "doxygen_missing") {
