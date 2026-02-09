@@ -7,7 +7,7 @@
 - If changes appear between tasks, assume they are intentional and do not revert them.
 
 ## iFact Commands
-- Use `ifact` for iFactory-specific operations.
+- Use `ifact` for iFactory-specific operations, called from project folder.
 - Run `ifact ping` once code changes are done and ready for build/test.
 
 ## Include Command
