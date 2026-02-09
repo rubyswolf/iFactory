@@ -76,7 +76,10 @@
     "Useful helpers include `NInChansConnected()` `NOutChansConnected()` and `GetSampleRate()`.",
     "Report processing latency (e.g. for lookahead) with `SetLatency(int samples)`, so the host compensates correctly.",
     "If you need the sample rate then you only need to cache it once in the plugin constructor instead of a more expensive `GetSampleRate()` call within the DSP",
-    "This caching philosphy applies everywhere since realtime audio processing needs to be efficient, pre allocate buffers and cache values where possible."
+    "This caching philosphy applies everywhere since realtime audio processing needs to be efficient, pre allocate buffers and cache values where possible.",
+    "The eDSP library can be used for more advanced DSP like FFT, hilbert transform ect. If /eDSP is not present within the project folder and you want an advanced DSP features then suggest the user install it through the Addons menu in iFactory.",
+    "eDSP also uses Doxygen and you can use all your usual `ifact doxy` commands but by specifying eDSP instead of iPlug2.",
+    "You will need to use your include command to add the relevant header/source files from eDSP to the solution."
   ],
   "parameter": [
     "When you construct your plugin you extend `iplug::Plugin(info, MakeConfig(kNumParams, kNumPresets))` where you define an enum of parameters in the plugin header.",
