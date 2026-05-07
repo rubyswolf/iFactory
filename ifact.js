@@ -28,7 +28,7 @@ const usage = (topics = []) => {
   console.log("  ifact include <plugin/tool name> <path to file>");
   console.log("  ifact graphics get <plugin>");
   console.log("  ifact graphics set <plugin> <SKIA|NANOVG>");
-  console.log("  ifact doxy generate <iPlug2|eDSP|RTNeural>");
+  console.log("  ifact doxy generate <iPlug2|eDSP|RTNeural|ReTiNA>");
   console.log(
     "  ifact doxy find <target> <query> [--limit N] [--type kind] [--no-desc] [--name-only]",
   );
@@ -399,6 +399,10 @@ const run = async (argv = process.argv) => {
         } else if (result.error === "rtneural_missing") {
           console.error(
             "RTNeural is not installed in this project. Ask the user to add RTNeural to the project (for example via Addons), then run this command again.",
+          );
+        } else if (result.error === "retina_missing") {
+          console.error(
+            "ReTiNA is not installed in this project. Ask the user to add the ReTiNA fork to the project folder, then run this command again.",
           );
         } else {
           console.error(`error:${result.error}`);
