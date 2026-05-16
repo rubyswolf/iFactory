@@ -1,10 +1,14 @@
 {
   "name": "ifactory",
   "productName": "iFactory",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Build plugins with the iPlug2 framework, Codex and GitHub all in one integrated environment",
   "author": "Dart Spark",
   "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rubyswolf/iFactory.git"
+  },
   "main": "main.js",
   "build": {
     "appId": "com.dartspark.ifactory",
