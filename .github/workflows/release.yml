@@ -31,8 +31,6 @@ jobs:
           name: iFactory-windows-${{ github.ref_name }}
           path: |
             dist/*.exe
-            dist/*.msi
-            dist/*.zip
             dist/*.blockmap
             dist/latest*.yml
           if-no-files-found: error
@@ -42,8 +40,6 @@ jobs:
           tag_name: ${{ github.ref_name }}
           files: |
             dist/*.exe
-            dist/*.msi
-            dist/*.zip
             dist/*.blockmap
             dist/latest*.yml
           fail_on_unmatched_files: true
